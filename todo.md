@@ -9727,3 +9727,12 @@ ROC Fix Mar 18 2026
 - [x] Add tRPC procedures: getAutoCloseLogs, archiveAutoCloseLog, bulkArchiveAutoCloseLogs
 - [x] Build AutoCloseLog UI tab inside AutoCloseStep with sortable columns and Archive/Unarchive actions
 - [x] Show Active and Archived sub-tabs in the log view
+
+## Bracket Order / Auto-Close Enhancement (May 14 2026)
+- [x] Add stopLossPct and dteFloor columns to positionTargets table
+- [x] Add closeReason column to autoCloseLog table
+- [x] Update setTarget procedure to accept stopLossPct and dteFloor
+- [x] Update auto-close scan to check stop loss % and DTE floor conditions
+- [x] Log close reason (profit_target | stop_loss | dte_floor) in autoCloseLog
+- [x] Update AutoCloseStep UI rows with Stop Loss % and DTE Floor fields
+- [x] Show close reason badge in Execution Log

@@ -68,6 +68,8 @@ export const autoCloseRouter = router({
       quantity: z.number().int(),
       premiumCollected: z.string(),
       profitTargetPct: z.union([z.literal(25), z.literal(50), z.literal(75), z.literal(90)]),
+      stopLossPct: z.number().int().min(100).max(1000).nullable().optional(),
+      dteFloor: z.number().int().min(0).max(60).nullable().optional(),
       strategy: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -92,6 +94,8 @@ export const autoCloseRouter = router({
           .update(positionTargets)
           .set({
             profitTargetPct: input.profitTargetPct,
+            stopLossPct: input.stopLossPct ?? null,
+            dteFloor: input.dteFloor ?? null,
             enabled: true,
             status: 'watching',
             errorMessage: null,
@@ -112,6 +116,8 @@ export const autoCloseRouter = router({
         quantity: input.quantity,
         premiumCollected: input.premiumCollected,
         profitTargetPct: input.profitTargetPct,
+        stopLossPct: input.stopLossPct ?? null,
+        dteFloor: input.dteFloor ?? null,
         enabled: true,
         status: 'watching',
         strategy: input.strategy ?? 'csp',
@@ -228,6 +234,8 @@ export const autoCloseRouter = router({
       targetId?: number;
       targetEnabled?: boolean;
       profitTargetPct?: number;
+      stopLossPct?: number | null;
+      dteFloor?: number | null;
       targetStatus?: string;
       lastProfitPct?: string;
     }> = [];
@@ -279,6 +287,8 @@ export const autoCloseRouter = router({
         targetId: existing?.id,
         targetEnabled: existing?.enabled,
         profitTargetPct: existing?.profitTargetPct,
+        stopLossPct: existing?.stopLossPct ?? null,
+        dteFloor: existing?.dteFloor ?? null,
         targetStatus: existing?.status,
         lastProfitPct: existing?.lastProfitPct ?? undefined,
       });
@@ -443,13 +453,31 @@ export async function runAutoCloseScanForUser(userId: number): Promise<{
       // Update lastProfitPct
       await db.update(positionTargets).set({ lastProfitPct: profitPctRounded.toFixed(1), lastCheckedAt: new Date() }).where(eq(positionTargets.id, target.id));
 
-      if (profitPct < target.profitTargetPct) {
+      // ── Bracket condition checks ─────────────────────────────────────────
+      const today = new Date();
+      const expDate = new Date(target.expiration);
+      const dte = Math.max(0, Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+      // Loss % relative to premium collected (positive = we are losing)
+      const lossPct = mark > 0 && premium > 0 ? ((mark - premium) / premium) * 100 : 0;
+
+      const profitTargetHit = profitPct >= target.profitTargetPct;
+      const stopLossHit = target.stopLossPct != null && lossPct >= target.stopLossPct;
+      const dteFloorHit = target.dteFloor != null && dte <= target.dteFloor;
+      const shouldClose = profitTargetHit || stopLossHit || dteFloorHit;
+      const closeReason = profitTargetHit ? 'profit_target' : stopLossHit ? 'stop_loss' : dteFloorHit ? 'dte_floor' : 'manual';
+
+      if (!shouldClose) {
         skipped++;
-        details.push({ symbol: target.symbol, status: 'skipped', profitPct: profitPctRounded, message: `${profitPctRounded}% profit — target is ${target.profitTargetPct}%` });
+        const reasons: string[] = [`P/L: ${profitPctRounded}% (target: ${target.profitTargetPct}%)` ];
+        if (target.stopLossPct != null) reasons.push(`Loss: ${lossPct.toFixed(1)}% (stop: ${target.stopLossPct}%)`);
+        if (target.dteFloor != null) reasons.push(`DTE: ${dte} (floor: ${target.dteFloor})`);
+        details.push({ symbol: target.symbol, status: 'skipped', profitPct: profitPctRounded, message: reasons.join(' | ') });
         continue;
       }
 
-      // Profit target reached — submit BTC
+      console.log(`[AutoClose] Bracket triggered for ${target.symbol} — reason: ${closeReason} (P/L: ${profitPctRounded}%, loss: ${lossPct.toFixed(1)}%, DTE: ${dte})`);
+
+      // Bracket condition met — submit BTC
       try {
         const btcPrice = mark * 1.05; // 5% above mark for fill probability
         const formattedPrice = Math.ceil(btcPrice * 20) / 20; // round up to nearest $0.05
@@ -472,6 +500,7 @@ export async function runAutoCloseScanForUser(userId: number): Promise<{
           closedAt: new Date(),
           closedOrderId: liveResult.orderId,
           lastProfitPct: profitPctRounded.toFixed(1),
+          closeReason,
         }).where(eq(positionTargets.id, target.id));
 
         // Log to trading log
@@ -504,6 +533,7 @@ export async function runAutoCloseScanForUser(userId: number): Promise<{
             closePrice: String(formattedPrice.toFixed(4)),
             profitPct: String(profitPctRounded.toFixed(2)),
             targetPct: target.profitTargetPct,
+            closeReason,
             orderId: liveResult.orderId ?? null,
             closedAt: Date.now(),
             archived: false,
@@ -513,13 +543,18 @@ export async function runAutoCloseScanForUser(userId: number): Promise<{
         }
 
         // Notify owner
+        const reasonLabel = closeReason === 'profit_target'
+          ? `${profitPctRounded}% profit`
+          : closeReason === 'stop_loss'
+          ? `Stop Loss hit (${lossPct.toFixed(1)}% loss)`
+          : `DTE Floor hit (${dte} DTE remaining)`;
         await notifyOwner({
-          title: `✅ Auto-Close: ${target.symbol} closed at ${profitPctRounded}% profit`,
-          content: `Auto-close monitor closed **${target.symbol}** ${target.optionType === 'P' ? 'Put' : 'Call'} $${target.strike} exp ${target.expiration}.\n\nProfit: **${profitPctRounded}%** (target: ${target.profitTargetPct}%)\nBTC price: $${formattedPrice.toFixed(2)}\nOrder ID: ${liveResult.orderId}\nAccount: ${accountId}`,
+          title: `${closeReason === 'profit_target' ? '✅' : '🛑'} Auto-Close: ${target.symbol} — ${reasonLabel}`,
+          content: `Auto-close monitor closed **${target.symbol}** ${target.optionType === 'P' ? 'Put' : 'Call'} $${target.strike} exp ${target.expiration}.\n\nReason: **${closeReason.replace('_', ' ')}** (${reasonLabel})\nP/L: ${profitPctRounded}% | DTE: ${dte}\nBTC price: $${formattedPrice.toFixed(2)}\nOrder ID: ${liveResult.orderId}\nAccount: ${accountId}`,
         });
 
         closed++;
-        details.push({ symbol: target.symbol, status: 'closed', profitPct: profitPctRounded, message: `Closed at ${profitPctRounded}% profit (order ${liveResult.orderId})` });
+        details.push({ symbol: target.symbol, status: 'closed', profitPct: profitPctRounded, message: `Closed — ${closeReason.replace('_', ' ')} (${reasonLabel}) | order ${liveResult.orderId}` });
       } catch (err: any) {
         const errMsg = err?.message ?? String(err);
         console.error(`[AutoClose] Error closing ${target.symbol}:`, errMsg);

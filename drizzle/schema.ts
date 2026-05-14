@@ -1269,7 +1269,10 @@ export const positionTargets = mysqlTable('positionTargets', {
 
   // Auto-close configuration
   profitTargetPct: int('profitTargetPct').notNull().default(50), // 25 | 50 | 75 | 90
+  stopLossPct: int('stopLossPct'),          // e.g. 200 = close when loss reaches 2× premium. NULL = disabled
+  dteFloor: int('dteFloor'),                // close when DTE ≤ this value. NULL = disabled
   enabled: boolean('enabled').notNull().default(true),
+  closeReason: varchar('closeReason', { length: 20 }), // profit_target | stop_loss | dte_floor | manual
 
   // Monitoring state
   status: mysqlEnum('status', ['watching', 'triggered', 'closed', 'expired', 'error']).notNull().default('watching'),
@@ -1373,6 +1376,7 @@ export const autoCloseLog = mysqlTable('auto_close_log', {
   closedAt: bigint('closed_at', { mode: 'number' }).notNull(),
   archived: boolean('archived').notNull().default(false),
   archivedAt: bigint('archived_at', { mode: 'number' }),
+  closeReason: varchar('close_reason', { length: 32 }),  // profit_target | stop_loss | dte_floor | manual
   notes: text('notes'),
 }, (table) => ({
   userIdIdx: index('acl_user_id_idx').on(table.userId),

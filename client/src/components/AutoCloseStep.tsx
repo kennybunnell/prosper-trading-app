@@ -2,9 +2,10 @@
  * AutoCloseStep — Step 5 of Daily Actions
  *
  * Shows ALL open short option positions across all accounts.
- * Each row has an explicit "Monitor at X%" button to opt in.
- * The target % dropdown is tracked in local state per row so
- * the selected value always persists and the button uses it.
+ * Each row has an explicit "Monitor" button to opt in with three bracket conditions:
+ *   1. Profit Target % — close when P/L reaches this level
+ *   2. Stop Loss %     — close when loss reaches X% of premium collected (e.g. 200 = 2× premium)
+ *   3. DTE Floor       — close when days-to-expiration ≤ this value
  * Filter tabs: All | Monitored (GTC set) | Not Monitored
  */
 
@@ -17,12 +18,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock,
-  AlertTriangle, Eye, EyeOff, BellRing, BellOff
+  AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type ProfitTargetPct = 25 | 50 | 75 | 90;
 type FilterTab = 'all' | 'monitored' | 'unmonitored';
+
+// Stop-loss options: 100% = 1× premium, 200% = 2× premium, etc.
+const STOP_LOSS_OPTIONS = [
+  { label: 'Off',  value: null },
+  { label: '100%', value: 100 },
+  { label: '150%', value: 150 },
+  { label: '200%', value: 200 },
+  { label: '300%', value: 300 },
+];
+
+// DTE floor options
+const DTE_FLOOR_OPTIONS = [
+  { label: 'Off', value: null },
+  { label: '3',   value: 3 },
+  { label: '5',   value: 5 },
+  { label: '7',   value: 7 },
+  { label: '14',  value: 14 },
+  { label: '21',  value: 21 },
+];
 
 interface ScanDetail {
   symbol: string;
@@ -40,15 +60,21 @@ interface ScanResult {
   ranAt: Date;
 }
 
+/** Per-row bracket settings tracked in local state */
+interface RowBracket {
+  profitTargetPct: ProfitTargetPct;
+  stopLossPct: number | null;
+  dteFloor: number | null;
+}
+
 export default function AutoCloseStep() {
   const { toast } = useToast();
   const [mainTab, setMainTab] = useState<'monitor' | 'log'>('monitor');
   const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
 
-  // Per-row staged target % — keyed by "accountId::optionSymbol"
-  // This is the source of truth for the dropdown; the server value is the fallback.
-  const [stagedPct, setStagedPct] = useState<Record<string, ProfitTargetPct>>({});
+  // Per-row bracket settings — keyed by "accountId::optionSymbol"
+  const [rowBrackets, setRowBrackets] = useState<Record<string, RowBracket>>({});
 
   // Per-row pending mutation state
   const [pendingRows, setPendingRows] = useState<Set<string>>(new Set());
@@ -97,40 +123,43 @@ export default function AutoCloseStep() {
     onError: (err) => toast({ title: 'Scan failed', description: err.message, variant: 'destructive' }),
   });
 
-  /** Get the effective target % for a row: local staged value takes priority over server value */
-  function getEffectivePct(rowKey: string, serverPct?: number): ProfitTargetPct {
-    return stagedPct[rowKey] ?? (serverPct as ProfitTargetPct | undefined) ?? 50;
+  /** Get the effective bracket settings for a row — local state wins over server values */
+  function getEffectiveBracket(rowKey: string, pos: NonNullable<typeof positions>[number]): RowBracket {
+    if (rowBrackets[rowKey]) return rowBrackets[rowKey];
+    return {
+      profitTargetPct: (pos.profitTargetPct as ProfitTargetPct | undefined) ?? 50,
+      stopLossPct: pos.stopLossPct ?? null,
+      dteFloor: pos.dteFloor ?? null,
+    };
   }
 
-  function handleDropdownChange(rowKey: string, pct: ProfitTargetPct, isEnabled: boolean) {
-    // Always update local staged state so the dropdown shows the new value immediately
-    setStagedPct(prev => ({ ...prev, [rowKey]: pct }));
+  function updateBracket(rowKey: string, partial: Partial<RowBracket>, pos: NonNullable<typeof positions>[number]) {
+    const current = getEffectiveBracket(rowKey, pos);
+    const updated = { ...current, ...partial };
+    setRowBrackets(prev => ({ ...prev, [rowKey]: updated }));
 
     // If already opted in, persist the change to the server right away
-    if (isEnabled) {
-      const pos = (positions ?? []).find(
-        p => `${p.accountId}::${p.optionSymbol.replace(/\s+/g, '')}` === rowKey
-      );
-      if (pos) {
-        setPendingRows(prev => new Set(prev).add(rowKey));
-        setTargetMut.mutate({
-          accountId: pos.accountId,
-          accountNumber: pos.accountNumber,
-          symbol: pos.symbol,
-          optionSymbol: pos.optionSymbol,
-          optionType: pos.optionType,
-          strike: pos.strike,
-          expiration: pos.expiration,
-          quantity: pos.quantity,
-          premiumCollected: pos.averageOpenPrice,
-          profitTargetPct: pct,
-          strategy: pos.optionType === 'P' ? 'csp' : 'cc',
-        });
-      }
+    if (pos.targetEnabled) {
+      setPendingRows(prev => new Set(prev).add(rowKey));
+      setTargetMut.mutate({
+        accountId: pos.accountId,
+        accountNumber: pos.accountNumber,
+        symbol: pos.symbol,
+        optionSymbol: pos.optionSymbol,
+        optionType: pos.optionType,
+        strike: pos.strike,
+        expiration: pos.expiration,
+        quantity: pos.quantity,
+        premiumCollected: pos.averageOpenPrice,
+        profitTargetPct: updated.profitTargetPct,
+        stopLossPct: updated.stopLossPct,
+        dteFloor: updated.dteFloor,
+        strategy: pos.optionType === 'P' ? 'csp' : 'cc',
+      });
     }
   }
 
-  function handleOptIn(pos: NonNullable<typeof positions>[number], targetPct: ProfitTargetPct) {
+  function handleOptIn(pos: NonNullable<typeof positions>[number], bracket: RowBracket) {
     const key = `${pos.accountId}::${pos.optionSymbol.replace(/\s+/g, '')}`;
     setPendingRows(prev => new Set(prev).add(key));
     setTargetMut.mutate({
@@ -143,12 +172,17 @@ export default function AutoCloseStep() {
       expiration: pos.expiration,
       quantity: pos.quantity,
       premiumCollected: pos.averageOpenPrice,
-      profitTargetPct: targetPct,
+      profitTargetPct: bracket.profitTargetPct,
+      stopLossPct: bracket.stopLossPct,
+      dteFloor: bracket.dteFloor,
       strategy: pos.optionType === 'P' ? 'csp' : 'cc',
     });
+    const parts = [`${bracket.profitTargetPct}% profit target`];
+    if (bracket.stopLossPct) parts.push(`${bracket.stopLossPct}% stop loss`);
+    if (bracket.dteFloor)    parts.push(`${bracket.dteFloor} DTE floor`);
     toast({
       title: `Monitoring ${pos.symbol}`,
-      description: `Will auto-close when ${targetPct}% profit is reached.`,
+      description: `Bracket: ${parts.join(' | ')}`,
     });
   }
 
@@ -225,9 +259,11 @@ export default function AutoCloseStep() {
         <div>
           <h3 className="text-lg font-semibold text-white">Auto-Close Monitor</h3>
           <p className="text-sm text-gray-400 mt-0.5">
-            Pick a profit target % for any position, then click{' '}
-            <strong className="text-orange-400">Monitor at X%</strong> to opt it in.
-            The system will auto-submit a BTC order when that target is reached.
+            Set a <strong className="text-orange-400">profit target</strong>,{' '}
+            <strong className="text-red-400">stop loss</strong>, and/or{' '}
+            <strong className="text-yellow-400">DTE floor</strong> per position,
+            then click <strong className="text-orange-400">Monitor</strong> to activate.
+            The first condition hit triggers the BTC order.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -275,15 +311,21 @@ export default function AutoCloseStep() {
         )}
       </div>
 
-      {/* ── How-to callout ─────────────────────────────────────────────── */}
+      {/* ── Bracket legend ─────────────────────────────────────────────── */}
       <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 flex items-start gap-3">
-        <BellRing className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
-        <p className="text-xs text-blue-200/80">
-          <strong className="text-blue-300">How to opt in:</strong>{' '}
-          Use the <strong>Close at %</strong> dropdown to choose your profit target, then click the orange{' '}
-          <strong className="text-orange-400">Monitor at X%</strong> button. The row turns green to confirm
-          it is active. To remove, click <strong className="text-red-400">Stop Monitoring</strong>.
-        </p>
+        <ShieldAlert className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+        <div className="text-xs text-blue-200/80 space-y-1">
+          <p><strong className="text-blue-300">Bracket order — three independent conditions (first hit wins):</strong></p>
+          <p>
+            <span className="text-orange-300 font-medium">Profit Target %</span> — close when the position has gained this % of the original premium (e.g. 50% = half the premium decayed away).
+          </p>
+          <p>
+            <span className="text-red-300 font-medium">Stop Loss %</span> — close when the current mark is X% above the premium collected (e.g. 200% = the option is now worth 2× what you collected — you are losing 2× your credit).
+          </p>
+          <p>
+            <span className="text-yellow-300 font-medium">DTE Floor</span> — close when days-to-expiration drops to or below this value, regardless of P/L (avoids gamma risk near expiry).
+          </p>
+        </div>
       </div>
 
       {/* ── Filter tabs ────────────────────────────────────────────────── */}
@@ -319,14 +361,14 @@ export default function AutoCloseStep() {
         <div className="text-center py-12 text-gray-500">
           <p className="text-base">No open short option positions found.</p>
           <p className="text-sm mt-1">
-            Open a CSP, CC, or spread position first, then return here to set a profit target.
+            Open a CSP, CC, or spread position first, then return here to set a bracket.
           </p>
         </div>
       ) : filteredPositions.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           <p className="text-sm">
             {filterTab === 'monitored'
-              ? 'No positions are currently being monitored. Click "Monitor at X%" on any position.'
+              ? 'No positions are currently being monitored. Click "Monitor" on any position.'
               : 'All positions are being monitored.'}
           </p>
         </div>
@@ -335,24 +377,32 @@ export default function AutoCloseStep() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800 bg-gray-900/50">
-                <th className="text-left px-4 py-3 text-gray-400 font-medium">Symbol</th>
-                <th className="text-left px-4 py-3 text-gray-400 font-medium">Strike / Exp</th>
-                <th className="text-left px-4 py-3 text-gray-400 font-medium">Account</th>
-                <th className="text-right px-4 py-3 text-gray-400 font-medium">Qty</th>
-                <th className="text-right px-4 py-3 text-gray-400 font-medium">Open Price</th>
-                <th className="text-right px-4 py-3 text-gray-400 font-medium">P/L %</th>
-                <th className="text-right px-4 py-3 text-gray-400 font-medium">DTE</th>
-                <th className="text-center px-4 py-3 text-gray-400 font-medium">Close at %</th>
-                <th className="text-center px-4 py-3 text-gray-400 font-medium min-w-[170px]">Auto-Close Action</th>
+                <th className="text-left px-3 py-3 text-gray-400 font-medium">Symbol</th>
+                <th className="text-left px-3 py-3 text-gray-400 font-medium">Strike / Exp</th>
+                <th className="text-left px-3 py-3 text-gray-400 font-medium">Acct</th>
+                <th className="text-right px-3 py-3 text-gray-400 font-medium">Qty</th>
+                <th className="text-right px-3 py-3 text-gray-400 font-medium">Open $</th>
+                <th className="text-right px-3 py-3 text-gray-400 font-medium">P/L %</th>
+                <th className="text-right px-3 py-3 text-gray-400 font-medium">DTE</th>
+                {/* Bracket columns */}
+                <th className="text-center px-3 py-3 text-orange-400/80 font-medium text-xs">
+                  <div>Profit</div><div>Target</div>
+                </th>
+                <th className="text-center px-3 py-3 text-red-400/80 font-medium text-xs">
+                  <div>Stop</div><div>Loss</div>
+                </th>
+                <th className="text-center px-3 py-3 text-yellow-400/80 font-medium text-xs">
+                  <div>DTE</div><div>Floor</div>
+                </th>
+                <th className="text-center px-3 py-3 text-gray-400 font-medium min-w-[160px]">Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredPositions.map((pos) => {
                 const rowKey    = `${pos.accountId}::${pos.optionSymbol.replace(/\s+/g, '')}`;
                 const isEnabled = pos.targetEnabled ?? false;
-                // effectivePct: local staged value wins; fall back to server value; default 50
-                const effectivePct = getEffectivePct(rowKey, pos.profitTargetPct);
-                const atTarget  = pos.profitPct >= effectivePct;
+                const bracket   = getEffectiveBracket(rowKey, pos);
+                const atTarget  = pos.profitPct >= bracket.profitTargetPct;
                 const isPending = pendingRows.has(rowKey);
 
                 return (
@@ -363,7 +413,7 @@ export default function AutoCloseStep() {
                     }`}
                   >
                     {/* Symbol */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-white">{pos.symbol}</span>
                         <Badge
@@ -380,30 +430,32 @@ export default function AutoCloseStep() {
                     </td>
 
                     {/* Strike / Exp */}
-                    <td className="px-4 py-3 text-gray-300">
+                    <td className="px-3 py-3 text-gray-300">
                       <div>${pos.strike}</div>
                       <div className="text-xs text-gray-500">{pos.expiration}</div>
                     </td>
 
                     {/* Account */}
-                    <td className="px-4 py-3 text-gray-400 text-xs">{pos.accountNumber}</td>
+                    <td className="px-3 py-3 text-gray-400 text-xs">{pos.accountNumber}</td>
 
                     {/* Qty */}
-                    <td className="px-4 py-3 text-right text-gray-300">{pos.quantity}</td>
+                    <td className="px-3 py-3 text-right text-gray-300">{pos.quantity}</td>
 
                     {/* Open price */}
-                    <td className="px-4 py-3 text-right text-gray-300">
+                    <td className="px-3 py-3 text-right text-gray-300">
                       ${parseFloat(pos.averageOpenPrice).toFixed(2)}
                     </td>
 
                     {/* P/L % */}
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right">
                       <span className={`font-medium ${
                         pos.profitPct >= 50
                           ? 'text-green-400'
                           : pos.profitPct >= 25
                             ? 'text-yellow-400'
-                            : 'text-gray-400'
+                            : pos.profitPct < 0
+                              ? 'text-red-400'
+                              : 'text-gray-400'
                       }`}>
                         {pos.profitPct.toFixed(1)}%
                       </span>
@@ -415,7 +467,7 @@ export default function AutoCloseStep() {
                     </td>
 
                     {/* DTE */}
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right">
                       <span className={`${
                         pos.dte <= 7 ? 'text-red-400' : pos.dte <= 21 ? 'text-yellow-400' : 'text-gray-300'
                       }`}>
@@ -423,16 +475,16 @@ export default function AutoCloseStep() {
                       </span>
                     </td>
 
-                    {/* ── Target % picker ─────────────────────────────── */}
-                    <td className="px-4 py-3 text-center">
+                    {/* ── Profit Target % picker ───────────────────────── */}
+                    <td className="px-3 py-3 text-center">
                       <Select
-                        value={String(effectivePct)}
+                        value={String(bracket.profitTargetPct)}
                         onValueChange={(v) =>
-                          handleDropdownChange(rowKey, parseInt(v) as ProfitTargetPct, isEnabled)
+                          updateBracket(rowKey, { profitTargetPct: parseInt(v) as ProfitTargetPct }, pos)
                         }
                         disabled={isPending}
                       >
-                        <SelectTrigger className="w-20 h-7 text-xs bg-gray-800 border-gray-700 text-white mx-auto">
+                        <SelectTrigger className="w-[68px] h-7 text-xs bg-gray-800 border-orange-500/30 text-orange-300 mx-auto">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-gray-900 border-gray-700">
@@ -444,10 +496,54 @@ export default function AutoCloseStep() {
                       </Select>
                     </td>
 
+                    {/* ── Stop Loss % picker ───────────────────────────── */}
+                    <td className="px-3 py-3 text-center">
+                      <Select
+                        value={bracket.stopLossPct == null ? 'off' : String(bracket.stopLossPct)}
+                        onValueChange={(v) =>
+                          updateBracket(rowKey, { stopLossPct: v === 'off' ? null : parseInt(v) }, pos)
+                        }
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="w-[68px] h-7 text-xs bg-gray-800 border-red-500/30 text-red-300 mx-auto">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-700">
+                          {STOP_LOSS_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value ?? 'off'} value={opt.value == null ? 'off' : String(opt.value)}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+
+                    {/* ── DTE Floor picker ─────────────────────────────── */}
+                    <td className="px-3 py-3 text-center">
+                      <Select
+                        value={bracket.dteFloor == null ? 'off' : String(bracket.dteFloor)}
+                        onValueChange={(v) =>
+                          updateBracket(rowKey, { dteFloor: v === 'off' ? null : parseInt(v) }, pos)
+                        }
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="w-[68px] h-7 text-xs bg-gray-800 border-yellow-500/30 text-yellow-300 mx-auto">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-700">
+                          {DTE_FLOOR_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value ?? 'off'} value={opt.value == null ? 'off' : String(opt.value)}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+
                     {/* ── Opt-in / Opt-out action ──────────────────────── */}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-3 text-center">
                       {isPending ? (
-                        <Button size="sm" disabled className="w-40 text-xs">
+                        <Button size="sm" disabled className="w-36 text-xs">
                           <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                           Saving…
                         </Button>
@@ -455,7 +551,7 @@ export default function AutoCloseStep() {
                         <div className="flex flex-col items-center gap-1">
                           <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
                             <CheckCircle className="h-3.5 w-3.5" />
-                            Monitoring at {effectivePct}%
+                            Monitoring
                           </div>
                           {statusBadge(pos.targetStatus ?? 'watching')}
                           <button
@@ -463,17 +559,17 @@ export default function AutoCloseStep() {
                             className="flex items-center gap-1 text-xs text-red-400/70 hover:text-red-400 transition-colors mt-0.5"
                           >
                             <BellOff className="h-3 w-3" />
-                            Stop Monitoring
+                            Stop
                           </button>
                         </div>
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handleOptIn(pos, effectivePct)}
-                          className="w-40 text-xs bg-orange-600/80 hover:bg-orange-500 text-white border-0"
+                          onClick={() => handleOptIn(pos, bracket)}
+                          className="w-36 text-xs bg-orange-600/80 hover:bg-orange-500 text-white border-0"
                         >
                           <BellRing className="h-3.5 w-3.5 mr-1.5" />
-                          Monitor at {effectivePct}%
+                          Monitor
                         </Button>
                       )}
                     </td>
@@ -511,7 +607,7 @@ export default function AutoCloseStep() {
                 </span>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2 max-h-48 overflow-y-auto">
               {lastScanResult.details.map((d: ScanDetail, i: number) => (
                 <div key={i} className="flex items-center gap-3 text-sm">
                   {d.status === 'closed'  && <CheckCircle className="h-4 w-4 text-green-400 shrink-0" />}
@@ -540,12 +636,12 @@ export default function AutoCloseStep() {
           <div className="text-sm">
             <p className="font-medium text-amber-300 mb-1">How it works</p>
             <ul className="space-y-1 text-xs text-amber-200/70">
-              <li>• Use the <strong>Close at %</strong> dropdown to pick your target, then click <strong>Monitor at X%</strong> to opt in.</li>
+              <li>• Set your <strong>Profit Target</strong>, optional <strong>Stop Loss</strong>, and optional <strong>DTE Floor</strong> — then click <strong>Monitor</strong>.</li>
               <li>• The system checks every 5 minutes Mon–Fri 9:30 AM–4:00 PM ET.</li>
-              <li>• When a position reaches its target, a BTC limit order is submitted automatically.</li>
-              <li>• You will receive a Telegram notification when a position is closed.</li>
+              <li>• The <strong>first bracket condition hit</strong> triggers a BTC limit order (dry-run verified first).</li>
+              <li>• You will receive a Telegram notification showing which condition triggered the close.</li>
               <li>• Use <strong>Run Now</strong> to trigger an immediate check outside the schedule.</li>
-              <li>• Click <strong>Stop Monitoring</strong> on any active row to remove it from auto-close.</li>
+              <li>• Click <strong>Stop</strong> on any active row to remove it from auto-close.</li>
             </ul>
           </div>
         </div>
