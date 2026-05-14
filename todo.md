@@ -9678,3 +9678,13 @@ ROC Fix Mar 18 2026
 - [x] Order preview modal: shows symbol, strike, expiry, qty, P/L, limit price slider, total debit/credit
 - [x] After closing short call, auto-refresh positions and unlock the Short Call Scanner
 - [x] Dry run / Live toggle respected for all PMCC close/roll actions
+
+## GTC Auto-Close System — Step 5 (May 14 2026)
+- [x] Add positionTargets DB table (symbol, account, expiration, profitTargetPct, enabled, lastChecked, status)
+- [x] Add autoClose server router (setTarget, removeTarget, listTargets, runNow, listOpenShortPositions, scanAndClose)
+- [x] Add 5-min cron job to automation-scheduler.ts (Mon-Fri 9:30-4:00 PM ET)
+- [x] scanAndClose: fetch positions, compare P/L to target, dry-run then live BTC, Telegram notify owner
+- [x] Step 5 UI: AutoCloseStep component with Monitor toggle, target % picker (25/50/75/90), P/L%, DTE, status badge
+- [x] Step 5 UI: Run Now button + last scan results panel (Checked/Closed/Skipped/Errors)
+- [x] Step 5 UI: Info box explaining how the monitor works
+- [x] Wire AutoCloseStep into AutomationDashboard Step 5 (replaced GtcOrdersInline)

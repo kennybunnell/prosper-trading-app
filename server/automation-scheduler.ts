@@ -16,6 +16,7 @@ let fridaySweepTask: cron.ScheduledTask | null = null;
 let dailyITMScanTask: cron.ScheduledTask | null = null;
 let weeklyPositionDigestTask: cron.ScheduledTask | null = null;
 let dailyScanCacheTask: cron.ScheduledTask | null = null;
+let autoCloseMonitorTask: cron.ScheduledTask | null = null;
 
 /**
  * Initialize the automation scheduler
@@ -89,6 +90,22 @@ export function initializeAutomationScheduler() {
     }
   );
   console.log('[Automation Scheduler] Daily scan cache initialized. Will run at 8:30 AM ET every weekday.');
+
+  // Auto-close profit target monitor — every 5 minutes Mon-Fri 9:30 AM - 4:00 PM ET
+  autoCloseMonitorTask = cron.schedule(
+    '*/5 9-15 * * 1-5', // every 5 min during market hours
+    async () => {
+      // Skip before 9:30 AM (cron fires at 9:00, 9:05, ... 9:25 too)
+      const now = new Date();
+      const etHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(now));
+      const etMin = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', minute: 'numeric' }).format(now));
+      if (etHour === 9 && etMin < 30) return;
+      console.log('[Auto-Close Monitor] Running profit target scan...');
+      await runAutoCloseForAllUsers();
+    },
+    { timezone: 'America/New_York' }
+  );
+  console.log('[Automation Scheduler] Auto-close monitor initialized. Will run every 5 min Mon-Fri 9:30-16:00 ET.');
 }
 
 /**
@@ -119,6 +136,11 @@ export function stopAutomationScheduler() {
     dailyScanCacheTask.stop();
     dailyScanCacheTask = null;
     console.log('[Daily Scan Cache] Stopped');
+  }
+  if (autoCloseMonitorTask) {
+    autoCloseMonitorTask.stop();
+    autoCloseMonitorTask = null;
+    console.log('[Auto-Close Monitor] Stopped');
   }
 }
 
@@ -164,6 +186,40 @@ async function runDailyScanForAllUsers() {
     }
   } catch (error) {
     console.error('[Daily Scan Cache] Error in daily scan run:', error);
+  }
+}
+
+/**
+ * Run auto-close profit target scan for all users who have opted-in positions.
+ */
+async function runAutoCloseForAllUsers() {
+  try {
+    const db = await getDb();
+    if (!db) return;
+
+    // Get distinct userIds from positionTargets where enabled=true and status='watching'
+    const { positionTargets } = await import('../drizzle/schema');
+    const { eq, inArray } = await import('drizzle-orm');
+    const rows = await db
+      .selectDistinct({ userId: positionTargets.userId })
+      .from(positionTargets)
+      .where(eq(positionTargets.enabled, true));
+
+    if (rows.length === 0) return;
+
+    const { runAutoCloseScanForUser } = await import('./routers-auto-close');
+    for (const row of rows) {
+      try {
+        const result = await runAutoCloseScanForUser(row.userId);
+        if (result.closed > 0) {
+          console.log(`[Auto-Close Monitor] User ${row.userId}: closed ${result.closed} position(s)`);
+        }
+      } catch (err) {
+        console.error(`[Auto-Close Monitor] Error for user ${row.userId}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error('[Auto-Close Monitor] Error in runAutoCloseForAllUsers:', err);
   }
 }
 

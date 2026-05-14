@@ -58,6 +58,7 @@ import { AISellCallAdvisorPanel, SellCallCandidate } from '@/components/AISellCa
 import { AIRowIcon } from '@/components/AIRowIcon';
 import PMCCDashboard from './PMCCDashboard';
 import GtcOrdersInline from '@/components/GtcOrdersInline';
+import AutoCloseStep from '@/components/AutoCloseStep';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PositionTableSkeleton } from '@/components/PositionTableSkeleton';
@@ -4582,10 +4583,12 @@ export default function AutomationDashboard() {
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────────
-            STEP 5: Auto-Close Orders (GTC)
+            STEP 5: Auto-Close Monitor
         ───────────────────────────────────────────────────────────────── */}
         <TabsContent value="step5-gtc">
-          <GtcOrdersInline />
+          <div className="p-6">
+            <AutoCloseStep />
+          </div>
         </TabsContent>
 
       </Tabs>}{/* end conditional automation tabs */}

@@ -1241,3 +1241,55 @@ export const tradingLog = mysqlTable('trading_log', {
 
 export type TradingLog = typeof tradingLog.$inferSelect;
 export type InsertTradingLog = typeof tradingLog.$inferInsert;
+
+
+/**
+ * Position Auto-Close Targets
+ * Per-position opt-in for automated profit-target monitoring.
+ * When a position's P/L reaches the configured profitTargetPct, the
+ * auto-close cron job (every 5 min during market hours) submits a BTC order.
+ * One row per opted-in position (keyed by accountId + optionSymbol).
+ */
+export const positionTargets = mysqlTable('positionTargets', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountId: varchar('accountId', { length: 64 }).notNull(),
+  accountNumber: varchar('accountNumber', { length: 32 }).notNull(),
+
+  // Position identification
+  symbol: varchar('symbol', { length: 10 }).notNull(),           // underlying, e.g. "NVDA"
+  optionSymbol: varchar('optionSymbol', { length: 32 }).notNull(), // OCC symbol, e.g. "NVDA  260117C00150000"
+  optionType: varchar('optionType', { length: 4 }).notNull(),    // 'C' | 'P'
+  strike: varchar('strike', { length: 20 }).notNull(),
+  expiration: varchar('expiration', { length: 20 }).notNull(),   // YYYY-MM-DD
+  quantity: int('quantity').notNull(),                           // number of contracts (positive = long, negative = short)
+
+  // Premium collected at open (used to compute profit %)
+  premiumCollected: varchar('premiumCollected', { length: 20 }).notNull(), // per-share, e.g. "3.50"
+
+  // Auto-close configuration
+  profitTargetPct: int('profitTargetPct').notNull().default(50), // 25 | 50 | 75 | 90
+  enabled: boolean('enabled').notNull().default(true),
+
+  // Monitoring state
+  status: mysqlEnum('status', ['watching', 'triggered', 'closed', 'expired', 'error']).notNull().default('watching'),
+  lastCheckedAt: timestamp('lastCheckedAt'),
+  lastProfitPct: varchar('lastProfitPct', { length: 10 }),       // last observed profit %, e.g. "47.3"
+  closedAt: timestamp('closedAt'),
+  closedOrderId: varchar('closedOrderId', { length: 64 }),       // TT order ID when closed
+  errorMessage: text('errorMessage'),
+
+  // Display label (strategy type for UI)
+  strategy: varchar('strategy', { length: 30 }).default('csp'),  // 'csp' | 'cc' | 'bps' | 'ic' | 'pmcc'
+
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index('positionTargets_userId_idx').on(table.userId),
+  accountIdx: index('positionTargets_account_idx').on(table.accountId),
+  statusIdx: index('positionTargets_status_idx').on(table.status),
+  optionSymbolIdx: index('positionTargets_optionSymbol_idx').on(table.optionSymbol),
+}));
+
+export type PositionTarget = typeof positionTargets.$inferSelect;
+export type InsertPositionTarget = typeof positionTargets.$inferInsert;

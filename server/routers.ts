@@ -33,6 +33,7 @@ import { positionAnalyzerRouter } from './routers-position-analyzer';
 import { safeguardsRouter } from './routers-safeguards';
 import { portfolioSyncRouter } from './routers-portfolio-sync';
 import { tradingLogRouter } from './routers-trading-log';
+import { autoCloseRouter } from './routers-auto-close';
 import { sendTelegramMessage, fmtOrderFilled, fmtOrderRejected } from './telegram';
 
 // Helper function to parse OCC option symbols
@@ -300,6 +301,7 @@ export const appRouter = router({
   rollRecommendations: rollRecommendationsRouter,
   portfolioSync: portfolioSyncRouter,
   tradingLog: tradingLogRouter,
+  autoClose: autoCloseRouter,
   orders: ordersRouter,
   market: marketRouter,
   dashboard: router({
