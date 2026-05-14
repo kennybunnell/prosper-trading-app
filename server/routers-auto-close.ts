@@ -14,12 +14,13 @@ import { z } from 'zod';
 import { router, protectedProcedure } from './_core/trpc';
 import { TRPCError } from '@trpc/server';
 import { getDb } from './db';
-import { positionTargets, autoCloseLog } from '../drizzle/schema';
+import { positionTargets, autoCloseLog, globalBracketDefaults } from '../drizzle/schema';
 import { eq, and, inArray, desc, asc } from 'drizzle-orm';
 import { getApiCredentials } from './db';
 import { authenticateTastytrade } from './tastytrade';
 import { notifyOwner } from './_core/notification';
 import { writeTradingLog } from './routers-trading-log';
+import { sendTelegramMessage } from './telegram';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -363,6 +364,81 @@ export const autoCloseRouter = router({
           eq(autoCloseLog.userId, ctx.user.id),
           eq(autoCloseLog.archived, false),
         ));
+      return { success: true };
+    }),
+
+  // ─── Global Bracket Defaults ────────────────────────────────────────────────
+
+  getBracketDefaults: protectedProcedure
+    .query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { profitTargetPct: 50, stopLossPct: null as number | null, dteFloor: null as number | null };
+      const [row] = await db
+        .select()
+        .from(globalBracketDefaults)
+        .where(eq(globalBracketDefaults.userId, ctx.user.id))
+        .limit(1);
+      return row
+        ? { profitTargetPct: row.profitTargetPct, stopLossPct: row.stopLossPct ?? null, dteFloor: row.dteFloor ?? null }
+        : { profitTargetPct: 50, stopLossPct: null as number | null, dteFloor: null as number | null };
+    }),
+
+  setBracketDefaults: protectedProcedure
+    .input(z.object({
+      profitTargetPct: z.number().int().min(10).max(100),
+      stopLossPct: z.number().int().min(100).max(1000).nullable().optional(),
+      dteFloor: z.number().int().min(0).max(60).nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+      const [existing] = await db
+        .select({ id: globalBracketDefaults.id })
+        .from(globalBracketDefaults)
+        .where(eq(globalBracketDefaults.userId, ctx.user.id))
+        .limit(1);
+      if (existing) {
+        await db
+          .update(globalBracketDefaults)
+          .set({
+            profitTargetPct: input.profitTargetPct,
+            stopLossPct: input.stopLossPct ?? null,
+            dteFloor: input.dteFloor ?? null,
+            updatedAt: Date.now(),
+          })
+          .where(eq(globalBracketDefaults.id, existing.id));
+      } else {
+        await db.insert(globalBracketDefaults).values({
+          userId: ctx.user.id,
+          profitTargetPct: input.profitTargetPct,
+          stopLossPct: input.stopLossPct ?? null,
+          dteFloor: input.dteFloor ?? null,
+          updatedAt: Date.now(),
+        });
+      }
+      return { success: true };
+    }),
+
+  notifyOptIn: protectedProcedure
+    .input(z.object({
+      symbol: z.string(),
+      optionType: z.enum(['C', 'P']),
+      strike: z.string(),
+      expiration: z.string(),
+      profitTargetPct: z.number(),
+      stopLossPct: z.number().nullable().optional(),
+      dteFloor: z.number().nullable().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const typeLabel = input.optionType === 'C' ? 'Call' : 'Put';
+      const stopPart = input.stopLossPct != null ? ` | Stop Loss: ${input.stopLossPct}%` : '';
+      const dtePart = input.dteFloor != null ? ` | DTE \u2264 ${input.dteFloor}` : '';
+      const msg = `\ud83d\udd14 Auto-Close Bracket Set\n\n\ud83d\udccc ${input.symbol} ${typeLabel} $${input.strike} exp ${input.expiration}\n\n\u2705 Profit Target: ${input.profitTargetPct}%${stopPart}${dtePart}\n\nMonitoring is now active. The system will close this position automatically when any condition is met.`;
+      try {
+        await sendTelegramMessage(msg);
+      } catch (err) {
+        console.error('[AutoClose] Telegram opt-in notify failed:', err);
+      }
       return { success: true };
     }),
 });

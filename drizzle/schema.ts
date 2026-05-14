@@ -1386,3 +1386,18 @@ export const autoCloseLog = mysqlTable('auto_close_log', {
 
 export type AutoCloseLog = typeof autoCloseLog.$inferSelect;
 export type InsertAutoCloseLog = typeof autoCloseLog.$inferInsert;
+
+// ─── Global Bracket Defaults ─────────────────────────────────────────────────
+export const globalBracketDefaults = mysqlTable('global_bracket_defaults', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  profitTargetPct: int('profit_target_pct').notNull().default(50),
+  stopLossPct: int('stop_loss_pct'),
+  dteFloor: int('dte_floor'),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+}, (table) => ({
+  userIdIdx: unique('gbd_user_id_idx').on(table.userId),
+}));
+
+export type GlobalBracketDefaults = typeof globalBracketDefaults.$inferSelect;
+export type InsertGlobalBracketDefaults = typeof globalBracketDefaults.$inferInsert;

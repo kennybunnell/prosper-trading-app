@@ -212,6 +212,7 @@ export function AutoCloseLogTab() {
                   P/L % <SortIcon col="profitPct" sortBy={sortBy} sortDir={sortDir} />
                 </th>
                 <th className="px-4 py-3 text-right text-gray-400 font-medium">Target %</th>
+                <th className="px-4 py-3 text-center text-gray-400 font-medium">Reason</th>
                 <th
                   className="px-4 py-3 text-left text-gray-400 font-medium cursor-pointer hover:text-white select-none"
                   onClick={() => toggleSort('closedAt')}
@@ -258,6 +259,31 @@ export function AutoCloseLogTab() {
                     {formatProfitPct(log.profitPct)}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-400">{log.targetPct}%</td>
+                  <td className="px-4 py-3 text-center">
+                    {log.closeReason === 'profit_target' && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 font-medium whitespace-nowrap">
+                        ✓ Profit Target
+                      </span>
+                    )}
+                    {log.closeReason === 'stop_loss' && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 font-medium whitespace-nowrap">
+                        ✗ Stop Loss
+                      </span>
+                    )}
+                    {log.closeReason === 'dte_floor' && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 font-medium whitespace-nowrap">
+                        ⏱ DTE Floor
+                      </span>
+                    )}
+                    {log.closeReason === 'manual' && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-400 font-medium whitespace-nowrap">
+                        Manual
+                      </span>
+                    )}
+                    {!log.closeReason && (
+                      <span className="text-gray-600 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                     {formatDate(log.closedAt)}
                   </td>

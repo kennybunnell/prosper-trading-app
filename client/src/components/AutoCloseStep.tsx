@@ -7,9 +7,10 @@
  *   2. Stop Loss %     — close when loss reaches X% of premium collected (e.g. 200 = 2× premium)
  *   3. DTE Floor       — close when days-to-expiration ≤ this value
  * Filter tabs: All | Monitored (GTC set) | Not Monitored
+ * Global Defaults panel: set default bracket values that pre-fill every new row.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
 import { AutoCloseLogTab } from './AutoCloseLogTab';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock,
-  AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert
+  AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert, Settings2, Save
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -79,10 +80,29 @@ export default function AutoCloseStep() {
   // Per-row pending mutation state
   const [pendingRows, setPendingRows] = useState<Set<string>>(new Set());
 
+  // Global defaults panel state
+  const [showDefaults, setShowDefaults] = useState(false);
+  const [defaultProfitPct, setDefaultProfitPct] = useState<ProfitTargetPct>(50);
+  const [defaultStopLoss, setDefaultStopLoss] = useState<number | null>(null);
+  const [defaultDteFloor, setDefaultDteFloor] = useState<number | null>(null);
+
+  // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: positions, isLoading: posLoading, refetch } = trpc.autoClose.listOpenShortPositions.useQuery(undefined, {
     refetchInterval: 30_000,
   });
 
+  const { data: bracketDefaults } = trpc.autoClose.getBracketDefaults.useQuery();
+
+  // Sync global defaults from server into local state
+  useEffect(() => {
+    if (bracketDefaults) {
+      setDefaultProfitPct((bracketDefaults.profitTargetPct as ProfitTargetPct) ?? 50);
+      setDefaultStopLoss(bracketDefaults.stopLossPct ?? null);
+      setDefaultDteFloor(bracketDefaults.dteFloor ?? null);
+    }
+  }, [bracketDefaults]);
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
   const setTargetMut = trpc.autoClose.setTarget.useMutation({
     onSuccess: (_, vars) => {
       const key = `${vars.accountId}::${vars.optionSymbol.replace(/\s+/g, '')}`;
@@ -123,13 +143,34 @@ export default function AutoCloseStep() {
     onError: (err) => toast({ title: 'Scan failed', description: err.message, variant: 'destructive' }),
   });
 
-  /** Get the effective bracket settings for a row — local state wins over server values */
+  const setDefaultsMut = trpc.autoClose.setBracketDefaults.useMutation({
+    onSuccess: () => {
+      toast({ title: 'Defaults saved', description: 'New positions will pre-fill with these values.' });
+      setShowDefaults(false);
+    },
+    onError: (err) => toast({ title: 'Error saving defaults', description: err.message, variant: 'destructive' }),
+  });
+
+  const notifyOptInMut = trpc.autoClose.notifyOptIn.useMutation();
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Get the effective bracket settings for a row — local state wins over server values, then global defaults */
   function getEffectiveBracket(rowKey: string, pos: NonNullable<typeof positions>[number]): RowBracket {
     if (rowBrackets[rowKey]) return rowBrackets[rowKey];
+    // If position already has a target, use its saved values
+    if (pos.profitTargetPct != null) {
+      return {
+        profitTargetPct: (pos.profitTargetPct as ProfitTargetPct),
+        stopLossPct: pos.stopLossPct ?? null,
+        dteFloor: pos.dteFloor ?? null,
+      };
+    }
+    // Otherwise pre-fill from global defaults
     return {
-      profitTargetPct: (pos.profitTargetPct as ProfitTargetPct | undefined) ?? 50,
-      stopLossPct: pos.stopLossPct ?? null,
-      dteFloor: pos.dteFloor ?? null,
+      profitTargetPct: defaultProfitPct,
+      stopLossPct: defaultStopLoss,
+      dteFloor: defaultDteFloor,
     };
   }
 
@@ -177,12 +218,22 @@ export default function AutoCloseStep() {
       dteFloor: bracket.dteFloor,
       strategy: pos.optionType === 'P' ? 'csp' : 'cc',
     });
+    // Send Telegram bracket summary
+    notifyOptInMut.mutate({
+      symbol: pos.symbol,
+      optionType: pos.optionType,
+      strike: pos.strike,
+      expiration: pos.expiration,
+      profitTargetPct: bracket.profitTargetPct,
+      stopLossPct: bracket.stopLossPct,
+      dteFloor: bracket.dteFloor,
+    });
     const parts = [`${bracket.profitTargetPct}% profit target`];
     if (bracket.stopLossPct) parts.push(`${bracket.stopLossPct}% stop loss`);
     if (bracket.dteFloor)    parts.push(`${bracket.dteFloor} DTE floor`);
     toast({
       title: `Monitoring ${pos.symbol}`,
-      description: `Bracket: ${parts.join(' | ')}`,
+      description: `Bracket: ${parts.join(' | ')} — Telegram notification sent.`,
     });
   }
 
@@ -254,6 +305,123 @@ export default function AutoCloseStep() {
 
       {/* ── Monitor tab ────────────────────────────────────────────── */}
       {mainTab === 'monitor' && <>
+
+      {/* ── Global Bracket Defaults panel ─────────────────────────── */}
+      <div className="rounded-lg border border-gray-700 bg-gray-900/60">
+        <button
+          onClick={() => setShowDefaults(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-300 hover:text-white transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4 text-gray-400" />
+            <span className="font-medium">Global Bracket Defaults</span>
+            <span className="text-xs text-gray-500">— pre-fill values for new positions</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Show current defaults as pills */}
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300">
+              Profit: {defaultProfitPct}%
+            </span>
+            {defaultStopLoss != null && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">
+                Stop: {defaultStopLoss}%
+              </span>
+            )}
+            {defaultDteFloor != null && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300">
+                DTE ≤ {defaultDteFloor}
+              </span>
+            )}
+            <span className="text-xs text-gray-500">{showDefaults ? '▲' : '▼'}</span>
+          </div>
+        </button>
+
+        {showDefaults && (
+          <div className="border-t border-gray-700 px-4 py-4">
+            <p className="text-xs text-gray-400 mb-4">
+              These values pre-fill the bracket dropdowns for every unmonitored position. They do not automatically opt in any position — you still click <strong className="text-orange-400">Monitor</strong> to activate.
+            </p>
+            <div className="flex items-end gap-4 flex-wrap">
+              {/* Default Profit Target */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-orange-300 font-medium">Default Profit Target</label>
+                <Select
+                  value={String(defaultProfitPct)}
+                  onValueChange={(v) => setDefaultProfitPct(parseInt(v) as ProfitTargetPct)}
+                >
+                  <SelectTrigger className="w-[90px] h-8 text-xs bg-gray-800 border-orange-500/30 text-orange-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-700">
+                    <SelectItem value="25">25%</SelectItem>
+                    <SelectItem value="50">50% ★</SelectItem>
+                    <SelectItem value="75">75%</SelectItem>
+                    <SelectItem value="90">90%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Default Stop Loss */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-red-300 font-medium">Default Stop Loss</label>
+                <Select
+                  value={defaultStopLoss == null ? 'off' : String(defaultStopLoss)}
+                  onValueChange={(v) => setDefaultStopLoss(v === 'off' ? null : parseInt(v))}
+                >
+                  <SelectTrigger className="w-[90px] h-8 text-xs bg-gray-800 border-red-500/30 text-red-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-700">
+                    {STOP_LOSS_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value ?? 'off'} value={opt.value == null ? 'off' : String(opt.value)}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Default DTE Floor */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-yellow-300 font-medium">Default DTE Floor</label>
+                <Select
+                  value={defaultDteFloor == null ? 'off' : String(defaultDteFloor)}
+                  onValueChange={(v) => setDefaultDteFloor(v === 'off' ? null : parseInt(v))}
+                >
+                  <SelectTrigger className="w-[90px] h-8 text-xs bg-gray-800 border-yellow-500/30 text-yellow-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-700">
+                    {DTE_FLOOR_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value ?? 'off'} value={opt.value == null ? 'off' : String(opt.value)}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button
+                size="sm"
+                onClick={() => setDefaultsMut.mutate({
+                  profitTargetPct: defaultProfitPct,
+                  stopLossPct: defaultStopLoss,
+                  dteFloor: defaultDteFloor,
+                })}
+                disabled={setDefaultsMut.isPending}
+                className="bg-orange-600 hover:bg-orange-500 text-white h-8 text-xs"
+              >
+                {setDefaultsMut.isPending
+                  ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  : <Save className="h-3.5 w-3.5 mr-1.5" />
+                }
+                Save Defaults
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -261,7 +429,7 @@ export default function AutoCloseStep() {
           <p className="text-sm text-gray-400 mt-0.5">
             Set a <strong className="text-orange-400">profit target</strong>,{' '}
             <strong className="text-red-400">stop loss</strong>, and/or{' '}
-            <strong className="text-yellow-400">DTE floor</strong> per position,
+            <strong className="text-yellow-400">DTE floor</strong>,{' '}
             then click <strong className="text-orange-400">Monitor</strong> to activate.
             The first condition hit triggers the BTC order.
           </p>
@@ -653,9 +821,10 @@ export default function AutoCloseStep() {
             <p className="font-medium text-amber-300 mb-1">How it works</p>
             <ul className="space-y-1 text-xs text-amber-200/70">
               <li>• Set your <strong>Profit Target</strong>, optional <strong>Stop Loss</strong>, and optional <strong>DTE Floor</strong> — then click <strong>Monitor</strong>.</li>
+              <li>• Use <strong>Global Bracket Defaults</strong> (above) to pre-fill these values for every new position automatically.</li>
               <li>• The system checks every 5 minutes Mon–Fri 9:30 AM–4:00 PM ET.</li>
               <li>• The <strong>first bracket condition hit</strong> triggers a BTC limit order (dry-run verified first).</li>
-              <li>• You will receive a Telegram notification showing which condition triggered the close.</li>
+              <li>• A <strong>Telegram notification</strong> is sent when you opt in (bracket summary) and again when a position is closed (showing which condition triggered).</li>
               <li>• Use <strong>Run Now</strong> to trigger an immediate check outside the schedule.</li>
               <li>• Click <strong>Stop</strong> on any active row to remove it from auto-close.</li>
             </ul>

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS global_bracket_defaults (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  user_id INT NOT NULL,\n  profit_target_pct INT NOT NULL DEFAULT 50,\n  stop_loss_pct INT DEFAULT NULL,\n  dte_floor INT DEFAULT NULL,\n  updated_at BIGINT NOT NULL,\n  UNIQUE KEY uq_gbd_user (user_id),\n  CONSTRAINT fk_gbd_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute CREATE TABLE IF NOT EXISTS global_bracket_defaults (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  user_id INT NOT NULL,\n  profit_target_pct INT NOT NULL DEFAULT 50,\n  stop_loss_pct INT DEFAULT NULL,\n  dte_floor INT DEFAULT NULL,\n  updated_at BIGINT NOT NULL,\n  UNIQUE KEY uq_gbd_user (user_id),\n  CONSTRAINT fk_gbd_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 453
+}
