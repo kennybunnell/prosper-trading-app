@@ -1,8 +1,9 @@
 /**
  * AutoCloseStep — Step 5 of Daily Actions
  *
- * Shows all open short option positions across all accounts.
- * Each row has an opt-in toggle and a profit target % picker.
+ * Shows ALL open short option positions across all accounts.
+ * Each row has an opt-in Monitor toggle and a profit target % picker.
+ * Filter tabs: All | Monitored (GTC set) | Not Monitored
  * A "Run Now" button triggers an immediate scan.
  * A results panel shows the last scan's findings.
  */
@@ -14,10 +15,11 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type ProfitTargetPct = 25 | 50 | 75 | 90;
+type FilterTab = 'all' | 'monitored' | 'unmonitored';
 
 interface ScanDetail {
   symbol: string;
@@ -38,6 +40,7 @@ interface ScanResult {
 export default function AutoCloseStep() {
   const { toast } = useToast();
   const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
+  const [filterTab, setFilterTab] = useState<FilterTab>('all');
 
   const { data: positions, isLoading: posLoading, refetch } = trpc.autoClose.listOpenShortPositions.useQuery(undefined, {
     refetchInterval: 30_000,
@@ -116,7 +119,21 @@ export default function AutoCloseStep() {
     }
   }
 
-  const monitoredCount = (positions ?? []).filter(p => p.targetEnabled).length;
+  const allPositions = positions ?? [];
+  const monitoredCount = allPositions.filter(p => p.targetEnabled).length;
+  const unmonitoredCount = allPositions.filter(p => !p.targetEnabled).length;
+
+  const filteredPositions = allPositions.filter(p => {
+    if (filterTab === 'monitored') return p.targetEnabled;
+    if (filterTab === 'unmonitored') return !p.targetEnabled;
+    return true;
+  });
+
+  const filterTabs: { id: FilterTab; label: string; count: number; icon: React.ReactNode }[] = [
+    { id: 'all', label: 'All Positions', count: allPositions.length, icon: null },
+    { id: 'monitored', label: 'Monitored', count: monitoredCount, icon: <Eye className="h-3.5 w-3.5" /> },
+    { id: 'unmonitored', label: 'Not Monitored', count: unmonitoredCount, icon: <EyeOff className="h-3.5 w-3.5" /> },
+  ];
 
   return (
     <div className="space-y-6">
@@ -167,16 +184,47 @@ export default function AutoCloseStep() {
         )}
       </div>
 
+      {/* Filter tabs */}
+      <div className="flex items-center gap-1 border-b border-gray-800 pb-0">
+        {filterTabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setFilterTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-md transition-colors border-b-2 -mb-px ${
+              filterTab === tab.id
+                ? 'border-orange-500 text-orange-400 bg-orange-500/5'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+            <span className={`ml-1 rounded-full px-1.5 py-0.5 text-xs font-medium ${
+              filterTab === tab.id ? 'bg-orange-500/20 text-orange-300' : 'bg-gray-700 text-gray-400'
+            }`}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Positions table */}
       {posLoading ? (
         <div className="flex items-center justify-center py-12 text-gray-400">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          Loading positions...
+          Loading positions from Tastytrade...
         </div>
-      ) : !positions || positions.length === 0 ? (
+      ) : allPositions.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <p className="text-base">No open short option positions found.</p>
           <p className="text-sm mt-1">Open a CSP, CC, or spread position first, then return here to set a profit target.</p>
+        </div>
+      ) : filteredPositions.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <p className="text-sm">
+            {filterTab === 'monitored'
+              ? 'No positions are currently being monitored. Toggle Monitor on any position below.'
+              : 'All positions are being monitored.'}
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-800">
@@ -191,12 +239,12 @@ export default function AutoCloseStep() {
                 <th className="text-right px-4 py-3 text-gray-400 font-medium">Open Price</th>
                 <th className="text-right px-4 py-3 text-gray-400 font-medium">P/L %</th>
                 <th className="text-right px-4 py-3 text-gray-400 font-medium">DTE</th>
-                <th className="text-center px-4 py-3 text-gray-400 font-medium">Target</th>
+                <th className="text-center px-4 py-3 text-gray-400 font-medium">Target %</th>
                 <th className="text-center px-4 py-3 text-gray-400 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
-              {positions.map((pos) => {
+              {filteredPositions.map((pos) => {
                 const isEnabled = pos.targetEnabled ?? false;
                 const targetPct = (pos.profitTargetPct as ProfitTargetPct | undefined) ?? 50;
                 const atTarget = pos.profitPct >= targetPct;
@@ -204,7 +252,9 @@ export default function AutoCloseStep() {
                 return (
                   <tr
                     key={`${pos.accountId}::${pos.optionSymbol}`}
-                    className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${isEnabled ? 'bg-blue-950/10' : ''}`}
+                    className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${
+                      isEnabled ? 'bg-blue-950/10' : ''
+                    }`}
                   >
                     {/* Monitor toggle */}
                     <td className="px-4 py-3">
@@ -232,7 +282,7 @@ export default function AutoCloseStep() {
                     </td>
 
                     {/* Account */}
-                    <td className="px-4 py-3 text-gray-400 text-xs">{pos.accountName}</td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">{pos.accountNumber}</td>
 
                     {/* Qty */}
                     <td className="px-4 py-3 text-right text-gray-300">{pos.quantity}</td>
@@ -281,7 +331,7 @@ export default function AutoCloseStep() {
                     {/* Status */}
                     <td className="px-4 py-3 text-center">
                       {isEnabled ? statusBadge(pos.targetStatus ?? 'watching') : (
-                        <span className="text-gray-600 text-xs">Off</span>
+                        <span className="text-gray-600 text-xs">—</span>
                       )}
                     </td>
                   </tr>
@@ -342,6 +392,7 @@ export default function AutoCloseStep() {
               <li>• When a position reaches its target, a BTC limit order is submitted automatically (dry-run verified first).</li>
               <li>• You will receive a Telegram notification when a position is closed.</li>
               <li>• Use <strong>Run Now</strong> to trigger an immediate check outside the schedule.</li>
+              <li>• Use the <strong>Monitored</strong> tab to see only positions with auto-close enabled, or <strong>Not Monitored</strong> to find positions that still need a target set.</li>
             </ul>
           </div>
         </div>

@@ -9714,3 +9714,9 @@ ROC Fix Mar 18 2026
 - [x] UI: BcsAutoEntryStep component — enable/disable toggle, all configurable fields, Scan Now, history log
 - [x] UI: Step 6 "BCS Auto" tab added to AutomationDashboard (grid-cols-6)
 - [x] bcsAutoRouter wired into main routers.ts
+
+## Auto-Close Step 5 Fix (May 14 2026)
+- [x] Fix listOpenShortPositions to return ALL open short option positions (not just opted-in ones)
+- [x] Rebuild AutoCloseStep UI to show all positions with per-row Monitor toggle and profit target picker
+- [x] Add filter tabs: All / Monitored (GTC set) / Not Monitored
+- [x] Show position details: symbol, strike, expiration, DTE, P/L%, current value, premium collected

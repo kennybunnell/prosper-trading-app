@@ -186,26 +186,35 @@ export const autoCloseRouter = router({
    * (across all accounts) so the UI can display them with opt-in toggles.
    */
   listOpenShortPositions: protectedProcedure.query(async ({ ctx }) => {
-    const credentials = await getApiCredentials(ctx.user.id);
-    if (!credentials?.tastytradeRefreshToken && !credentials?.tastytradePassword) {
-      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tastytrade API not connected.' });
-    }
+    // Use getLivePositions — same source as Step 1 (Close for Profit) — with DB cache fallback.
+    // The raw Tastytrade API does NOT return option-type or strike-price fields on positions;
+    // they must be parsed from the OCC symbol. This was the root cause of the empty list.
+    const { getLivePositions } = await import('./portfolio-sync');
+    const allPositions = await getLivePositions(ctx.user.id);
 
-    const tt = await authenticateTastytrade(credentials, ctx.user.id);
-    if (!tt) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Failed to authenticate with Tastytrade.' });
-
-    const accounts = await tt.getAccounts();
     const db = await getDb();
     const existingTargets = db
       ? await db.select().from(positionTargets).where(eq(positionTargets.userId, ctx.user.id))
       : [];
+    const targetMap = new Map(existingTargets.map(t => [`${t.accountId}::${t.optionSymbol.replace(/\s+/g, '')}`, t]));
 
-    const targetMap = new Map(existingTargets.map(t => [`${t.accountId}::${t.optionSymbol}`, t]));
+    // OCC symbol parser: "AAPL  260529P00280000" → { optionType: 'P', strike: '280.00', expiration: '2026-05-29' }
+    function parseOcc(sym: string): { optionType: 'C' | 'P'; strike: string; expiration: string } | null {
+      const clean = sym.replace(/\s+/g, '');
+      const m = clean.match(/^([A-Z0-9]+)(\d{6})([CP])(\d+)$/);
+      if (!m) return null;
+      const dateStr = m[2];
+      const year = 2000 + parseInt(dateStr.substring(0, 2));
+      const month = parseInt(dateStr.substring(2, 4));
+      const day = parseInt(dateStr.substring(4, 6));
+      const expiration = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const strike = (parseInt(m[4]) / 1000).toFixed(2);
+      return { optionType: m[3] as 'C' | 'P', strike, expiration };
+    }
 
     const result: Array<{
       accountId: string;
       accountNumber: string;
-      accountName: string;
       symbol: string;
       optionSymbol: string;
       optionType: 'C' | 'P';
@@ -216,7 +225,6 @@ export const autoCloseRouter = router({
       currentMark: string;
       profitPct: number;
       dte: number;
-      // existing target info (if opted in)
       targetId?: number;
       targetEnabled?: boolean;
       profitTargetPct?: number;
@@ -224,56 +232,56 @@ export const autoCloseRouter = router({
       lastProfitPct?: string;
     }> = [];
 
-    for (const acc of accounts) {
-      const accAny = acc as any;
-      const accountNumber = accAny.account?.['account-number'] || accAny['account-number'] || accAny.accountNumber;
-      const accountName = acc.account?.nickname || accountNumber;
-      const accountId = accountNumber; // use accountNumber as accountId
+    for (const p of allPositions) {
+      const instrType = p['instrument-type'];
+      if (instrType !== 'Equity Option' && instrType !== 'Index Option') continue;
 
-      try {
-        const positions = await tt.getPositions(accountNumber);
-        for (const pos of positions) {
-          // Only short option positions
-          const p = pos as any;
-          if (p['instrument-type'] !== 'Equity Option' && p['instrument-type'] !== 'Index Option') continue;
-          if (p['quantity-direction'] !== 'Short') continue;
-          // Parse option type from OCC symbol if not directly available
-          const rawOptionType: string = p['option-type'] || p.option_type || '';
-          const rawStrike: string = p['strike-price'] || p.strike_price || '';
-          if (!rawOptionType && !rawStrike) continue;
+      // Accept both 'Short' direction and negative quantity as short positions
+      const direction = (p['quantity-direction'] ?? '').toLowerCase();
+      const qty = parseFloat(String(p.quantity ?? '0'));
+      const isShort = direction === 'short' || qty < 0;
+      if (!isShort) continue;
 
-          const mark = parseFloat(p['close-price'] || p['average-daily-market-close-price'] || '0');
-          const avgOpen = parseFloat(p['average-open-price'] || '0');
-          const profitPct = computeProfitPct(avgOpen, mark);
-          const dte = p['days-to-expiration'] ?? p.days_to_expiration ?? 0;
+      const rawSym: string = p.symbol ?? '';
+      const parsed = parseOcc(rawSym);
+      if (!parsed) continue;
 
-          const key = `${accountId}::${p.symbol}`;
-          const existing = targetMap.get(key);
+      const accountNumber: string = p['account-number'] ?? '';
+      const mark = parseFloat(String(p['close-price'] ?? p['average-daily-market-close-price'] ?? '0'));
+      const avgOpen = parseFloat(String(p['average-open-price'] ?? '0'));
+      const profitPct = computeProfitPct(avgOpen, mark);
 
-          result.push({
-            accountId,
-            accountNumber,
-            accountName,
-            symbol: p['underlying-symbol'],
-            optionSymbol: p.symbol,
-            optionType: (rawOptionType || 'C') as 'C' | 'P',
-            strike: rawStrike,
-            expiration: p['expires-at'] ? String(p['expires-at']).substring(0, 10) : '',
-            quantity: Math.abs(p.quantity),
-            averageOpenPrice: p['average-open-price'],
-            currentMark: p['close-price'] || p['average-daily-market-close-price'] || '0',
-            profitPct: Math.round(profitPct * 10) / 10,
-            dte,
-            targetId: existing?.id,
-            targetEnabled: existing?.enabled,
-            profitTargetPct: existing?.profitTargetPct,
-            targetStatus: existing?.status,
-            lastProfitPct: existing?.lastProfitPct ?? undefined,
-          });
-        }
-      } catch (err) {
-        console.error(`[AutoClose] Error fetching positions for account ${accountNumber}:`, err);
+      // DTE from expires-at
+      let dte = 0;
+      const expiresAt = p['expires-at'];
+      if (expiresAt) {
+        const expMs = new Date(String(expiresAt).substring(0, 10)).getTime();
+        dte = Math.max(0, Math.round((expMs - Date.now()) / 86_400_000));
       }
+
+      const normalizedSym = rawSym.replace(/\s+/g, '');
+      const key = `${accountNumber}::${normalizedSym}`;
+      const existing = targetMap.get(key);
+
+      result.push({
+        accountId: accountNumber,
+        accountNumber,
+        symbol: p['underlying-symbol'] ?? rawSym,
+        optionSymbol: rawSym,
+        optionType: parsed.optionType,
+        strike: parsed.strike,
+        expiration: parsed.expiration,
+        quantity: Math.abs(qty),
+        averageOpenPrice: String(p['average-open-price'] ?? '0'),
+        currentMark: String(p['close-price'] ?? p['average-daily-market-close-price'] ?? '0'),
+        profitPct: Math.round(profitPct * 10) / 10,
+        dte,
+        targetId: existing?.id,
+        targetEnabled: existing?.enabled,
+        profitTargetPct: existing?.profitTargetPct,
+        targetStatus: existing?.status,
+        lastProfitPct: existing?.lastProfitPct ?? undefined,
+      });
     }
 
     return result;
