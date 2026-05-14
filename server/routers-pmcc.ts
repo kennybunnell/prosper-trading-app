@@ -1417,6 +1417,78 @@ ${symbolCtx.contextBlock}`,
         note: 'Premium tracking will be implemented when transaction history API is available',
       };
     }),
+
+  /**
+   * Close (Sell to Close) a long LEAP position
+   */
+  closeLEAP: protectedProcedure
+    .input(
+      z.object({
+        optionSymbol: z.string(),   // TT-padded OCC symbol for the LEAP
+        symbol: z.string(),          // Underlying (e.g. "NVDA")
+        quantity: z.number(),
+        limitPrice: z.number(),      // Per-share limit price
+        isDryRun: z.boolean().default(false),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Tastytrade credentials not configured. Please add them in Settings.',
+        });
+      }
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      const accounts = await api.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'No Tastytrade accounts found.' });
+      }
+      const accountNumber = accounts[0].account['account-number'];
+
+      const roundedPrice = input.limitPrice >= 3
+        ? (Math.round(input.limitPrice / 0.10) * 0.10).toFixed(2)
+        : (Math.round(input.limitPrice / 0.05) * 0.05).toFixed(2);
+
+      const ttOrder = {
+        accountNumber,
+        timeInForce: 'Day' as const,
+        orderType: 'Limit' as const,
+        price: roundedPrice,
+        priceEffect: 'Credit' as const,
+        legs: [
+          {
+            instrumentType: 'Equity Option' as const,
+            symbol: input.optionSymbol,
+            quantity: String(input.quantity),
+            action: 'Sell to Close' as const,
+          },
+        ],
+      };
+
+      if (input.isDryRun) {
+        await api.dryRunOrder(ttOrder);
+        return { status: 'dry_run_success', message: 'STC order validated successfully', orderId: null, accountNumber };
+      }
+
+      const submitted = await api.submitOrder(ttOrder);
+      const { writeTradingLog: writeTL } = await import('./routers-trading-log');
+      await writeTL({
+        userId: ctx.user.id,
+        action: 'STC',
+        strategy: 'PMCC',
+        symbol: input.symbol,
+        accountNumber,
+        price: roundedPrice,
+        quantity: input.quantity,
+        outcome: 'success',
+        orderId: String(submitted.id),
+        source: `LEAP STC: ${input.optionSymbol} @ $${roundedPrice}`,
+      });
+      return { status: 'success', message: 'STC order submitted successfully', orderId: submitted.id, accountNumber };
+    }),
 });
 
 /**

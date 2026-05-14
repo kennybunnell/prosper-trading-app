@@ -33,9 +33,11 @@ interface ActivePositionsSectionProps {
   refetch: () => void;
   onSellCalls: (leapKey: string) => void;
   onCloseShort: (sc: any) => void;
+  onCloseLEAP: (pos: any) => void;
+  onRollShort: (sc: any) => void;
 }
 
-function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls, onCloseShort }: ActivePositionsSectionProps) {
+function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls, onCloseShort, onCloseLEAP, onRollShort }: ActivePositionsSectionProps) {
   const positions = positionsData?.positions || [];
   const shortCalls: any[] = positionsData?.shortCalls || [];
 
@@ -129,6 +131,17 @@ function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls
                     <p className="font-semibold">${pos.stockPrice.toFixed(2)}</p>
                   </div>
                 </div>
+                {/* Close LEAP (STC) button */}
+                <Button
+                  className="w-full mt-1 text-xs border-red-800/50 text-red-400 hover:bg-red-900/30 hover:text-red-300"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onCloseLEAP(pos)}
+                  title="Sell to Close this LEAP position"
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Close LEAP (STC)
+                </Button>
                 {/* Active short calls against this LEAP */}
                 {(() => {
                   const activeShorts = shortCalls.filter((sc: any) => sc.symbol === pos.symbol);
@@ -140,7 +153,11 @@ function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls
                           <div key={si} className="rounded-md bg-purple-950/40 border border-purple-800/50 px-3 py-2 text-sm">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold">${sc.strike.toFixed(2)} Call</span>
-                              <span className={`font-semibold ${sc.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                sc.profitLossPercent >= 50 ? 'bg-green-900/40 text-green-400' :
+                                sc.profitLossPercent >= 25 ? 'bg-yellow-900/40 text-yellow-400' :
+                                'bg-red-900/40 text-red-400'
+                              }`}>
                                 {sc.profitLoss >= 0 ? '+' : ''}{sc.profitLossPercent.toFixed(1)}%
                               </span>
                             </div>
@@ -148,32 +165,43 @@ function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls
                               <span>{new Date(sc.expiration).toLocaleDateString()} ({sc.dte} DTE)</span>
                               <span>Premium: ${sc.premiumCollected.toFixed(2)}</span>
                             </div>
-                            {sc.profitLossPercent >= 50 ? (
+                            {/* Always show Close Short button — user decides when to close */}
+                            <div className="flex gap-1.5 mt-2">
                               <Button
-                                className="w-full mt-2 border-green-700/50 text-green-400 hover:bg-green-900/30 hover:text-green-300"
+                                className={`flex-1 text-xs ${
+                                  sc.profitLossPercent >= 50
+                                    ? 'border-green-700/50 text-green-400 hover:bg-green-900/30 hover:text-green-300'
+                                    : 'border-orange-700/50 text-orange-400 hover:bg-orange-900/30 hover:text-orange-300'
+                                }`}
                                 size="sm"
                                 variant="outline"
                                 onClick={() => onCloseShort(sc)}
-                                title={`Close for profit — ${sc.profitLossPercent.toFixed(1)}% realized`}
+                                title={`Buy to Close — ${sc.profitLossPercent.toFixed(1)}% profit realized`}
                               >
                                 <X className="h-3 w-3 mr-1" />
-                                Close for Profit ({sc.profitLossPercent.toFixed(0)}%)
+                                {sc.profitLossPercent >= 50 ? `Close (${sc.profitLossPercent.toFixed(0)}%)` : 'Close Short'}
                               </Button>
-                            ) : (
-                              <p className="text-xs text-muted-foreground mt-2 text-center">
-                                BTC available at ≥50% profit ({sc.profitLossPercent.toFixed(0)}% now)
-                              </p>
-                            )}
+                              <Button
+                                className="flex-1 text-xs border-blue-700/50 text-blue-400 hover:bg-blue-900/30 hover:text-blue-300"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onRollShort(sc)}
+                                title="Close this short call and open scanner to sell a new one"
+                              >
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                Roll
+                              </Button>
+                            </div>
                           </div>
                         ))}
                         <Button
-                          className="w-full mt-1"
+                          className="w-full mt-1 text-xs"
                           size="sm"
                           variant="outline"
                           disabled
                           title="Short call already active — close existing position before selling a new one"
                         >
-                          Short Active — No New Calls
+                          Short Active — Close to Sell New Call
                         </Button>
                       </div>
                     );
@@ -275,6 +303,55 @@ export default function PMCCDashboard() {
       isDryRun: dryRun,
     });
   };
+
+  // Close LEAP (STC) modal state
+  const [closeLEAPTarget, setCloseLEAPTarget] = useState<any>(null);
+  const [closeLEAPPrice, setCloseLEAPPrice] = useState<number>(0);
+  const [closeLEAPIsDryRun, setCloseLEAPIsDryRun] = useState(true);
+  const [closeLEAPDryRunPassed, setCloseLEAPDryRunPassed] = useState(false);
+
+  const closeLEAPMutation = trpc.pmcc.closeLEAP.useMutation({
+    onSuccess: (data) => {
+      if (closeLEAPIsDryRun) {
+        setCloseLEAPDryRunPassed(true);
+        toast.success('✅ Dry run passed — STC order validated. Ready to submit live.');
+      } else {
+        toast.success(`🚀 STC order submitted! Order #${data.orderId}`);
+        setCloseLEAPTarget(null);
+        setCloseLEAPDryRunPassed(false);
+        refetchPositions();
+      }
+    },
+    onError: (err) => {
+      toast.error(`STC order failed: ${err.message}`);
+    },
+  });
+
+  const handleOpenCloseLEAP = useCallback((pos: any) => {
+    const mid = pos.currentPrice > 0 ? pos.currentPrice : (pos.currentValue / (pos.quantity * 100));
+    setCloseLEAPPrice(parseFloat(mid.toFixed(2)));
+    setCloseLEAPIsDryRun(true);
+    setCloseLEAPDryRunPassed(false);
+    setCloseLEAPTarget(pos);
+  }, []);
+
+  const handleSubmitCloseLEAP = (dryRun: boolean) => {
+    if (!closeLEAPTarget) return;
+    setCloseLEAPIsDryRun(dryRun);
+    closeLEAPMutation.mutate({
+      optionSymbol: closeLEAPTarget.optionSymbol,
+      symbol: closeLEAPTarget.symbol,
+      quantity: closeLEAPTarget.quantity,
+      limitPrice: closeLEAPPrice,
+      isDryRun: dryRun,
+    });
+  };
+
+  // Roll Short Call = close current short, then open scanner for new short
+  const handleRollShort = useCallback((sc: any) => {
+    // Open the BTC modal first; after successful live submit the scanner will be available
+    handleOpenCloseShort(sc);
+  }, [handleOpenCloseShort]);
 
   // Compute activeShortsByLeap map for ShortCallScanner eligibility check
   const activeShortsByLeap = useMemo(() => {
@@ -572,6 +649,8 @@ export default function PMCCDashboard() {
           refetch={refetchPositions}
           onSellCalls={handleSellCalls}
           onCloseShort={handleOpenCloseShort}
+          onCloseLEAP={handleOpenCloseLEAP}
+          onRollShort={handleRollShort}
         />
 
         {/* Short Call Scanner */}
@@ -1559,6 +1638,120 @@ export default function PMCCDashboard() {
               >
                 {closeShortCallMutation.isPending && !closeShortIsDryRun ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <X className="h-4 w-4 mr-1" />}
                 Submit Live BTC Order
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Close LEAP (STC) Modal ─────────────────────────────────────────── */}
+      <Dialog open={!!closeLEAPTarget} onOpenChange={(open) => { if (!open) { setCloseLEAPTarget(null); setCloseLEAPDryRunPassed(false); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="h-5 w-5 text-red-400" />
+              Close LEAP (Sell to Close)
+            </DialogTitle>
+            <DialogDescription>
+              Submit a Day limit STC order to close this long LEAP position.
+            </DialogDescription>
+          </DialogHeader>
+
+          {closeLEAPTarget && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/30 border border-border px-4 py-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Symbol</span>
+                  <span className="font-semibold">{closeLEAPTarget.symbol}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Strike</span>
+                  <span className="font-semibold">${closeLEAPTarget.strike?.toFixed(2)} Call (LEAP)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Expiration</span>
+                  <span className="font-semibold">{new Date(closeLEAPTarget.expiration).toLocaleDateString()} ({closeLEAPTarget.dte} DTE)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Qty</span>
+                  <span className="font-semibold">{closeLEAPTarget.quantity} contract{closeLEAPTarget.quantity !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cost Basis</span>
+                  <span className="font-semibold">${closeLEAPTarget.costBasis?.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Current Value</span>
+                  <span className="font-semibold">${closeLEAPTarget.currentValue?.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">P/L</span>
+                  <span className={`font-semibold ${closeLEAPTarget.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {closeLEAPTarget.profitLoss >= 0 ? '+' : ''}${closeLEAPTarget.profitLoss?.toFixed(2)} ({closeLEAPTarget.profitLossPercent?.toFixed(1)}%)
+                  </span>
+                </div>
+              </div>
+
+              {/* Limit price slider */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">STC Limit Price (per share)</Label>
+                  <span className="text-sm font-mono font-semibold text-green-400">${closeLEAPPrice.toFixed(2)}</span>
+                </div>
+                <Slider
+                  min={0.01}
+                  max={Math.max(closeLEAPTarget.currentValue / (closeLEAPTarget.quantity * 100) * 1.5, 1.00)}
+                  step={0.05}
+                  value={[closeLEAPPrice]}
+                  onValueChange={([v]) => setCloseLEAPPrice(v)}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>$0.01</span>
+                  <span>Total credit: ${(closeLEAPPrice * closeLEAPTarget.quantity * 100).toFixed(2)}</span>
+                  <span>${(closeLEAPTarget.currentValue / (closeLEAPTarget.quantity * 100) * 1.5).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="rounded-md bg-amber-950/40 border border-amber-700/50 px-3 py-2 text-xs text-amber-400">
+                ⚠️ Closing the LEAP ends the PMCC strategy for {closeLEAPTarget.symbol}. Ensure any active short calls are closed first.
+              </div>
+
+              {closeLEAPDryRunPassed && (
+                <div className="rounded-md bg-green-950/40 border border-green-700/50 px-3 py-2 text-sm text-green-400 flex items-center gap-2">
+                  <span>✅</span>
+                  <span>Dry run validated — order is ready to submit live.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 flex-col sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => { setCloseLEAPTarget(null); setCloseLEAPDryRunPassed(false); }}
+              disabled={closeLEAPMutation.isPending}
+            >
+              Cancel
+            </Button>
+            {!closeLEAPDryRunPassed ? (
+              <Button
+                variant="outline"
+                className="border-amber-600/50 text-amber-400 hover:bg-amber-900/20"
+                onClick={() => handleSubmitCloseLEAP(true)}
+                disabled={closeLEAPMutation.isPending}
+              >
+                {closeLEAPMutation.isPending && closeLEAPIsDryRun ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                Execute Dry Run
+              </Button>
+            ) : (
+              <Button
+                className="bg-red-700 hover:bg-red-800 text-white ring-2 ring-red-500 ring-offset-2 ring-offset-background"
+                onClick={() => handleSubmitCloseLEAP(false)}
+                disabled={closeLEAPMutation.isPending}
+              >
+                {closeLEAPMutation.isPending && !closeLEAPIsDryRun ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <X className="h-4 w-4 mr-1" />}
+                Submit Live STC Order
               </Button>
             )}
           </DialogFooter>

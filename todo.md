@@ -9670,3 +9670,11 @@ ROC Fix Mar 18 2026
 - [x] Redesign Step 5 Auto-Close: embed live GTC orders inline via GtcOrdersInline component
 - [x] Extend profit target picker in UnifiedOrderPreviewModal to 25/50/75/90% options
 - [x] Update server gtc.submit schema and GtcOrderRequest type to accept 25/50/75/90
+
+## PMCC Dashboard — Inline Position Management (May 13 2026)
+- [x] Add "Close Short Call" button on each active short call row — always visible (green ≥50%, orange below)
+- [x] Add "Close LEAP" button on the long leg card (STC with limit price slider, dry-run, live submit)
+- [x] Add "Roll Short Call" button — opens BTC modal; after close, Short Call Scanner becomes available
+- [x] Order preview modal: shows symbol, strike, expiry, qty, P/L, limit price slider, total debit/credit
+- [x] After closing short call, auto-refresh positions and unlock the Short Call Scanner
+- [x] Dry run / Live toggle respected for all PMCC close/roll actions
