@@ -441,6 +441,74 @@ export const autoCloseRouter = router({
       }
       return { success: true };
     }),
+
+  /**
+   * Bulk opt-in: set targets on multiple positions at once using provided defaults.
+   * Used by the "Monitor All" button in AutoCloseStep.
+   */
+  bulkSetTargets: protectedProcedure
+    .input(z.object({
+      positions: z.array(z.object({
+        accountNumber: z.string(),
+        optionSymbol: z.string(),
+        symbol: z.string(),
+        optionType: z.enum(['C', 'P']),
+        strike: z.string(),
+        expiration: z.string(),
+        averageOpenPrice: z.string(),
+        quantity: z.number(),
+      })),
+      profitTargetPct: z.number().min(1).max(99),
+      stopLossPct: z.number().nullable().optional(),
+      dteFloor: z.number().nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+      let count = 0;
+      for (const pos of input.positions) {
+        const existing = await db
+          .select({ id: positionTargets.id })
+          .from(positionTargets)
+          .where(and(
+            eq(positionTargets.userId, ctx.user.id),
+            eq(positionTargets.optionSymbol, pos.optionSymbol),
+            eq(positionTargets.accountNumber, pos.accountNumber),
+          ))
+          .limit(1);
+        if (existing.length > 0) {
+          // Already monitored — skip to avoid overwriting user's custom settings
+          continue;
+        }
+        await db.insert(positionTargets).values({
+          userId: ctx.user.id,
+          accountNumber: pos.accountNumber,
+          optionSymbol: pos.optionSymbol,
+          symbol: pos.symbol,
+          optionType: pos.optionType,
+          strike: pos.strike,
+          expiration: pos.expiration,
+          averageOpenPrice: pos.averageOpenPrice,
+          quantity: pos.quantity,
+          profitTargetPct: input.profitTargetPct,
+          stopLossPct: input.stopLossPct ?? null,
+          dteFloor: input.dteFloor ?? null,
+          isActive: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        count++;
+      }
+      // Send Telegram summary
+      try {
+        const stopPart = input.stopLossPct != null ? ` | Stop: ${input.stopLossPct}%` : '';
+        const dtePart = input.dteFloor != null ? ` | DTE ≤ ${input.dteFloor}` : '';
+        await sendTelegramMessage(`🟢 Auto-Close: Bulk Monitor Activated\n\nOpted in ${count} position${count !== 1 ? 's' : ''} using defaults:\n✅ Profit: ${input.profitTargetPct}%${stopPart}${dtePart}\n\n${count} position${count !== 1 ? 's' : ''} will now be monitored automatically.`);
+      } catch (err) {
+        console.error('[AutoClose] Bulk Telegram notify failed:', err);
+      }
+      return { count };
+    }),
 });
 
 // ─── core scan engine (also called by cron) ───────────────────────────────────

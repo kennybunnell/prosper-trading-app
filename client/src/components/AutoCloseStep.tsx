@@ -152,6 +152,46 @@ export default function AutoCloseStep() {
   });
 
   const notifyOptInMut = trpc.autoClose.notifyOptIn.useMutation();
+  const [bulkPending, setBulkPending] = useState(false);
+  const bulkSetTargetsMut = trpc.autoClose.bulkSetTargets.useMutation({
+    onSuccess: (result) => {
+      setBulkPending(false);
+      refetch();
+      toast({
+        title: `Monitor All: ${result.count} position${result.count !== 1 ? 's' : ''} opted in`,
+        description: result.count > 0
+          ? `Using defaults: ${defaultProfitPct}% profit${defaultStopLoss ? ` | ${defaultStopLoss}% stop` : ''}${defaultDteFloor ? ` | DTE ≤ ${defaultDteFloor}` : ''}. Telegram notification sent.`
+          : 'All unmonitored positions were already opted in.',
+      });
+    },
+    onError: (err) => {
+      setBulkPending(false);
+      toast({ title: 'Bulk monitor failed', description: err.message, variant: 'destructive' });
+    },
+  });
+  function handleMonitorAll() {
+    const unmonitored = allPositions.filter(p => !p.targetEnabled);
+    if (unmonitored.length === 0) {
+      toast({ title: 'All positions already monitored', description: 'No unmonitored positions to opt in.' });
+      return;
+    }
+    setBulkPending(true);
+    bulkSetTargetsMut.mutate({
+      positions: unmonitored.map(p => ({
+        accountNumber: p.accountNumber,
+        optionSymbol: p.optionSymbol,
+        symbol: p.symbol,
+        optionType: p.optionType,
+        strike: p.strike,
+        expiration: p.expiration,
+        averageOpenPrice: p.averageOpenPrice,
+        quantity: p.quantity,
+      })),
+      profitTargetPct: defaultProfitPct,
+      stopLossPct: defaultStopLoss,
+      dteFloor: defaultDteFloor,
+    });
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -497,8 +537,9 @@ export default function AutoCloseStep() {
       </div>
 
       {/* ── Filter tabs ────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 border-b border-gray-800 pb-0">
-        {filterTabs.map(tab => (
+      <div className="flex items-center justify-between border-b border-gray-800 pb-0">
+        <div className="flex items-center gap-1">
+          {filterTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setFilterTab(tab.id)}
@@ -517,6 +558,20 @@ export default function AutoCloseStep() {
             </span>
           </button>
         ))}
+        </div>
+        {/* Monitor All button */}
+        {unmonitoredCount > 0 && (
+          <button
+            onClick={handleMonitorAll}
+            disabled={bulkPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 border border-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-1"
+          >
+            {bulkPending
+              ? <><Loader2 className="h-3 w-3 animate-spin" /> Opting in…</>
+              : <><Eye className="h-3 w-3" /> Monitor All ({unmonitoredCount})</>
+            }
+          </button>
+        )}
       </div>
 
       {/* ── Positions table ────────────────────────────────────────────── */}

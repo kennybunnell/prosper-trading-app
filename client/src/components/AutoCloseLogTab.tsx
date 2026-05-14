@@ -17,6 +17,7 @@ import {
   CheckCheck,
   RefreshCw,
   ClipboardList,
+  Download,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -96,6 +97,43 @@ export function AutoCloseLogTab() {
     return <span className={`font-semibold ${color}`}>{val.toFixed(1)}%</span>;
   }
 
+  function calcPnlDollar(log: typeof logs[number]): string {
+    // P/L $ = qty × (open - close) × 100  (short option: profit when close < open)
+    const open = parseFloat(String(log.openPrice));
+    const close = parseFloat(String(log.closePrice));
+    const qty = log.quantity ?? 1;
+    const pnl = (open - close) * qty * 100;
+    const sign = pnl >= 0 ? '+' : '';
+    return `${sign}$${Math.abs(pnl).toFixed(0)}`;
+  }
+
+  function exportCsv() {
+    const headers = ['Symbol','Type','Strike','Expiration','Account','Qty','Open Price','Close Price','P/L %','P/L $','Target %','Close Reason','Closed At'];
+    const rows = logs.map(log => [
+      log.symbol,
+      log.optionType === 'P' ? 'Put' : 'Call',
+      log.strike,
+      log.expiration,
+      log.accountNumber,
+      log.quantity,
+      parseFloat(String(log.openPrice)).toFixed(2),
+      parseFloat(String(log.closePrice)).toFixed(2),
+      parseFloat(String(log.profitPct)).toFixed(1) + '%',
+      calcPnlDollar(log),
+      log.targetPct + '%',
+      log.closeReason ?? '',
+      new Date(log.closedAt).toLocaleString(),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `auto-close-log-${showArchived ? 'archived' : 'active'}-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -137,6 +175,18 @@ export function AutoCloseLogTab() {
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             Refresh
           </Button>
+
+          {logs.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCsv}
+              className="border-gray-700 text-gray-400 hover:text-white h-8"
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              Export CSV
+            </Button>
+          )}
 
           {!showArchived && logs.length > 0 && (
             <AlertDialog>
@@ -211,6 +261,7 @@ export function AutoCloseLogTab() {
                 >
                   P/L % <SortIcon col="profitPct" sortBy={sortBy} sortDir={sortDir} />
                 </th>
+                <th className="px-4 py-3 text-right text-gray-400 font-medium">P/L $</th>
                 <th className="px-4 py-3 text-right text-gray-400 font-medium">Target %</th>
                 <th className="px-4 py-3 text-center text-gray-400 font-medium">Reason</th>
                 <th
@@ -257,6 +308,13 @@ export function AutoCloseLogTab() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     {formatProfitPct(log.profitPct)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {(() => {
+                      const pnl = calcPnlDollar(log);
+                      const isPositive = pnl.startsWith('+');
+                      return <span className={`font-semibold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>{pnl}</span>;
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-400">{log.targetPct}%</td>
                   <td className="px-4 py-3 text-center">
