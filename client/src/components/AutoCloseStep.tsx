@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { AutoCloseLogTab } from './AutoCloseLogTab';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -41,6 +42,7 @@ interface ScanResult {
 
 export default function AutoCloseStep() {
   const { toast } = useToast();
+  const [mainTab, setMainTab] = useState<'monitor' | 'log'>('monitor');
   const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
 
@@ -189,6 +191,35 @@ export default function AutoCloseStep() {
 
   return (
     <div className="space-y-6">
+      {/* ── Top-level tab switcher ─────────────────────────────────────── */}
+      <div className="flex gap-0 border-b border-gray-800">
+        <button
+          onClick={() => setMainTab('monitor')}
+          className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+            mainTab === 'monitor'
+              ? 'border-orange-500 text-white'
+              : 'border-transparent text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Monitor
+        </button>
+        <button
+          onClick={() => setMainTab('log')}
+          className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+            mainTab === 'log'
+              ? 'border-orange-500 text-white'
+              : 'border-transparent text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Execution Log
+        </button>
+      </div>
+
+      {/* ── Execution Log tab ─────────────────────────────────────── */}
+      {mainTab === 'log' && <AutoCloseLogTab />}
+
+      {/* ── Monitor tab ────────────────────────────────────────────── */}
+      {mainTab === 'monitor' && <>
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -519,6 +550,8 @@ export default function AutoCloseStep() {
           </div>
         </div>
       </div>
+    </>
+      }
     </div>
   );
 }

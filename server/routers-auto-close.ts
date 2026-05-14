@@ -14,8 +14,8 @@ import { z } from 'zod';
 import { router, protectedProcedure } from './_core/trpc';
 import { TRPCError } from '@trpc/server';
 import { getDb } from './db';
-import { positionTargets } from '../drizzle/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { positionTargets, autoCloseLog } from '../drizzle/schema';
+import { eq, and, inArray, desc, asc } from 'drizzle-orm';
 import { getApiCredentials } from './db';
 import { authenticateTastytrade } from './tastytrade';
 import { notifyOwner } from './_core/notification';
@@ -286,6 +286,75 @@ export const autoCloseRouter = router({
 
     return result;
   }),
+
+  /**
+   * Fetch auto-close execution log entries for the current user.
+   * Returns active (unarchived) by default; pass archived=true for the archive view.
+   */
+  getAutoCloseLogs: protectedProcedure
+    .input(z.object({
+      archived: z.boolean().optional().default(false),
+      sortBy: z.enum(['closedAt', 'profitPct', 'symbol']).optional().default('closedAt'),
+      sortDir: z.enum(['asc', 'desc']).optional().default('desc'),
+      limit: z.number().int().min(1).max(500).optional().default(200),
+    }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const col = {
+        closedAt: autoCloseLog.closedAt,
+        profitPct: autoCloseLog.profitPct,
+        symbol: autoCloseLog.symbol,
+      }[input.sortBy];
+      const rows = await db
+        .select()
+        .from(autoCloseLog)
+        .where(and(
+          eq(autoCloseLog.userId, ctx.user.id),
+          eq(autoCloseLog.archived, input.archived),
+        ))
+        .orderBy(input.sortDir === 'asc' ? asc(col!) : desc(col!))
+        .limit(input.limit);
+      return rows;
+    }),
+
+  /**
+   * Archive (or unarchive) a single log entry.
+   */
+  archiveAutoCloseLog: protectedProcedure
+    .input(z.object({
+      id: z.number().int(),
+      archived: z.boolean(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+      await db
+        .update(autoCloseLog)
+        .set({ archived: input.archived, archivedAt: input.archived ? Date.now() : null })
+        .where(and(
+          eq(autoCloseLog.id, input.id),
+          eq(autoCloseLog.userId, ctx.user.id),
+        ));
+      return { success: true };
+    }),
+
+  /**
+   * Bulk archive all active log entries for the current user.
+   */
+  bulkArchiveAutoCloseLogs: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+      await db
+        .update(autoCloseLog)
+        .set({ archived: true, archivedAt: Date.now() })
+        .where(and(
+          eq(autoCloseLog.userId, ctx.user.id),
+          eq(autoCloseLog.archived, false),
+        ));
+      return { success: true };
+    }),
 });
 
 // ─── core scan engine (also called by cron) ───────────────────────────────────
@@ -418,6 +487,30 @@ export async function runAutoCloseScanForUser(userId: number): Promise<{
             isDryRun: false,
           });
         } catch { /* non-fatal */ }
+
+        // Write to auto-close execution log
+        try {
+          await db.insert(autoCloseLog).values({
+            userId,
+            accountId,
+            accountNumber: target.accountNumber,
+            symbol: target.symbol,
+            optionSymbol: target.optionSymbol,
+            optionType: (target.optionType as 'C' | 'P'),
+            strike: target.strike,
+            expiration: target.expiration,
+            quantity: target.quantity,
+            openPrice: String(parseFloat(target.premiumCollected).toFixed(4)),
+            closePrice: String(formattedPrice.toFixed(4)),
+            profitPct: String(profitPctRounded.toFixed(2)),
+            targetPct: target.profitTargetPct,
+            orderId: liveResult.orderId ?? null,
+            closedAt: Date.now(),
+            archived: false,
+          });
+        } catch (logErr) {
+          console.error('[AutoClose] Failed to write execution log:', logErr);
+        }
 
         // Notify owner
         await notifyOwner({

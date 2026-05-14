@@ -9720,3 +9720,10 @@ ROC Fix Mar 18 2026
 - [x] Rebuild AutoCloseStep UI to show all positions with per-row Monitor toggle and profit target picker
 - [x] Add filter tabs: All / Monitored (GTC set) / Not Monitored
 - [x] Show position details: symbol, strike, expiration, DTE, P/L%, current value, premium collected
+
+## Auto-Close Execution Log (May 14 2026)
+- [x] Add autoCloseLog DB table (symbol, strike, expiration, optionType, accountNumber, qty, openPrice, closePrice, profitPct, targetPct, closedAt, archived, archivedAt)
+- [x] Write log entry on every successful auto-close in the cron/runNow flow
+- [x] Add tRPC procedures: getAutoCloseLogs, archiveAutoCloseLog, bulkArchiveAutoCloseLogs
+- [x] Build AutoCloseLog UI tab inside AutoCloseStep with sortable columns and Archive/Unarchive actions
+- [x] Show Active and Archived sub-tabs in the log view

@@ -1,4 +1,4 @@
-import { bigint, boolean, index, int, mysqlEnum, mysqlTable, text, timestamp, unique, varchar } from "drizzle-orm/mysql-core";
+import { bigint, boolean, decimal, index, int, mysqlEnum, mysqlTable, text, timestamp, unique, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1351,3 +1351,34 @@ export const bcsPendingApprovals = mysqlTable('bcsPendingApprovals', {
 
 export type BcsPendingApproval = typeof bcsPendingApprovals.$inferSelect;
 export type InsertBcsPendingApproval = typeof bcsPendingApprovals.$inferInsert;
+
+// ─── Auto-Close Execution Log ─────────────────────────────────────────────────
+
+export const autoCloseLog = mysqlTable('auto_close_log', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountId: varchar('account_id', { length: 64 }).notNull(),
+  accountNumber: varchar('account_number', { length: 32 }).notNull(),
+  symbol: varchar('symbol', { length: 16 }).notNull(),
+  optionSymbol: varchar('option_symbol', { length: 64 }).notNull(),
+  optionType: mysqlEnum('option_type', ['C', 'P']).notNull(),
+  strike: varchar('strike', { length: 16 }).notNull(),
+  expiration: varchar('expiration', { length: 16 }).notNull(),
+  quantity: int('quantity').notNull().default(1),
+  openPrice: decimal('open_price', { precision: 10, scale: 4 }).notNull(),
+  closePrice: decimal('close_price', { precision: 10, scale: 4 }).notNull(),
+  profitPct: decimal('profit_pct', { precision: 6, scale: 2 }).notNull(),
+  targetPct: int('target_pct').notNull(),
+  orderId: varchar('order_id', { length: 64 }),
+  closedAt: bigint('closed_at', { mode: 'number' }).notNull(),
+  archived: boolean('archived').notNull().default(false),
+  archivedAt: bigint('archived_at', { mode: 'number' }),
+  notes: text('notes'),
+}, (table) => ({
+  userIdIdx: index('acl_user_id_idx').on(table.userId),
+  closedAtIdx: index('acl_closed_at_idx').on(table.closedAt),
+  archivedIdx: index('acl_archived_idx').on(table.archived),
+}));
+
+export type AutoCloseLog = typeof autoCloseLog.$inferSelect;
+export type InsertAutoCloseLog = typeof autoCloseLog.$inferInsert;
