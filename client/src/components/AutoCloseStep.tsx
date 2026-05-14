@@ -548,10 +548,26 @@ export default function AutoCloseStep() {
                           Saving…
                         </Button>
                       ) : isEnabled ? (
-                        <div className="flex flex-col items-center gap-1">
+                        <div className="flex flex-col items-center gap-1.5">
                           <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
                             <CheckCircle className="h-3.5 w-3.5" />
                             Monitoring
+                          </div>
+                          {/* Show each active bracket condition as a small pill */}
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-medium">
+                              ✓ Profit: {bracket.profitTargetPct}%
+                            </span>
+                            {bracket.stopLossPct != null && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 font-medium">
+                                ✓ Stop: {bracket.stopLossPct}%
+                              </span>
+                            )}
+                            {bracket.dteFloor != null && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 font-medium">
+                                ✓ DTE ≤ {bracket.dteFloor}
+                              </span>
+                            )}
                           </div>
                           {statusBadge(pos.targetStatus ?? 'watching')}
                           <button
