@@ -34,6 +34,7 @@ import { safeguardsRouter } from './routers-safeguards';
 import { portfolioSyncRouter } from './routers-portfolio-sync';
 import { tradingLogRouter } from './routers-trading-log';
 import { autoCloseRouter } from './routers-auto-close';
+import { bcsAutoRouter } from './routers-bcs-auto';
 import { sendTelegramMessage, fmtOrderFilled, fmtOrderRejected } from './telegram';
 
 // Helper function to parse OCC option symbols
@@ -302,6 +303,7 @@ export const appRouter = router({
   portfolioSync: portfolioSyncRouter,
   tradingLog: tradingLogRouter,
   autoClose: autoCloseRouter,
+  bcsAuto: bcsAutoRouter,
   orders: ordersRouter,
   market: marketRouter,
   dashboard: router({

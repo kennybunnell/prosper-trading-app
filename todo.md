@@ -9688,3 +9688,29 @@ ROC Fix Mar 18 2026
 - [x] Step 5 UI: Run Now button + last scan results panel (Checked/Closed/Skipped/Errors)
 - [x] Step 5 UI: Info box explaining how the monitor works
 - [x] Wire AutoCloseStep into AutomationDashboard Step 5 (replaced GtcOrdersInline)
+
+## SPX Bear Call Spread Auto-Entry with Telegram Inline Approval (May 14 2026)
+- [ ] DB: bcsAutoEntrySettings table (userId, enabled, scanTimeET, contracts, spreadWidth, minScore, minDTE, maxDTE, maxDelta, minOI, maxConcurrent, approvalTimeoutMins)
+- [ ] DB: bcsPendingApprovals table (id, userId, token, opportunity JSON, status, expiresAt, approvedAt, orderId)
+- [ ] Server: bcsAutoEntry router (getSettings, updateSettings, scanNow, approve, skip, listHistory)
+- [ ] Server: scanSPXBearCallSpreads() — fetch SPX chain, score opportunities, apply entry criteria filters
+- [ ] Server: sendTelegramApprovalMessage() — inline keyboard with Approve/Skip buttons
+- [ ] Server: Telegram webhook handler for callback_query (approve/skip inline button taps)
+- [ ] Server: submitApprovedBCS() — live order submission on approval, confirmation message back to Telegram
+- [ ] Server: cron job at configurable time (default 10:30 AM ET) Mon-Fri
+- [ ] UI: BCS Auto-Entry settings panel in Daily Actions or Spreads/Condors page
+- [ ] UI: Configurable fields (scan time, contracts, spread width, score/DTE/Delta/OI thresholds, max concurrent, approval timeout)
+- [ ] UI: Enable/disable kill switch toggle
+- [ ] UI: Approval history log (last 20 opportunities — approved/skipped/expired)
+
+## SPX BCS Auto-Entry — COMPLETED (May 14 2026)
+- [x] DB: bcsAutoEntrySettings table created and migrated
+- [x] DB: bcsPendingApprovals table created and migrated
+- [x] Server: routers-bcs-auto.ts — getSettings, updateSettings, scanNow, listHistory, countPending
+- [x] Server: runBcsAutoScanForUser() — market direction check (MA20 + RSI), SPXW chain scan, scoring, Telegram approval
+- [x] Server: Telegram inline keyboard approval (bcs:submit / bcs:skip via existing telegram-callbacks.ts pattern)
+- [x] Server: submitBcsOrder() — live Tastytrade spread order on approval, confirmation message back to Telegram
+- [x] Server: cron job at 10:30 AM ET Mon-Fri in automation-scheduler.ts
+- [x] UI: BcsAutoEntryStep component — enable/disable toggle, all configurable fields, Scan Now, history log
+- [x] UI: Step 6 "BCS Auto" tab added to AutomationDashboard (grid-cols-6)
+- [x] bcsAutoRouter wired into main routers.ts

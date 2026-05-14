@@ -17,6 +17,7 @@ let dailyITMScanTask: cron.ScheduledTask | null = null;
 let weeklyPositionDigestTask: cron.ScheduledTask | null = null;
 let dailyScanCacheTask: cron.ScheduledTask | null = null;
 let autoCloseMonitorTask: cron.ScheduledTask | null = null;
+let bcsAutoEntryTask: cron.ScheduledTask | null = null;
 
 /**
  * Initialize the automation scheduler
@@ -106,6 +107,18 @@ export function initializeAutomationScheduler() {
     { timezone: 'America/New_York' }
   );
   console.log('[Automation Scheduler] Auto-close monitor initialized. Will run every 5 min Mon-Fri 9:30-16:00 ET.');
+
+  // BCS Auto-Entry scan — default 10:30 AM ET Mon-Fri
+  // Per-user scanTimeET is checked inside runBcsAutoForAllUsers
+  bcsAutoEntryTask = cron.schedule(
+    '30 10 * * 1-5', // 10:30 AM Monday-Friday
+    async () => {
+      console.log('[BCS Auto-Entry] Running 10:30 AM ET scheduled scan...');
+      await runBcsAutoForAllUsers('10:30');
+    },
+    { timezone: 'America/New_York' }
+  );
+  console.log('[Automation Scheduler] BCS auto-entry initialized. Will run at 10:30 AM ET Mon-Fri.');
 }
 
 /**
@@ -141,6 +154,11 @@ export function stopAutomationScheduler() {
     autoCloseMonitorTask.stop();
     autoCloseMonitorTask = null;
     console.log('[Auto-Close Monitor] Stopped');
+  }
+  if (bcsAutoEntryTask) {
+    bcsAutoEntryTask.stop();
+    bcsAutoEntryTask = null;
+    console.log('[BCS Auto-Entry] Stopped');
   }
 }
 
@@ -686,4 +704,43 @@ export async function manuallyTriggerFridaySweep(userId: string) {
   return safeguardsRouter.createCaller(mockCtx as any).scanExpirationRisk({
     mode: 'friday',
   });
+}
+
+/**
+ * Run BCS auto-entry scan for all users who have it enabled and whose scanTimeET matches.
+ * @param currentTimeET - HH:MM string of current ET time (e.g. "10:30")
+ */
+async function runBcsAutoForAllUsers(currentTimeET: string) {
+  try {
+    const db = await getDb();
+    if (!db) return;
+
+    const { bcsAutoEntrySettings } = await import('../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+
+    // Find all users with BCS auto-entry enabled
+    const rows = await db
+      .select({
+        userId: bcsAutoEntrySettings.userId,
+        scanTimeET: bcsAutoEntrySettings.scanTimeET,
+      })
+      .from(bcsAutoEntrySettings)
+      .where(eq(bcsAutoEntrySettings.enabled, true));
+
+    if (rows.length === 0) return;
+
+    const { runBcsAutoScanForUser } = await import('./routers-bcs-auto');
+    for (const row of rows) {
+      // Only run if this user's configured scan time matches the current cron time
+      if (row.scanTimeET !== currentTimeET) continue;
+      try {
+        const result = await runBcsAutoScanForUser(row.userId, false);
+        console.log(`[BCS Auto-Entry] User ${row.userId}: ${result.status} — ${result.message}`);
+      } catch (err) {
+        console.error(`[BCS Auto-Entry] Error for user ${row.userId}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error('[BCS Auto-Entry] Error in runBcsAutoForAllUsers:', err);
+  }
 }

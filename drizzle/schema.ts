@@ -1293,3 +1293,61 @@ export const positionTargets = mysqlTable('positionTargets', {
 
 export type PositionTarget = typeof positionTargets.$inferSelect;
 export type InsertPositionTarget = typeof positionTargets.$inferInsert;
+
+// ─── BCS Auto-Entry System ────────────────────────────────────────────────────
+export const bcsAutoEntrySettings = mysqlTable('bcsAutoEntrySettings', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  enabled: boolean('enabled').notNull().default(false),
+  scanTimeET: varchar('scanTimeET', { length: 8 }).notNull().default('10:30'),
+  contracts: int('contracts').notNull().default(2),
+  spreadWidth: int('spreadWidth').notNull().default(50),
+  minScore: int('minScore').notNull().default(70),
+  minDTE: int('minDTE').notNull().default(30),
+  maxDTE: int('maxDTE').notNull().default(45),
+  maxDelta: varchar('maxDelta', { length: 10 }).notNull().default('0.20'),
+  minOI: int('minOI').notNull().default(500),
+  maxConcurrent: int('maxConcurrent').notNull().default(2),
+  approvalTimeoutMins: int('approvalTimeoutMins').notNull().default(30),
+  accountId: varchar('accountId', { length: 64 }),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index('bcsAutoEntrySettings_userId_idx').on(table.userId),
+}));
+
+export type BcsAutoEntrySettings = typeof bcsAutoEntrySettings.$inferSelect;
+export type InsertBcsAutoEntrySettings = typeof bcsAutoEntrySettings.$inferInsert;
+
+export const bcsPendingApprovals = mysqlTable('bcsPendingApprovals', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: varchar('token', { length: 64 }).notNull(),
+  symbol: varchar('symbol', { length: 16 }).notNull().default('SPXW'),
+  shortStrike: varchar('shortStrike', { length: 20 }).notNull(),
+  longStrike: varchar('longStrike', { length: 20 }).notNull(),
+  expiration: varchar('expiration', { length: 20 }).notNull(),
+  dte: int('dte').notNull(),
+  netCredit: varchar('netCredit', { length: 20 }).notNull(),
+  delta: varchar('delta', { length: 20 }).notNull(),
+  score: int('score').notNull().default(0),
+  contracts: int('contracts').notNull().default(2),
+  shortOptionSymbol: varchar('shortOptionSymbol', { length: 64 }).notNull(),
+  longOptionSymbol: varchar('longOptionSymbol', { length: 64 }).notNull(),
+  accountId: varchar('accountId', { length: 64 }).notNull(),
+  status: mysqlEnum('status', ['pending', 'approved', 'skipped', 'expired', 'error']).notNull().default('pending'),
+  orderId: varchar('orderId', { length: 64 }),
+  errorMessage: text('errorMessage'),
+  telegramMessageId: int('telegramMessageId'),
+  expiresAt: timestamp('expiresAt').notNull(),
+  approvedAt: timestamp('approvedAt'),
+  resolvedAt: timestamp('resolvedAt'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index('bcsPendingApprovals_userId_idx').on(table.userId),
+  statusIdx: index('bcsPendingApprovals_status_idx').on(table.status),
+  tokenIdx: index('bcsPendingApprovals_token_idx').on(table.token),
+}));
+
+export type BcsPendingApproval = typeof bcsPendingApprovals.$inferSelect;
+export type InsertBcsPendingApproval = typeof bcsPendingApprovals.$inferInsert;

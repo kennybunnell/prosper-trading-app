@@ -59,6 +59,7 @@ import { AIRowIcon } from '@/components/AIRowIcon';
 import PMCCDashboard from './PMCCDashboard';
 import GtcOrdersInline from '@/components/GtcOrdersInline';
 import AutoCloseStep from '@/components/AutoCloseStep';
+import BcsAutoEntryStep from '@/components/BcsAutoEntryStep';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PositionTableSkeleton } from '@/components/PositionTableSkeleton';
@@ -1810,7 +1811,7 @@ export default function AutomationDashboard() {
 
       {/* Five-Step Automation Tabs */}
       {activeTopTab === 'automation' && <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-6 h-auto">
           <TabsTrigger value="step1-close" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">1</span>
             <span className="flex items-center gap-1">
@@ -1866,6 +1867,10 @@ export default function AutomationDashboard() {
           <TabsTrigger value="step5-gtc" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">5</span>
             <span>Auto-Close</span>
+          </TabsTrigger>
+          <TabsTrigger value="step6-bcs" className="relative flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">6</span>
+            <span>BCS Auto</span>
           </TabsTrigger>
         </TabsList>
 
@@ -4588,6 +4593,14 @@ export default function AutomationDashboard() {
         <TabsContent value="step5-gtc">
           <div className="p-6">
             <AutoCloseStep />
+          </div>
+        </TabsContent>
+        {/* ─────────────────────────────────────────────────────────────────
+            STEP 6: BCS Auto-Entry
+        ───────────────────────────────────────────────────────────────── */}
+        <TabsContent value="step6-bcs">
+          <div className="p-6">
+            <BcsAutoEntryStep />
           </div>
         </TabsContent>
 
