@@ -56,6 +56,8 @@ import { AIStrategyReviewPanel, ReviewPosition, StrategyType } from '@/component
 import { AIRollAdvisorPanel, RollAdvisorPosition } from '@/components/AIRollAdvisorPanel';
 import { AISellCallAdvisorPanel, SellCallCandidate } from '@/components/AISellCallAdvisorPanel';
 import { AIRowIcon } from '@/components/AIRowIcon';
+import PMCCDashboard from './PMCCDashboard';
+import GtcOrdersInline from '@/components/GtcOrdersInline';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PositionTableSkeleton } from '@/components/PositionTableSkeleton';
@@ -1824,8 +1826,19 @@ export default function AutomationDashboard() {
               })()}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="step2-roll" className="relative flex flex-col gap-0.5 py-2 text-xs">
+          <TabsTrigger value="step3-cc" className="flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">2</span>
+            <span className="flex items-center gap-1">
+              Sell Calls
+              {cachedSellCallsCount !== null && cachedSellCallsCount > 0 ? (
+                <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-none" title="Cached from last daily scan">
+                  {cachedSellCallsCount}
+                </span>
+              ) : null}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="step2-roll" className="relative flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">3</span>
             <span className="flex items-center gap-1">
               Roll / Close Positions
               {(() => {
@@ -1843,17 +1856,6 @@ export default function AutomationDashboard() {
                   </span>
                 ) : null;
               })()}
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="step3-cc" className="flex flex-col gap-0.5 py-2 text-xs">
-            <span className="font-bold text-sm">3</span>
-            <span className="flex items-center gap-1">
-              Sell Calls
-              {cachedSellCallsCount !== null && cachedSellCallsCount > 0 ? (
-                <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-none" title="Cached from last daily scan">
-                  {cachedSellCallsCount}
-                </span>
-              ) : null}
             </span>
           </TabsTrigger>
           <TabsTrigger value="step4-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
@@ -4573,67 +4575,17 @@ export default function AutomationDashboard() {
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────────
-            STEP 4: PMCC Management (Coming Soon)
+            STEP 4: PMCC Management
         ───────────────────────────────────────────────────────────────── */}
         <TabsContent value="step4-pmcc">
-          <Card className="border-pink-500/30 bg-pink-500/5">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Zap className="h-5 w-5 text-pink-400" />
-                <div>
-                  <CardTitle>PMCC Management</CardTitle>
-                  <CardDescription>Manage Poor Man's Covered Calls — scan LEAPS for short call opportunities and manage existing PMCCs</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground space-y-3">
-                <Zap className="h-12 w-12 mx-auto opacity-30" />
-                <p className="font-semibold text-base">Coming Soon</p>
-                <p className="text-sm max-w-md mx-auto">
-                  PMCC manager tracks your long LEAPS positions and suggests optimal short call strikes
-                  to sell against them, maximizing premium collection while protecting the long leg.
-                </p>
-                <div className="flex flex-wrap justify-center gap-2 pt-2">
-                  <Badge variant="outline" className="text-pink-400 border-pink-400/40">LEAPS tracking</Badge>
-                  <Badge variant="outline" className="text-pink-400 border-pink-400/40">Short call scanner</Badge>
-                  <Badge variant="outline" className="text-pink-400 border-pink-400/40">Delta management</Badge>
-                  <Badge variant="outline" className="text-pink-400 border-pink-400/40">Configurable on/off</Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <PMCCDashboard />
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────────
             STEP 5: Auto-Close Orders (GTC)
         ───────────────────────────────────────────────────────────────── */}
         <TabsContent value="step5-gtc">
-          <Card className="border-orange-500/30 bg-orange-500/5">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Timer className="h-5 w-5 text-orange-400" />
-                <div>
-                  <CardTitle>Auto-Close Orders (GTC)</CardTitle>
-                  <CardDescription>Monitor and manage Good-Till-Cancelled profit-target close orders placed after every STO fill</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="p-4 rounded-lg bg-background/50 border border-border/40 text-sm text-muted-foreground space-y-2">
-                <p>GTC close orders are automatically submitted after every confirmed STO fill. They close your position when it reaches <strong>50–80% of maximum profit</strong>, locking in gains without manual monitoring.</p>
-                <p>Use the full Auto-Close Orders page to cancel individual orders, manually poll for fills, or review the complete order history.</p>
-              </div>
-              <div className="flex gap-3">
-                <Button asChild className="bg-orange-600 hover:bg-orange-700">
-                  <Link href="/gtc-orders">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Open Auto-Close Orders
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <GtcOrdersInline />
         </TabsContent>
 
       </Tabs>}{/* end conditional automation tabs */}

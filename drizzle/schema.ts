@@ -956,7 +956,7 @@ export const gtcOrders = mysqlTable('gtcOrders', {
   totalPremiumCollected: varchar('totalPremiumCollected', { length: 20 }).notNull(), // e.g. "350.00"
 
   // Profit target
-  profitTargetPct: int('profitTargetPct').notNull().default(75), // 50 or 75
+  profitTargetPct: int('profitTargetPct').notNull().default(75), // 25, 50, 75, or 90
   targetClosePrice: varchar('targetClosePrice', { length: 20 }).notNull(), // GTC limit price (per share)
 
   // GTC order details (populated after submission)

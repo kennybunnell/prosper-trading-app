@@ -2,7 +2,7 @@
  * GTC Close Order Automation
  *
  * After a live STO fill is confirmed, this module:
- *   1. Calculates the GTC close price at the user's profit target (75% or 50%)
+ *   1. Calculates the GTC close price at the user's profit target (25%, 50%, 75%, or 90%)
  *   2. Submits a BTC limit order to Tastytrade with time-in-force = GTC
  *   3. Records the pending GTC order in the database
  *   4. Provides procedures to list, cancel, and poll GTC orders
@@ -26,7 +26,7 @@ export interface GtcOrderRequest {
   expiration: string;
   premiumCollected: number;   // per share (e.g. 3.50)
   totalPremiumCollected: number; // total (e.g. 350.00)
-  profitTargetPct: 50 | 75;
+  profitTargetPct: 25 | 50 | 75 | 90;
   // Tastytrade API credentials
   tastytradeToken: string;
   accountNumber: string;

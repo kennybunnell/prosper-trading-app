@@ -198,7 +198,7 @@ export function UnifiedOrderPreviewModal({
   const [showMarketClosedWarning, setShowMarketClosedWarning] = useState(false);
   const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; description: string } | null>(null);
   // Profit target for STO strategies (75% = user's preferred default, 50% = tastytrade standard)
-  const [profitTargetPct, setProfitTargetPct] = useState<50 | 75>(75);
+  const [profitTargetPct, setProfitTargetPct] = useState<25 | 50 | 75 | 90>(75);
   // Paper trading order submission
   const paperSubmitMutation = trpc.paperTrading.submitOrder.useMutation();
   const [paperOrderResult, setPaperOrderResult] = useState<{ orderId: number; message: string; totalPremiumDollars: number } | null>(null);
@@ -2209,26 +2209,21 @@ export function UnifiedOrderPreviewModal({
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-muted-foreground">Profit Target</span>
                       <div className="flex gap-1.5">
-                        <button
-                          onClick={() => setProfitTargetPct(50)}
-                          className={`px-3 py-1 text-xs rounded-md border transition-colors ${
-                            profitTargetPct === 50
-                              ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
-                              : 'border-border/50 text-muted-foreground hover:border-border'
-                          }`}
-                        >
-                          50%
-                        </button>
-                        <button
-                          onClick={() => setProfitTargetPct(75)}
-                          className={`px-3 py-1 text-xs rounded-md border transition-colors ${
-                            profitTargetPct === 75
-                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
-                              : 'border-border/50 text-muted-foreground hover:border-border'
-                          }`}
-                        >
-                          75% ★
-                        </button>
+                        {([25, 50, 75, 90] as const).map(pct => (
+                          <button
+                            key={pct}
+                            onClick={() => setProfitTargetPct(pct)}
+                            className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                              profitTargetPct === pct
+                                ? pct === 75
+                                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
+                                  : 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                                : 'border-border/50 text-muted-foreground hover:border-border'
+                            }`}
+                          >
+                            {pct}%{pct === 75 ? ' ★' : ''}
+                          </button>
+                        ))}
                       </div>
                     </div>
                     {calculateTotalPremium() > 0 && (

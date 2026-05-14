@@ -4904,7 +4904,7 @@ Summary: [One sentence overall assessment]`;
         expiration: z.string(),
         premiumCollected: z.number(),
         totalPremiumCollected: z.number(),
-        profitTargetPct: z.union([z.literal(50), z.literal(75)]),
+        profitTargetPct: z.union([z.literal(25), z.literal(50), z.literal(75), z.literal(90)]),
         legs: z.array(z.object({
           symbol: z.string(),
           action: z.enum(['Buy to Close', 'Sell to Close']),

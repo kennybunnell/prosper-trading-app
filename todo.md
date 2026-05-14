@@ -9663,3 +9663,10 @@ ROC Fix Mar 18 2026
 - [x] Detail dialog: full description, screenshot/video preview, copy button for text, conversation history, reply form, status update
 - [x] Copy button copies subject + description + page URL as formatted block ready to paste into chat
 - [x] Tab only renders for admin users (role === 'admin')
+
+## Daily Actions Reorder & Wiring (May 13 2026)
+- [x] Reorder steps: 1-Close for Profit, 2-Sell Calls, 3-Roll/Close Positions, 4-PMCC Mgmt, 5-Auto-Close
+- [x] Wire Step 4 PMCC to embed PMCCDashboard content (remove Coming Soon placeholder)
+- [x] Redesign Step 5 Auto-Close: embed live GTC orders inline via GtcOrdersInline component
+- [x] Extend profit target picker in UnifiedOrderPreviewModal to 25/50/75/90% options
+- [x] Update server gtc.submit schema and GtcOrderRequest type to accept 25/50/75/90
