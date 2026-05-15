@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import {
   Loader2, Play, Settings2, Clock, CheckCircle, XCircle, AlertTriangle,
-  TrendingUp, TrendingDown, Zap, Bell, Info, RefreshCw,
+  TrendingUp, TrendingDown, Zap, Bell, Info, RefreshCw, Activity, AlertCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -72,6 +72,10 @@ export default function BcsAutoEntryStep() {
   const { data: settings, isLoading: settingsLoading, refetch: refetchSettings } = trpc.bcsAuto.getSettings.useQuery();
   const { data: history, isLoading: histLoading, refetch: refetchHistory } = trpc.bcsAuto.listHistory.useQuery({ limit: 20 });
   const { data: pendingCount } = trpc.bcsAuto.countPending.useQuery(undefined, { refetchInterval: 15_000 });
+  const { data: marketBias, isLoading: biasLoading, refetch: refetchBias } = trpc.bcsAuto.getMarketBias.useQuery(
+    undefined,
+    { staleTime: 5 * 60 * 1000, refetchInterval: 5 * 60 * 1000 },
+  );
 
   // ── Local form state (mirrors settings) ───────────────────────────────────
   const [enabled, setEnabled] = useState(false);
@@ -160,6 +164,19 @@ export default function BcsAutoEntryStep() {
 
   const isBPS = strategy === 'bps';
 
+  // Determine if the current strategy mismatches the market bias
+  const biasMismatch = (() => {
+    if (!marketBias || marketBias.bias === 'unknown' || marketBias.bias === 'neutral') return false;
+    if (isBPS && marketBias.bias === 'bearish') return true;
+    if (!isBPS && marketBias.bias === 'bullish') return true;
+    return false;
+  })();
+
+  const suggestedStrategy: Strategy | null = (() => {
+    if (!biasMismatch) return null;
+    return isBPS ? 'bcs' : 'bps';
+  })();
+
   if (settingsLoading) {
     return (
       <div className="flex items-center justify-center p-12 text-muted-foreground">
@@ -199,6 +216,101 @@ export default function BcsAutoEntryStep() {
           />
         </div>
       </div>
+
+      {/* ── Market Bias Badge ── */}
+      <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/40 bg-card/30">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">SPX Market Bias (vs 20-day MA)</p>
+            {biasLoading ? (
+              <div className="flex items-center gap-1 mt-0.5">
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Fetching SPX data...</span>
+              </div>
+            ) : marketBias?.bias === 'bullish' ? (
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-600/20 text-emerald-400 border border-emerald-600/30">
+                  <TrendingUp className="h-3 w-3" /> Bullish — favors BPS
+                </span>
+                {marketBias.spxPrice && marketBias.ma20 && (
+                  <span className="text-xs text-muted-foreground">
+                    SPX {marketBias.spxPrice.toFixed(0)} / MA20 {marketBias.ma20.toFixed(0)}
+                    {marketBias.pctAboveMA !== null && (
+                      <span className="text-emerald-400 ml-1">(+{marketBias.pctAboveMA.toFixed(2)}%)</span>
+                    )}
+                  </span>
+                )}
+              </div>
+            ) : marketBias?.bias === 'bearish' ? (
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-600/20 text-red-400 border border-red-600/30">
+                  <TrendingDown className="h-3 w-3" /> Bearish — favors BCS
+                </span>
+                {marketBias.spxPrice && marketBias.ma20 && (
+                  <span className="text-xs text-muted-foreground">
+                    SPX {marketBias.spxPrice.toFixed(0)} / MA20 {marketBias.ma20.toFixed(0)}
+                    {marketBias.pctAboveMA !== null && (
+                      <span className="text-red-400 ml-1">({marketBias.pctAboveMA.toFixed(2)}%)</span>
+                    )}
+                  </span>
+                )}
+              </div>
+            ) : marketBias?.bias === 'neutral' ? (
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-600/20 text-slate-400 border border-slate-600/30">
+                  Neutral — near MA20
+                </span>
+                {marketBias.spxPrice && marketBias.ma20 && (
+                  <span className="text-xs text-muted-foreground">
+                    SPX {marketBias.spxPrice.toFixed(0)} / MA20 {marketBias.ma20.toFixed(0)}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground mt-0.5 block">
+                {marketBias?.error ?? 'Configure Tradier API key to see market bias'}
+              </span>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => refetchBias()}
+          disabled={biasLoading}
+          className="h-7 w-7 p-0 shrink-0"
+          title="Refresh market bias"
+        >
+          <RefreshCw className={`h-3 w-3 ${biasLoading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
+
+      {/* ── Strategy Mismatch Warning ── */}
+      {biasMismatch && suggestedStrategy && (
+        <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-600/40 bg-amber-950/20">
+          <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-400">
+              Strategy mismatch detected
+            </p>
+            <p className="text-xs text-amber-300/80 mt-0.5">
+              Current market bias is <strong>{marketBias?.bias}</strong> — conditions favor a{' '}
+              <strong>{suggestedStrategy === 'bps' ? 'Bull Put Spread (BPS)' : 'Bear Call Spread (BCS)'}</strong>{' '}
+              rather than the currently selected{' '}
+              <strong>{isBPS ? 'Bull Put Spread (BPS)' : 'Bear Call Spread (BCS)'}</strong>.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setStrategy(suggestedStrategy); markDirty(); }}
+            className="shrink-0 h-7 text-xs border-amber-600/50 text-amber-400 hover:bg-amber-950/40"
+          >
+            Switch to {suggestedStrategy.toUpperCase()}
+          </Button>
+        </div>
+      )}
 
       {/* ── Strategy Toggle ── */}
       <Card className="border-slate-700/50">

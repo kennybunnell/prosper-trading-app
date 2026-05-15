@@ -9763,3 +9763,9 @@ ROC Fix Mar 18 2026
 - [x] Update backend scan to support BPS (sell put spread: sell higher put, buy lower put)
 - [x] Update Telegram notification message to reflect BPS vs BCS strategy
 - [x] Update entry criteria labels (Min Short Delta → put delta for BPS, call delta for BCS)
+
+## SPX Spreads Enhancements (May 15, 2026)
+- [x] BPS position tracker: Open Positions tab already natively supports BPS via getActivePositions (bull_put spreadType) — no new table needed
+- [x] Add backend procedure: bcsAuto.getMarketBias (fetch SPX price vs 20-day MA from Tradier, return Bullish/Neutral/Bearish)
+- [x] Add live market bias badge to BcsAutoEntryStep header (SPX vs 20-day MA)
+- [x] Add auto-strategy suggestion: warn when selected strategy mismatches current market bias

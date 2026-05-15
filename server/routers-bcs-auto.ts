@@ -197,6 +197,66 @@ export const bcsAutoRouter = router({
       ));
     return { count: rows[0]?.cnt ?? 0 };
   }),
+
+  /**
+   * Get live SPX market bias: compares current SPX price to 20-day MA.
+   * Returns bias ('bullish' | 'neutral' | 'bearish'), current price, MA20, and RSI.
+   * Cached for 5 minutes to avoid hammering the Tradier API.
+   */
+  getMarketBias: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const creds = await getApiCredentials(ctx.user.id);
+      if (!creds?.tradierApiKey) {
+        return { bias: 'unknown' as const, error: 'No Tradier API key configured', spxPrice: null, ma20: null, rsi: null, pctAboveMA: null };
+      }
+      const { createTradierAPI } = await import('./tradier');
+      const tradier = createTradierAPI(creds.tradierApiKey!, false, ctx.user.id);
+
+      // Fetch 30 days of SPX daily history (enough for 20-day MA + RSI)
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 45); // 45 days buffer
+      const history = await tradier.getHistoricalData(
+        'SPX',
+        'daily',
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0],
+      );
+
+      if (!history || history.length < 20) {
+        return { bias: 'unknown' as const, error: 'Insufficient price history', spxPrice: null, ma20: null, rsi: null, pctAboveMA: null };
+      }
+
+      const closes = history.map((d: any) => d.close);
+      const spxPrice = closes[closes.length - 1];
+      const ma20 = tradier.calculateSMA(closes, 20);
+      const rsi = tradier.calculateRSI(closes, 14);
+
+      if (!ma20) {
+        return { bias: 'unknown' as const, error: 'Could not calculate MA20', spxPrice, ma20: null, rsi, pctAboveMA: null };
+      }
+
+      const pctAboveMA = ((spxPrice - ma20) / ma20) * 100;
+
+      // Bias determination:
+      //  bullish  → SPX > MA20 (favors BPS)
+      //  bearish  → SPX < MA20 (favors BCS)
+      //  neutral  → within ±0.3% of MA20
+      let bias: 'bullish' | 'neutral' | 'bearish';
+      if (pctAboveMA > 0.3) {
+        bias = 'bullish';
+      } else if (pctAboveMA < -0.3) {
+        bias = 'bearish';
+      } else {
+        bias = 'neutral';
+      }
+
+      return { bias, spxPrice, ma20, rsi, pctAboveMA, error: null };
+    } catch (err: any) {
+      console.error('[SPX Auto] getMarketBias error:', err.message);
+      return { bias: 'unknown' as const, error: err.message, spxPrice: null, ma20: null, rsi: null, pctAboveMA: null };
+    }
+  }),
 });
 
 // ─── Core scan function (called by cron and scanNow) ─────────────────────────
