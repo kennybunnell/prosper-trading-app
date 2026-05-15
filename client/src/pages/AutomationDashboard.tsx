@@ -1828,8 +1828,12 @@ export default function AutomationDashboard() {
               })()}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="step3-cc" className="flex flex-col gap-0.5 py-2 text-xs">
+          <TabsTrigger value="step5-gtc" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">2</span>
+            <span>Auto-Close</span>
+          </TabsTrigger>
+          <TabsTrigger value="step3-cc" className="flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">3</span>
             <span className="flex items-center gap-1">
               Sell Calls
               {cachedSellCallsCount !== null && cachedSellCallsCount > 0 ? (
@@ -1840,7 +1844,7 @@ export default function AutomationDashboard() {
             </span>
           </TabsTrigger>
           <TabsTrigger value="step2-roll" className="relative flex flex-col gap-0.5 py-2 text-xs">
-            <span className="font-bold text-sm">3</span>
+            <span className="font-bold text-sm">4</span>
             <span className="flex items-center gap-1">
               Roll / Close Positions
               {(() => {
@@ -1861,12 +1865,8 @@ export default function AutomationDashboard() {
             </span>
           </TabsTrigger>
           <TabsTrigger value="step4-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
-            <span className="font-bold text-sm">4</span>
-            <span>PMCC Mgmt</span>
-          </TabsTrigger>
-          <TabsTrigger value="step5-gtc" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">5</span>
-            <span>Auto-Close</span>
+            <span>PMCC Mgmt</span>
           </TabsTrigger>
           <TabsTrigger value="step6-bcs" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">6</span>

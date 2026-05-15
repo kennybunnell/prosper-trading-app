@@ -9746,6 +9746,9 @@ ROC Fix Mar 18 2026
 - [ ] Add close reason badge (colored tag) to AutoCloseLogTab rows
 - [ ] Wire Telegram notification on handleOptIn in AutoCloseStep
 
+## Daily Actions Step Reorder (May 15, 2026)
+- [x] Reorder automation steps: Auto-Close → #2, Sell Calls → #3, Roll/Close → #4, PMCC → #5, BCS Auto → #6
+
 ## Feedback Archive/Delete (May 14, 2026)
 - [x] Add archived, archivedAt, deletedAt columns to feedback table in DB and schema
 - [x] Add archiveFeedback, deleteFeedback, bulkArchiveFeedback procedures to admin router
