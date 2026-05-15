@@ -108,12 +108,13 @@ export const feedbackRouter = router({
     }
 
     const userId = ctx.user.id;
+    const { and, isNull } = await import('drizzle-orm');
 
-    // Get user's feedback
+    // Get user's feedback — exclude soft-deleted items
     const userFeedback = await db
       .select()
       .from(feedback)
-      .where(eq(feedback.userId, userId))
+      .where(and(eq(feedback.userId, userId), isNull(feedback.deletedAt)))
       .orderBy(desc(feedback.createdAt));
 
     // Get replies for each feedback
@@ -246,6 +247,69 @@ export const feedbackRouter = router({
         message: input.message,
       });
 
+      return { success: true };
+    }),
+
+  /**
+   * Archive a feedback item (user) — hides it from the default inbox view.
+   */
+  archiveFeedback: protectedProcedure
+    .input(z.object({ feedbackId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { feedback } = await import('../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+      const item = await db.select().from(feedback)
+        .where(and(eq(feedback.id, input.feedbackId), eq(feedback.userId, ctx.user.id)))
+        .limit(1);
+      if (!item.length) throw new TRPCError({ code: 'NOT_FOUND', message: 'Feedback not found' });
+      await db.update(feedback)
+        .set({ archived: true, archivedAt: Date.now() })
+        .where(eq(feedback.id, input.feedbackId));
+      return { success: true };
+    }),
+
+  /**
+   * Unarchive a feedback item (user).
+   */
+  unarchiveFeedback: protectedProcedure
+    .input(z.object({ feedbackId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { feedback } = await import('../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+      const item = await db.select().from(feedback)
+        .where(and(eq(feedback.id, input.feedbackId), eq(feedback.userId, ctx.user.id)))
+        .limit(1);
+      if (!item.length) throw new TRPCError({ code: 'NOT_FOUND', message: 'Feedback not found' });
+      await db.update(feedback)
+        .set({ archived: false, archivedAt: null })
+        .where(eq(feedback.id, input.feedbackId));
+      return { success: true };
+    }),
+
+  /**
+   * Soft-delete a feedback item (user) — hides it permanently from their inbox.
+   */
+  deleteFeedback: protectedProcedure
+    .input(z.object({ feedbackId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { feedback } = await import('../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+      const item = await db.select().from(feedback)
+        .where(and(eq(feedback.id, input.feedbackId), eq(feedback.userId, ctx.user.id)))
+        .limit(1);
+      if (!item.length) throw new TRPCError({ code: 'NOT_FOUND', message: 'Feedback not found' });
+      await db.update(feedback)
+        .set({ deletedAt: Date.now() })
+        .where(eq(feedback.id, input.feedbackId));
       return { success: true };
     }),
 });

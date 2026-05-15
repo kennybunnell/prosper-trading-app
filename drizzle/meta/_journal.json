@@ -554,6 +554,13 @@
       "when": 1778787701131,
       "tag": "0079_mysterious_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "5",
+      "when": 1778805086864,
+      "tag": "0080_goofy_fenris",
+      "breakpoints": true
     }
   ]
 }

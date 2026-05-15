@@ -507,14 +507,14 @@ export const adminRouter = router({
       status: z.enum(['new', 'in_progress', 'resolved', 'closed']).optional(),
       type: z.enum(['bug', 'feature', 'question', 'feedback']).optional(),
       priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+      archived: z.boolean().optional().default(false), // false = active, true = archived
       limit: z.number().default(50),
       offset: z.number().default(0),
     }))
     .query(async ({ input }) => {
       const { getDb } = await import('./db');
       const { feedback, users } = await import('../drizzle/schema');
-      const { eq, desc, and } = await import('drizzle-orm');
-
+      const { eq, desc, and, isNull } = await import('drizzle-orm');
       const db = await getDb();
       if (!db) {
         throw new TRPCError({
@@ -522,27 +522,24 @@ export const adminRouter = router({
           message: 'Database not available',
         });
       }
-
-      const conditions = [];
+      const conditions: any[] = [
+        isNull(feedback.deletedAt), // always exclude soft-deleted
+        eq(feedback.archived, input.archived ?? false),
+      ];
       if (input.status) conditions.push(eq(feedback.status, input.status));
       if (input.type) conditions.push(eq(feedback.type, input.type));
       if (input.priority) conditions.push(eq(feedback.priority, input.priority));
-
-      let query = db
+      const query = db
         .select({
           feedback,
           user: users,
         })
         .from(feedback)
         .leftJoin(users, eq(feedback.userId, users.id))
+        .where(and(...conditions))
         .orderBy(desc(feedback.createdAt))
         .limit(input.limit)
         .offset(input.offset);
-
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions)) as any;
-      }
-
       return await query;
     }),
 
@@ -1150,5 +1147,75 @@ export const adminRouter = router({
 
       console.log(`[VIP] Revoked VIP from user ${input.userId} by admin ${ctx.user.id}`);
       return { success: true };
+    }),
+
+  /**
+   * Archive a feedback item (admin) — soft-hides it from the default view.
+   */
+  archiveFeedback: adminProcedure
+    .input(z.object({ feedbackId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { feedback } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      await db.update(feedback)
+        .set({ archived: true, archivedAt: Date.now() })
+        .where(eq(feedback.id, input.feedbackId));
+      return { success: true };
+    }),
+
+  /**
+   * Unarchive a feedback item (admin).
+   */
+  unarchiveFeedback: adminProcedure
+    .input(z.object({ feedbackId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { feedback } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      await db.update(feedback)
+        .set({ archived: false, archivedAt: null })
+        .where(eq(feedback.id, input.feedbackId));
+      return { success: true };
+    }),
+
+  /**
+   * Soft-delete a feedback item (admin) — sets deletedAt timestamp.
+   * Deleted items are hidden from all views but not removed from DB.
+   */
+  deleteFeedback: adminProcedure
+    .input(z.object({ feedbackId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { feedback } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      await db.update(feedback)
+        .set({ deletedAt: Date.now() })
+        .where(eq(feedback.id, input.feedbackId));
+      return { success: true };
+    }),
+
+  /**
+   * Bulk archive feedback items (admin).
+   */
+  bulkArchiveFeedback: adminProcedure
+    .input(z.object({ feedbackIds: z.array(z.number()) }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { feedback } = await import('../drizzle/schema');
+      const { inArray } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      if (input.feedbackIds.length === 0) return { count: 0 };
+      await db.update(feedback)
+        .set({ archived: true, archivedAt: Date.now() })
+        .where(inArray(feedback.id, input.feedbackIds));
+      return { count: input.feedbackIds.length };
     }),
 });

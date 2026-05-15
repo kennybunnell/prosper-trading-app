@@ -9745,3 +9745,10 @@ ROC Fix Mar 18 2026
 - [ ] Pre-fill new row bracket values from global defaults
 - [ ] Add close reason badge (colored tag) to AutoCloseLogTab rows
 - [ ] Wire Telegram notification on handleOptIn in AutoCloseStep
+
+## Feedback Archive/Delete (May 14, 2026)
+- [x] Add archived, archivedAt, deletedAt columns to feedback table in DB and schema
+- [x] Add archiveFeedback, deleteFeedback, bulkArchiveFeedback procedures to admin router
+- [x] Add archiveFeedback, deleteFeedback procedures to feedback router (user-facing)
+- [x] Update Admin Feedback page with Archive and Delete action buttons per row + bulk archive
+- [x] Update Daily Actions Inbox with Archive and Delete action buttons per row

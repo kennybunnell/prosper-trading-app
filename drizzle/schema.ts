@@ -475,12 +475,16 @@ export const feedback = mysqlTable("feedback", {
   userAgent: text("userAgent"), // Browser/device info
   assignedToAdminId: int("assignedToAdminId").references(() => users.id),
   resolvedAt: timestamp("resolvedAt"),
+  archived: boolean("archived").notNull().default(false),
+  archivedAt: bigint("archivedAt", { mode: "number" }),
+  deletedAt: bigint("deletedAt", { mode: "number" }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
   userIdIdx: index("feedback_userId_idx").on(table.userId),
   statusIdx: index("feedback_status_idx").on(table.status),
   createdAtIdx: index("feedback_createdAt_idx").on(table.createdAt),
+  archivedIdx: index("feedback_archived_idx").on(table.archived),
 }));
 
 export type Feedback = typeof feedback.$inferSelect;

@@ -178,6 +178,7 @@ export default function AutoCloseStep() {
     setBulkPending(true);
     bulkSetTargetsMut.mutate({
       positions: unmonitored.map(p => ({
+        accountId: p.accountId,
         accountNumber: p.accountNumber,
         optionSymbol: p.optionSymbol,
         symbol: p.symbol,

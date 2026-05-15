@@ -449,6 +449,7 @@ export const autoCloseRouter = router({
   bulkSetTargets: protectedProcedure
     .input(z.object({
       positions: z.array(z.object({
+        accountId: z.string(),
         accountNumber: z.string(),
         optionSymbol: z.string(),
         symbol: z.string(),
@@ -482,20 +483,19 @@ export const autoCloseRouter = router({
         }
         await db.insert(positionTargets).values({
           userId: ctx.user.id,
+          accountId: pos.accountId,
           accountNumber: pos.accountNumber,
           optionSymbol: pos.optionSymbol,
           symbol: pos.symbol,
           optionType: pos.optionType,
           strike: pos.strike,
           expiration: pos.expiration,
-          averageOpenPrice: pos.averageOpenPrice,
+          premiumCollected: pos.averageOpenPrice,
           quantity: pos.quantity,
           profitTargetPct: input.profitTargetPct,
           stopLossPct: input.stopLossPct ?? null,
           dteFloor: input.dteFloor ?? null,
-          isActive: true,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          strategy: pos.optionType === 'P' ? 'csp' : 'cc',
         });
         count++;
       }

@@ -12,7 +12,18 @@ import { useToast } from "@/hooks/use-toast";
 import {
   MessageSquare, Megaphone, Trash2, Eye, EyeOff, Send, Paperclip,
   Video, Bot, Copy, Check, Clock, CheckCircle, XCircle, Users, ExternalLink,
+  Archive, ArchiveRestore,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatDistanceToNow } from "date-fns";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -438,6 +449,8 @@ export default function Inbox() {
   const isAdmin = user?.role === "admin";
 
   const [selectedFeedback, setSelectedFeedback]       = useState<number | null>(null);
+  const [feedbackDeleteConfirmId, setFeedbackDeleteConfirmId] = useState<number | null>(null);
+  const [showArchivedFeedback, setShowArchivedFeedback] = useState(false);
   const [selectedBroadcast, setSelectedBroadcast]     = useState<number | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<number | null>(null);
   const [replyMessage, setReplyMessage]               = useState("");
@@ -467,6 +480,20 @@ export default function Inbox() {
       refetchFeedback();
     },
     onError: (e: any) => toast({ title: "Failed to send reply", description: e.message, variant: "destructive" }),
+  });
+
+  // Feedback archive/delete mutations
+  const archiveMyFeedback = trpc.feedback.archiveFeedback.useMutation({
+    onSuccess: () => { toast({ title: "Feedback archived" }); refetchFeedback(); },
+    onError: (e: any) => toast({ title: "Failed to archive", description: e.message, variant: "destructive" }),
+  });
+  const unarchiveMyFeedback = trpc.feedback.unarchiveFeedback.useMutation({
+    onSuccess: () => { toast({ title: "Feedback unarchived" }); refetchFeedback(); },
+    onError: (e: any) => toast({ title: "Failed to unarchive", description: e.message, variant: "destructive" }),
+  });
+  const deleteMyFeedback = trpc.feedback.deleteFeedback.useMutation({
+    onSuccess: () => { toast({ title: "Feedback deleted" }); setFeedbackDeleteConfirmId(null); refetchFeedback(); },
+    onError: (e: any) => toast({ title: "Failed to delete", description: e.message, variant: "destructive" }),
   });
 
   const markBroadcastRead = trpc.inbox.markBroadcastRead.useMutation({ onSuccess: () => refetchBroadcasts() });
@@ -537,14 +564,33 @@ export default function Inbox() {
 
         {/* ── My Feedback ── */}
         <TabsContent value="feedback" className="space-y-4">
-          {!feedbackList || feedbackList.feedback.length === 0 ? (
-            <Card className="p-12 text-center">
-              <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No feedback submitted yet</h3>
-              <p className="text-muted-foreground">Use the Feedback button to report issues or suggest features</p>
-            </Card>
-          ) : (
-            feedbackList.feedback.map((item: any) => {
+          {/* Archive toggle */}
+          {feedbackList && feedbackList.feedback.length > 0 && (
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground gap-1.5"
+                onClick={() => setShowArchivedFeedback((v) => !v)}
+              >
+                {showArchivedFeedback ? <><Eye className="h-3.5 w-3.5" />Show Active</> : <><Archive className="h-3.5 w-3.5" />Show Archived</>}
+              </Button>
+            </div>
+          )}
+          {(() => {
+            const items = feedbackList?.feedback.filter((i: any) => !!i.archived === showArchivedFeedback) || [];
+            if (!feedbackList || items.length === 0) return (
+              <Card className="p-12 text-center">
+                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  {showArchivedFeedback ? "No archived feedback" : "No feedback submitted yet"}
+                </h3>
+                <p className="text-muted-foreground">
+                  {showArchivedFeedback ? "Archived items will appear here" : "Use the Feedback button to report issues or suggest features"}
+                </p>
+              </Card>
+            );
+            return items.map((item: any) => {
               const hasUnread = item.replies?.some((r: any) => r.isAdminReply && !r.readByUser);
               const lastReply = item.replies?.[item.replies.length - 1];
               return (
@@ -560,6 +606,7 @@ export default function Inbox() {
                         <Badge variant={item.status === "resolved" ? "default" : "secondary"}>{item.status}</Badge>
                         <Badge variant="outline">{item.type}</Badge>
                         {item.screenshotUrl && <Paperclip className="h-4 w-4 text-muted-foreground" />}
+                        {item.archived && <Badge variant="secondary" className="gap-1 text-xs"><Archive className="h-3 w-3" />Archived</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{item.description}</p>
                       {lastReply && (
@@ -568,12 +615,48 @@ export default function Inbox() {
                         </p>
                       )}
                     </div>
-                    {hasUnread && <Badge variant="destructive">New Reply</Badge>}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {hasUnread && <Badge variant="destructive">New Reply</Badge>}
+                      {/* Archive / Unarchive */}
+                      {!item.archived ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-amber-600 hover:text-amber-700 hover:bg-amber-600/10 h-8 w-8 p-0"
+                          title="Archive"
+                          onClick={(e) => { e.stopPropagation(); archiveMyFeedback.mutate({ feedbackId: item.id }); }}
+                          disabled={archiveMyFeedback.isPending}
+                        >
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-600/10 h-8 w-8 p-0"
+                          title="Unarchive"
+                          onClick={(e) => { e.stopPropagation(); unarchiveMyFeedback.mutate({ feedbackId: item.id }); }}
+                          disabled={unarchiveMyFeedback.isPending}
+                        >
+                          <ArchiveRestore className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {/* Delete */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                        title="Delete"
+                        onClick={(e) => { e.stopPropagation(); setFeedbackDeleteConfirmId(item.id); }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               );
-            })
-          )}
+            });
+          })()}
         </TabsContent>
 
         {/* ── Announcements ── */}
@@ -742,6 +825,28 @@ export default function Inbox() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* ── Feedback Delete Confirmation ── */}
+      <AlertDialog open={!!feedbackDeleteConfirmId} onOpenChange={(open) => !open && setFeedbackDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Feedback?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently hide this feedback item from your inbox. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => feedbackDeleteConfirmId && deleteMyFeedback.mutate({ feedbackId: feedbackDeleteConfirmId })}
+              disabled={deleteMyFeedback.isPending}
+            >
+              {deleteMyFeedback.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Conversation Detail Dialog ── */}
       <Dialog open={!!selectedConversation} onOpenChange={() => setSelectedConversation(null)}>
