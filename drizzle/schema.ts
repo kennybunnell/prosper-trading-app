@@ -1380,8 +1380,8 @@ export const autoCloseLog = mysqlTable('auto_close_log', {
   closedAt: bigint('closed_at', { mode: 'number' }).notNull(),
   archived: boolean('archived').notNull().default(false),
   archivedAt: bigint('archived_at', { mode: 'number' }),
-  closeReason: varchar('close_reason', { length: 32 }),  // profit_target | stop_loss | dte_floor | manual
   notes: text('notes'),
+  closeReason: varchar('close_reason', { length: 32 }),  // profit_target | stop_loss | dte_floor | manual
 }, (table) => ({
   userIdIdx: index('acl_user_id_idx').on(table.userId),
   closedAtIdx: index('acl_closed_at_idx').on(table.closedAt),
