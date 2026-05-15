@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, userId, ccDeltaMin, ccDeltaMax, ccDteMin, ccDteMax FROM automationSettings WHERE userId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, userId, ccDeltaMin, ccDeltaMax, ccDteMin, ccDteMax FROM automationSettings WHERE userId = 1;",
+  "rows": [
+    {
+      "id": "1",
+      "userId": "1",
+      "ccDeltaMin": "0.20",
+      "ccDeltaMax": "0.25",
+      "ccDteMin": "7",
+      "ccDteMax": "14"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tccDeltaMin\tccDeltaMax\tccDteMin\tccDteMax\n1\t1\t0.20\t0.25\t7\t14\n",
+  "stderr": "",
+  "execution_time_ms": 271
+}

@@ -1084,8 +1084,12 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                     console.warn('[Automation CC] No Tradier API key available, skipping CC scan');
                   } else {
                     const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
-                    const minDelta = parseFloat(settings.ccDeltaMin);
-                    const maxDelta = parseFloat(settings.ccDeltaMax);
+                    // Normalize delta: if stored as whole number (e.g. 28 instead of 0.28), divide by 100
+                    const rawMinDelta = parseFloat(settings.ccDeltaMin);
+                    const rawMaxDelta = parseFloat(settings.ccDeltaMax);
+                    const minDelta = isNaN(rawMinDelta) ? 0.15 : (rawMinDelta > 1 ? rawMinDelta / 100 : rawMinDelta);
+                    const maxDelta = isNaN(rawMaxDelta) ? 0.35 : (rawMaxDelta > 1 ? rawMaxDelta / 100 : rawMaxDelta);
+                    console.log(`[Automation CC] Delta filter: ${minDelta.toFixed(3)} – ${maxDelta.toFixed(3)} (raw: ${settings.ccDeltaMin} – ${settings.ccDeltaMax})`);
                     // Use DTE override if provided (Tranche 2 rescan with AI-recommended DTE)
                     const effectiveDteMin = input.ccDteOverride?.min ?? settings.ccDteMin;
                     const effectiveDteMax = input.ccDteOverride?.max ?? settings.ccDteMax;

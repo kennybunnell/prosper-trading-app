@@ -2059,12 +2059,17 @@ export default function AutomationDashboard() {
                 />
               </div>
 
-              <div className="space-y-2">
+<div className="space-y-2">
                 <Label htmlFor="delta-min">Min Delta</Label>
                 <Input
                   id="delta-min"
                   type="text"
+                  placeholder="e.g. 0.20"
                   value={settings?.ccDeltaMin}
+                  onBlur={(e) => {
+                    const raw = parseFloat(e.target.value);
+                    if (!isNaN(raw) && raw > 1) updateSettings.mutate({ ccDeltaMin: (raw / 100).toFixed(2) });
+                  }}
                   onChange={(e) => updateSettings.mutate({ ccDeltaMin: e.target.value })}
                 />
               </div>
@@ -2074,7 +2079,12 @@ export default function AutomationDashboard() {
                 <Input
                   id="delta-max"
                   type="text"
+                  placeholder="e.g. 0.30"
                   value={settings?.ccDeltaMax}
+                  onBlur={(e) => {
+                    const raw = parseFloat(e.target.value);
+                    if (!isNaN(raw) && raw > 1) updateSettings.mutate({ ccDeltaMax: (raw / 100).toFixed(2) });
+                  }}
                   onChange={(e) => updateSettings.mutate({ ccDeltaMax: e.target.value })}
                 />
               </div>
@@ -4167,13 +4177,17 @@ export default function AutomationDashboard() {
                   <Label htmlFor="dte-max-tab">Max DTE</Label>
                   <Input id="dte-max-tab" type="number" min="1" max="365" value={settings?.ccDteMax} onChange={(e) => handleNumberChange('ccDteMax', parseInt(e.target.value))} />
                 </div>
-                <div className="space-y-2">
+<div className="space-y-2">
                   <Label htmlFor="delta-min-tab">Min Delta</Label>
-                  <Input id="delta-min-tab" type="text" value={settings?.ccDeltaMin} onChange={(e) => updateSettings.mutate({ ccDeltaMin: e.target.value })} />
+                  <Input id="delta-min-tab" type="text" placeholder="e.g. 0.20" value={settings?.ccDeltaMin}
+                    onBlur={(e) => { const raw = parseFloat(e.target.value); if (!isNaN(raw) && raw > 1) updateSettings.mutate({ ccDeltaMin: (raw / 100).toFixed(2) }); }}
+                    onChange={(e) => updateSettings.mutate({ ccDeltaMin: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="delta-max-tab">Max Delta</Label>
-                  <Input id="delta-max-tab" type="text" value={settings?.ccDeltaMax} onChange={(e) => updateSettings.mutate({ ccDeltaMax: e.target.value })} />
+                  <Input id="delta-max-tab" type="text" placeholder="e.g. 0.30" value={settings?.ccDeltaMax}
+                    onBlur={(e) => { const raw = parseFloat(e.target.value); if (!isNaN(raw) && raw > 1) updateSettings.mutate({ ccDeltaMax: (raw / 100).toFixed(2) }); }}
+                    onChange={(e) => updateSettings.mutate({ ccDeltaMax: e.target.value })} />
                 </div>
               </div>
               {/* AI Scoring toggle */}

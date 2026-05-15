@@ -9769,3 +9769,9 @@ ROC Fix Mar 18 2026
 - [x] Add backend procedure: bcsAuto.getMarketBias (fetch SPX price vs 20-day MA from Tradier, return Bullish/Neutral/Bearish)
 - [x] Add live market bias badge to BcsAutoEntryStep header (SPX vs 20-day MA)
 - [x] Add auto-strategy suggestion: warn when selected strategy mismatches current market bias
+
+## Step 3 Sell Calls Delta Filter Bug (May 15, 2026)
+- [x] Identify where CC scan compares delta settings vs actual option delta (whole number vs decimal mismatch)
+- [x] Fix delta comparison: backend auto-normalizes values > 1 (e.g. 28 → 0.28) before comparing
+- [x] Update CC settings UI inputs: add placeholder hints (e.g. 0.20) and onBlur auto-normalization
+- [x] Verify fix: delta 0.66 will now be excluded when max delta is 0.28 (or 28 auto-converted to 0.28)
