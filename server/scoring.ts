@@ -325,8 +325,8 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   const volume  = opp.volume ?? 0;
   // OTM % derived from strike vs current price (for CSP, strike < currentPrice)
   const otmPct  = opp.currentPrice > 0 ? Math.abs((opp.currentPrice - opp.strike) / opp.currentPrice) * 100 : 0;
-  // Use ivRank as proxy for IV richness (D4 uses ivRank directly; D5 uses null for IV since raw IV not stored)
-  const ivAnnual = null; // raw annualised IV not in CSPOpportunity; D5 falls back to raw OTM %
+  // Use opp.iv (annualised IV %) for D5 Strike Safety; falls back to raw OTM% if null
+  const ivAnnual = opp.iv ?? null; // mid_iv from greeks, stored as % (e.g. 35.2 for 35.2% IV)
 
   const d1 = scoreD1Liquidity(bid, ask, oi, volume, 15);
   const d2 = scoreD2ProbabilityCSP(delta, dte, isIndex, 20);
@@ -493,7 +493,7 @@ export function calculateBPSScore(
   const capitalRisk = opp.capitalAtRisk ?? (opp.spreadWidth ? opp.spreadWidth * 100 : 0);
   const rocPct      = capitalRisk > 0 ? (netCredit / capitalRisk) * 100 : 0;
   const trend14d    = opp.trend14d ?? 0;
-  const ivAnnual    = null; // raw annualised IV not in ScoredBPSOpportunity; D5 falls back to raw OTM %
+  const ivAnnual    = opp.iv ?? null; // mid_iv from greeks, stored as % (e.g. 35.2 for 35.2% IV)
   const otmPct      = opp.currentPrice > 0 ? Math.abs((opp.currentPrice - opp.strike) / opp.currentPrice) * 100 : 0;
 
   // D1 Liquidity (15 pts)

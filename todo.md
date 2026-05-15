@@ -9803,3 +9803,29 @@ ROC Fix Mar 18 2026
 - [x] Add Exp Move column to BCS scan table (hidden by default, Greeks group)
 - [x] Add Exp Move column to IC scan table (hidden by default, Greeks group)
 - [x] Add Exp Move column to PMCC scan table (hidden by default, Greeks group)
+
+## Expected Move Wiring + Scoring v2 (May 15, 2026 - Batch 3)
+- [ ] Wire iv (mid_iv) and expectedMove into CSP/BPS scan results in tradier.ts
+- [ ] Wire iv and expectedMove into CC/BCS scan results in cc-scoring.ts
+- [ ] Wire iv and expectedMove into IC scan results in ic-scoring.ts
+- [ ] Wire iv and expectedMove into PMCC scan results in pmcc-scoring.ts
+- [ ] Build Scoring v2 for CSP: D1-Liquidity, D2-Probability, D3-Premium, D4-Technical, D5-ExpectedMove, D6-Risk
+- [ ] Build Scoring v2 for BPS: D1-D6 rebalanced weights with Expected Move sub-score
+- [ ] Build Scoring v2 for CC: D1-D6 weights including IV Rank and Expected Move sub-score
+- [ ] Build Scoring v2 for BCS: D1-D6 rebalanced weights with Expected Move sub-score
+- [ ] Build Scoring v2 for IC: minor rebalancing, Expected Move sub-score added
+- [ ] Build Scoring v2 for PMCC: restructured to D1-D6 unified dimensions
+
+## Scoring v2 + Expected Move Wiring (Completed May 15, 2026)
+
+- [x] Wire iv (mid_iv from greeks) into CC opportunity objects in routers-cc.ts
+- [x] Wire iv and expectedMove into IC opportunity objects in routers.ts
+- [x] Wire expectedMove into PMCC LeapOpportunity in routers-pmcc.ts
+- [x] Add expectedMove to PMCC Zod input schema for score mutation
+- [x] CSP Scoring v2: D5 StrikeSafety uses 1-sigma EM when iv available (scoring.ts)
+- [x] BPS Scoring v2: D5 StrikeSafety uses 1-sigma EM when iv available (scoring.ts)
+- [x] CC Scoring v2: D5 updated to use iv for expected move comparison (routers-cc.ts)
+- [x] BCS Scoring v2: Strike Safety sub-score uses EM ratio vs IV Rank fallback (bcs-scoring.ts)
+- [x] IC Scoring v2: POP and profit zone scoring uses EM ratio when iv available (ic-scoring.ts)
+- [x] PMCC Scoring v2: Risk Management uses EM-based LEAP strike cushion when iv available (pmcc-scoring.ts)
+- [x] TypeScript: 0 errors confirmed

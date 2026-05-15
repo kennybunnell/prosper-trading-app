@@ -3370,6 +3370,11 @@ Summary: [One sentence overall assessment]`;
             volume: (bps.volume + bcs.volume) / 2,
             openInterest: (bps.openInterest + bcs.openInterest) / 2,
             ivRank: bps.ivRank, // Assume same for both
+            // Raw IV and Expected Move (use put side as primary source)
+            iv: bps.iv ?? null,
+            expectedMove: bps.iv && bps.currentPrice && bps.dte > 0
+              ? Math.round(bps.currentPrice * (bps.iv / 100) * Math.sqrt(bps.dte / 365) * 100) / 100
+              : null,
             
             // Technical indicators (from underlying stock)
             rsi: bps.rsi,

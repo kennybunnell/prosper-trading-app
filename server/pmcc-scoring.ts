@@ -208,32 +208,46 @@ export function calculatePMCCScore(leap: LeapOpportunity): { score: number; brea
 
   // ===== RISK MANAGEMENT (10 points) =====
 
-  // IV Rank - D4 IV Richness (10 pts v2, up from 5)
+  // IV Rank - D4 IV Richness (5 pts)
   // For LEAP purchase: lower IV is BETTER (buy cheap). Invert the scale.
   const ivRank = leap.ivRank;
   if (ivRank !== null && ivRank !== undefined) {
-    if (ivRank <= 20)       riskManagementScore += 10; // Low IV — cheap LEAP, excellent
-    else if (ivRank <= 30)  riskManagementScore += 8;  // Moderate-low IV — good
-    else if (ivRank <= 40)  riskManagementScore += 6;  // Moderate IV — acceptable
-    else if (ivRank <= 55)  riskManagementScore += 4;  // Elevated IV — expensive
-    else if (ivRank <= 70)  riskManagementScore += 2;  // High IV — risky purchase
-    else                    riskManagementScore += 0;  // Very high IV — avoid
+    if (ivRank <= 20)       riskManagementScore += 5; // Low IV — cheap LEAP, excellent
+    else if (ivRank <= 30)  riskManagementScore += 4; // Moderate-low IV — good
+    else if (ivRank <= 40)  riskManagementScore += 3; // Moderate IV — acceptable
+    else if (ivRank <= 55)  riskManagementScore += 2; // Elevated IV — expensive
+    else if (ivRank <= 70)  riskManagementScore += 1; // High IV — risky purchase
+    else                    riskManagementScore += 0; // Very high IV — avoid
   } else {
-    riskManagementScore += 5; // Neutral if no data
+    riskManagementScore += 2; // Neutral if no data
   }
 
-  // Theta - D5 Strike Safety proxy (5 pts v2, down from 5 — same weight)
-  // LEAPs should have minimal daily decay
-  const theta = leap.theta;
-  if (theta !== null && theta !== undefined) {
-    const absTheta = Math.abs(theta);
-    if (absTheta <= 0.05)      riskManagementScore += 5; // Minimal decay
-    else if (absTheta <= 0.10) riskManagementScore += 4;
-    else if (absTheta <= 0.15) riskManagementScore += 3;
-    else if (absTheta <= 0.20) riskManagementScore += 2;
-    else if (absTheta <= 0.25) riskManagementScore += 1;
+  // Expected Move Safety (5 pts) — how far is the LEAP strike from the 1-sigma downside EM?
+  // For PMCC, we want the LEAP strike well below the expected downside move.
+  const iv = leap.iv;
+  if (iv && iv > 0 && leap.currentPrice > 0 && dte > 0) {
+    const emDollar = leap.currentPrice * (iv / 100) * Math.sqrt(dte / 365);
+    const downsideLevel = leap.currentPrice - emDollar; // 1-sigma downside
+    const cushion = downsideLevel - leap.strike; // positive = strike below downside EM
+    const cushionPct = (cushion / leap.currentPrice) * 100;
+    if (cushionPct >= 10)       riskManagementScore += 5; // Strike well below EM — very safe
+    else if (cushionPct >= 5)   riskManagementScore += 4; // Good cushion below EM
+    else if (cushionPct >= 0)   riskManagementScore += 3; // Strike near EM boundary
+    else if (cushionPct >= -5)  riskManagementScore += 1; // Strike slightly above EM — risky
+    // Strike above EM by >5% = 0 (high assignment risk)
   } else {
-    riskManagementScore += 2;
+    // Fallback: theta-based proxy for time decay safety
+    const theta = leap.theta;
+    if (theta !== null && theta !== undefined) {
+      const absTheta = Math.abs(theta);
+      if (absTheta <= 0.05)      riskManagementScore += 5;
+      else if (absTheta <= 0.10) riskManagementScore += 4;
+      else if (absTheta <= 0.15) riskManagementScore += 3;
+      else if (absTheta <= 0.20) riskManagementScore += 2;
+      else if (absTheta <= 0.25) riskManagementScore += 1;
+    } else {
+      riskManagementScore += 2;
+    }
   }
 
   // ===== PENALTIES =====

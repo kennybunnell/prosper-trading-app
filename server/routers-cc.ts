@@ -773,6 +773,11 @@ export const ccRouter = router({
                       sharesOwned: holding.quantity,
                       maxContracts: holding.maxContracts,
                       distanceOtm: distanceOtmPct,
+                      // Raw IV and Expected Move
+                      iv: option.greeks?.mid_iv ? Math.round(option.greeks.mid_iv * 10000) / 100 : null,
+                      expectedMove: option.greeks?.mid_iv && holding.currentPrice && dte > 0
+                        ? Math.round(holding.currentPrice * option.greeks.mid_iv * Math.sqrt(dte / 365) * 100) / 100
+                        : null,
                       // OCC symbol for TT price enrichment (Tradier = scan only, TT = order price)
                       optionSymbol: option.symbol,
                     });
@@ -1958,12 +1963,26 @@ function calculateCCScore(opp: any): { score: number; breakdown: Record<string, 
     else if (ivRank >= 10) d4 = 2.25;  else                   d4 = 0.75;
   } else { d4 = 6; }
 
-  // D5: Strike Safety (15 pts) — distance OTM
+  // D5: Strike Safety (15 pts) — OTM distance vs 1-sigma expected move
   let d5 = 0;
   const distPct = opp.distanceOtm || 0;
-  if (distPct >= 15)      d5 = 15;  else if (distPct >= 10) d5 = 12;
-  else if (distPct >= 7)  d5 = 9;   else if (distPct >= 5)  d5 = 6.75;
-  else if (distPct >= 3)  d5 = 3.75; else if (distPct >= 1)  d5 = 1.5;
+  const ivForD5 = opp.iv ?? null;
+  if (ivForD5 && ivForD5 > 0 && opp.currentPrice > 0) {
+    const em = opp.currentPrice * (ivForD5 / 100) * Math.sqrt(dte / 365);
+    const emPct = (em / opp.currentPrice) * 100;
+    const safetyRatio = distPct / emPct;
+    if (safetyRatio >= 2.0)     d5 = 15;
+    else if (safetyRatio >= 1.5) d5 = 12.75;
+    else if (safetyRatio >= 1.2) d5 = 10.5;
+    else if (safetyRatio >= 1.0) d5 = 8.25;
+    else if (safetyRatio >= 0.75) d5 = 5.25;
+    else if (safetyRatio >= 0.50) d5 = 2.25;
+    else d5 = 0.75;
+  } else {
+    if (distPct >= 15)      d5 = 15;  else if (distPct >= 10) d5 = 12;
+    else if (distPct >= 7)  d5 = 9;   else if (distPct >= 5)  d5 = 6.75;
+    else if (distPct >= 3)  d5 = 3.75; else if (distPct >= 1)  d5 = 1.5;
+  }
   d5 = Math.max(0, Math.min(15, d5));
 
   // D6: Technical Context (15 pts) — RSI + BB %B (overbought preferred for CC)

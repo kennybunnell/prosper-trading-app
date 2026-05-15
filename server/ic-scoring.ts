@@ -67,6 +67,9 @@ export interface ICInput {
   // Individual short leg deltas — used for balance scoring
   putShortDelta?: number | null;   // short put delta (negative, e.g. -0.20)
   callShortDelta?: number | null;  // short call delta (positive, e.g. +0.20)
+  // Expected Move fields (optional, used for enhanced scoring)
+  iv?: number | null;              // Raw annualised IV %, e.g. 35.2 for 35.2%
+  expectedMove?: number | null;    // 1-SD expected move in $ over DTE
 }
 
 const INDEX_SYMBOLS = new Set(['SPX', 'SPXW', 'NDX', 'NDXP', 'RUT', 'MRUT', 'XSP', 'VIX']);
@@ -123,9 +126,17 @@ function scoreEquityIC(ic: ICInput): ICScoreBreakdown {
   const rrRatio = (ic.totalNetCredit * 100) / ic.totalCollateral;
   const riskReward = Math.min((rrRatio / 5) * 15, 15);
 
-  // POP: profit zone width as % of price, normalised to 15
-  const profitZonePct = (ic.profitZone / ic.currentPrice) * 100;
-  const pop = Math.min((profitZonePct / 20) * 15, 15);
+  // POP: profit zone width vs expected move (v2: uses EM when iv available, else raw %)
+  let pop = 0;
+  if (ic.iv && ic.iv > 0 && ic.currentPrice > 0 && ic.dte > 0) {
+    // How wide is the profit zone relative to the 1-sigma expected move?
+    const emDollar = ic.currentPrice * (ic.iv / 100) * Math.sqrt(ic.dte / 365);
+    const popRatio = ic.profitZone / (2 * emDollar); // 2× EM = full 2-sigma zone
+    pop = Math.min(popRatio * 15, 15);
+  } else {
+    const profitZonePct = (ic.profitZone / ic.currentPrice) * 100;
+    pop = Math.min((profitZonePct / 20) * 15, 15);
+  }
 
   // IV Rank: 0–15 (v2: increased from 10 to 15, RSI/BB reduced proportionally)
   const ivRank = ic.ivRank !== null ? (ic.ivRank / 100) * 15 : 7.5;
@@ -183,11 +194,16 @@ function scoreIndexIC(ic: ICInput): ICScoreBreakdown {
     : 0;
   const creditWidth = Math.min((creditWidthPct / 30) * 15, 15);
 
-  // Profit Zone: width as % of underlying price
-  const profitZonePct = ic.currentPrice > 0
-    ? (ic.profitZone / ic.currentPrice) * 100
-    : 0;
-  const profitZone = Math.min((profitZonePct / 15) * 15, 15);
+  // Profit Zone: width vs expected move (v2: uses EM when iv available, else raw %)
+  let profitZone = 0;
+  if (ic.iv && ic.iv > 0 && ic.currentPrice > 0 && ic.dte > 0) {
+    const emDollar = ic.currentPrice * (ic.iv / 100) * Math.sqrt(ic.dte / 365);
+    const pzRatio = ic.profitZone / (2 * emDollar); // 2× EM = full 2-sigma zone
+    profitZone = Math.min(pzRatio * 15, 15);
+  } else {
+    const profitZonePct = ic.currentPrice > 0 ? (ic.profitZone / ic.currentPrice) * 100 : 0;
+    profitZone = Math.min((profitZonePct / 15) * 15, 15);
+  }
 
   // IV Rank: recalibrated for index (typical range 15–45)
   let ivRank = 7;

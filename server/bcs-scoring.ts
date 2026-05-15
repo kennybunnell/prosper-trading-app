@@ -5,7 +5,8 @@
  * Weights (DIRECTION-FIRST):
  * - Direction (35%): 14-day trend alignment — MOST IMPORTANT
  *   BCS profits when market goes DOWN or sideways → bearish trend = max score
- * - Greeks & Spread Efficiency (25%): Short Delta (10) + Spread Efficiency (8) + DTE (4) + IV Rank (3)
+ * - Greeks & Spread Efficiency (25%): Short Delta (10) + Spread Efficiency (8) + DTE (4) + Strike Safety (3)
+ *   Strike Safety uses 1-sigma Expected Move when iv is available; falls back to IV Rank
  * - Technical Setup (20%): RSI (12) + BB %B (8) — confirms directional bias
  * - Premium Quality (15%): Credit/Width Ratio (10) + Bid-Ask Spread (5)
  * - Overall Quality (5%): Liquidity (3) + Stock Quality (2)
@@ -226,16 +227,23 @@ export function calculateBCSScore(
     greeksScore += 1;
   }
 
-  // IV Rank - Premium Environment (3 points)
+  // Strike Safety vs Expected Move (3 points) — is the short strike beyond the 1-sigma EM?
+  // Uses raw IV when available; falls back to IV Rank as a proxy
   const ivRank = opp.ivRank;
-  if (ivRank !== null && ivRank !== undefined) {
-    if (ivRank > 70) {
-      greeksScore += 3;
-    } else if (ivRank > 50) {
-      greeksScore += 2;
-    } else if (ivRank > 30) {
-      greeksScore += 1;
-    }
+  const ivForSafety = (opp as any).iv as number | null | undefined;
+  const distanceOtm = (opp as any).distanceOtm as number | undefined; // % distance from current price
+  if (ivForSafety && ivForSafety > 0 && opp.currentPrice > 0 && dte > 0 && distanceOtm !== undefined) {
+    const emPct = (ivForSafety / 100) * Math.sqrt(dte / 365) * 100; // EM as % of price
+    const safetyRatio = distanceOtm / emPct;
+    if (safetyRatio >= 1.5)       greeksScore += 3; // well beyond EM — very safe
+    else if (safetyRatio >= 1.0)  greeksScore += 2; // at or beyond EM boundary
+    else if (safetyRatio >= 0.75) greeksScore += 1; // close to EM
+    // < 0.75 = 0 (inside EM — risky)
+  } else if (ivRank !== null && ivRank !== undefined) {
+    // Fallback: IV Rank as premium environment proxy
+    if (ivRank > 70)      greeksScore += 3;
+    else if (ivRank > 50) greeksScore += 2;
+    else if (ivRank > 30) greeksScore += 1;
   } else {
     greeksScore += 1; // Neutral if no data
   }

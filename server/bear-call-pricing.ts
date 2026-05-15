@@ -27,6 +27,8 @@ export type CCOpportunity = {
   distanceOtm: number;
   score: number;
   multiplier?: number; // Contract multiplier: 100 for standard, 10 for mini-index (MRUT, XSP, XND, DJX)
+  iv?: number | null; // Raw annualised IV (mid_iv from greeks), stored as % (e.g. 35.2 for 35.2%)
+  expectedMove?: number | null; // 1-SD expected move in $ over DTE: price × (iv/100) × √(dte/365)
 };
 
 export interface BearCallSpreadOpportunity extends CCOpportunity {

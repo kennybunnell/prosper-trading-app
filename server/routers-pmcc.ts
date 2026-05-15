@@ -40,6 +40,7 @@ export type LeapOpportunity = {
   extrinsicWarning: boolean;         // true if extrinsic > 20% of premium
   shortCallStrikeMin: number;        // Minimum valid short call strike (must be > LEAP strike)
   monthsToRecover: number | null;    // Estimated months to recover LEAP cost via short calls
+  expectedMove: number | null;        // 1-SD expected move in $ over DTE: price × (iv/100) × √(dte/365)
 };
 
 export const pmccRouter = router({
@@ -231,7 +232,10 @@ export const pmccRouter = router({
                       gamma: call.greeks?.gamma || null,
                       theta: call.greeks?.theta || null,
                       vega: call.greeks?.vega || null,
-                      iv: call.greeks?.mid_iv || null,
+                      iv: call.greeks?.mid_iv ? Math.round(call.greeks.mid_iv * 10000) / 100 : null,
+                      expectedMove: call.greeks?.mid_iv && currentPrice && dte > 0
+                        ? Math.round(currentPrice * call.greeks.mid_iv * Math.sqrt(dte / 365) * 100) / 100
+                        : null,
                       openInterest: call.open_interest,
                       volume: call.volume,
                       rsi: indicators.rsi,
@@ -870,6 +874,7 @@ export const pmccRouter = router({
           extrinsicWarning: z.boolean().optional(),
           shortCallStrikeMin: z.number().optional(),
           monthsToRecover: z.number().nullable().optional(),
+          expectedMove: z.number().nullable().optional(),
         }),
       })
     )
@@ -893,6 +898,7 @@ export const pmccRouter = router({
         extrinsicWarning: input.leap.extrinsicWarning ?? false,
         shortCallStrikeMin: input.leap.shortCallStrikeMin ?? (input.leap.strike + 0.50),
         monthsToRecover: input.leap.monthsToRecover ?? null,
+        expectedMove: input.leap.expectedMove ?? null,
       };
       const { score, breakdown } = calculatePMCCScore(leapWithDefaults);
 
