@@ -561,6 +561,13 @@
       "when": 1778805086864,
       "tag": "0080_goofy_fenris",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "5",
+      "when": 1778862013517,
+      "tag": "0081_new_loki",
+      "breakpoints": true
     }
   ]
 }

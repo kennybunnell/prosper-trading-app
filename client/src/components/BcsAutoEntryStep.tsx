@@ -1,8 +1,12 @@
 /**
- * BcsAutoEntryStep — Step 6 of Daily Actions
+ * BcsAutoEntryStep — Step 6 of Daily Actions (SPX Spreads)
  *
- * Configures and controls the SPX Bear Call Spread auto-entry system.
+ * Configures and controls the SPX Bull Put Spread / Bear Call Spread auto-entry system.
+ * Default strategy: Bull Put Spread (BPS) — benefits from bullish/neutral SPX market.
+ * Optional strategy: Bear Call Spread (BCS) — for bearish/neutral market conditions.
+ *
  * Features:
+ *  - Strategy toggle: Bull Put Spread (default) / Bear Call Spread
  *  - Enable/disable kill switch
  *  - Configurable scan time, contracts, spread width, score/DTE/Delta/OI thresholds
  *  - Max concurrent positions and approval timeout
@@ -20,11 +24,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import {
   Loader2, Play, Settings2, Clock, CheckCircle, XCircle, AlertTriangle,
-  TrendingDown, Zap, Bell, Info, RefreshCw,
+  TrendingUp, TrendingDown, Zap, Bell, Info, RefreshCw,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type ApprovalStatus = 'pending' | 'approved' | 'skipped' | 'expired' | 'error';
+type Strategy = 'bps' | 'bcs';
 
 interface HistoryRow {
   id: number;
@@ -70,6 +75,7 @@ export default function BcsAutoEntryStep() {
 
   // ── Local form state (mirrors settings) ───────────────────────────────────
   const [enabled, setEnabled] = useState(false);
+  const [strategy, setStrategy] = useState<Strategy>('bps');
   const [scanTimeET, setScanTimeET] = useState('10:30');
   const [contracts, setContracts] = useState(2);
   const [spreadWidth, setSpreadWidth] = useState(50);
@@ -86,6 +92,7 @@ export default function BcsAutoEntryStep() {
   useEffect(() => {
     if (!settings) return;
     setEnabled(settings.enabled ?? false);
+    setStrategy(((settings as any).strategy === 'bcs' ? 'bcs' : 'bps') as Strategy);
     setScanTimeET(settings.scanTimeET ?? '10:30');
     setContracts(settings.contracts ?? 2);
     setSpreadWidth(settings.spreadWidth ?? 50);
@@ -104,7 +111,7 @@ export default function BcsAutoEntryStep() {
     onSuccess: () => {
       refetchSettings();
       setIsDirty(false);
-      toast({ title: 'Settings saved', description: 'BCS auto-entry settings updated.' });
+      toast({ title: 'Settings saved', description: 'SPX spread auto-entry settings updated.' });
     },
     onError: (err) => toast({ title: 'Save failed', description: err.message, variant: 'destructive' }),
   });
@@ -133,6 +140,7 @@ export default function BcsAutoEntryStep() {
   function handleSave() {
     updateMut.mutate({
       enabled,
+      strategy,
       scanTimeET,
       contracts,
       spreadWidth,
@@ -150,11 +158,13 @@ export default function BcsAutoEntryStep() {
     setIsDirty(true);
   }
 
+  const isBPS = strategy === 'bps';
+
   if (settingsLoading) {
     return (
       <div className="flex items-center justify-center p-12 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-        Loading BCS auto-entry settings...
+        Loading SPX spread settings...
       </div>
     );
   }
@@ -165,12 +175,17 @@ export default function BcsAutoEntryStep() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <TrendingDown className="h-5 w-5 text-red-400" />
-            SPX Bear Call Spread Auto-Entry
+            {isBPS
+              ? <TrendingUp className="h-5 w-5 text-emerald-400" />
+              : <TrendingDown className="h-5 w-5 text-red-400" />
+            }
+            SPX {isBPS ? 'Bull Put Spread' : 'Bear Call Spread'} Auto-Entry
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Automatically scans for qualifying SPXW Bear Call Spreads, sends a Telegram approval request,
-            and submits the live order on your tap.
+            {isBPS
+              ? 'Automatically scans for qualifying SPX Bull Put Spreads (sell OTM put, buy lower put), sends a Telegram approval request, and submits the live order on your tap.'
+              : 'Automatically scans for qualifying SPX Bear Call Spreads (sell OTM call, buy higher call), sends a Telegram approval request, and submits the live order on your tap.'
+            }
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -185,14 +200,64 @@ export default function BcsAutoEntryStep() {
         </div>
       </div>
 
+      {/* ── Strategy Toggle ── */}
+      <Card className="border-slate-700/50">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Strategy</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isBPS
+                  ? 'Bull Put Spread — Sell higher put, buy lower put. Profits when SPX stays flat or rises.'
+                  : 'Bear Call Spread — Sell lower call, buy higher call. Profits when SPX stays flat or falls.'
+                }
+              </p>
+            </div>
+            <div className="flex items-center gap-1 rounded-lg border border-border p-1 shrink-0">
+              <button
+                onClick={() => { setStrategy('bps'); markDirty(); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isBPS
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <TrendingUp className="h-3 w-3" />
+                Bull Put (BPS)
+              </button>
+              <button
+                onClick={() => { setStrategy('bcs'); markDirty(); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  !isBPS
+                    ? 'bg-red-600 text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <TrendingDown className="h-3 w-3" />
+                Bear Call (BCS)
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ── Info box ── */}
       <Card className="border-blue-800/40 bg-blue-950/20">
         <CardContent className="pt-4 pb-3">
           <div className="flex gap-3">
             <Info className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
             <div className="text-xs text-blue-300 space-y-1">
-              <p><strong>How it works:</strong> At your configured scan time (Mon–Fri), the system checks that SPX is above its 20-day MA and RSI &lt; 70, then scans the SPXW chain for OTM call spreads matching your criteria.</p>
-              <p>The best opportunity is sent to your Telegram with <strong>Approve</strong> / <strong>Skip</strong> inline buttons. Tap <strong>Approve</strong> to submit the live order immediately. The approval window is configurable (default 30 min).</p>
+              {isBPS ? (
+                <>
+                  <p><strong>How it works (BPS):</strong> At your configured scan time (Mon–Fri), the system checks that SPX is above its 20-day MA (bullish bias), then scans the SPX chain for OTM put spreads matching your criteria.</p>
+                  <p>The best opportunity is sent to your Telegram with <strong>Approve</strong> / <strong>Skip</strong> inline buttons. Tap <strong>Approve</strong> to submit the live order immediately. The approval window is configurable (default 30 min).</p>
+                </>
+              ) : (
+                <>
+                  <p><strong>How it works (BCS):</strong> At your configured scan time (Mon–Fri), the system checks that SPX is below its 20-day MA and RSI &lt; 70 (bearish/neutral bias), then scans the SPXW chain for OTM call spreads matching your criteria.</p>
+                  <p>The best opportunity is sent to your Telegram with <strong>Approve</strong> / <strong>Skip</strong> inline buttons. Tap <strong>Approve</strong> to submit the live order immediately.</p>
+                </>
+              )}
               <p>Use <strong>Scan Now</strong> to trigger a manual scan at any time regardless of the schedule.</p>
             </div>
           </div>
@@ -362,14 +427,14 @@ export default function BcsAutoEntryStep() {
             Manual Scan
           </CardTitle>
           <CardDescription className="text-xs">
-            Run an immediate BCS scan now, bypassing the schedule. The approval window will open in Telegram.
+            Run an immediate {isBPS ? 'Bull Put Spread' : 'Bear Call Spread'} scan now, bypassing the schedule. The approval window will open in Telegram.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button
             onClick={() => scanNowMut.mutate()}
             disabled={scanNowMut.isPending}
-            className="gap-2 bg-red-700 hover:bg-red-600 text-white"
+            className={`gap-2 text-white ${isBPS ? 'bg-emerald-700 hover:bg-emerald-600' : 'bg-red-700 hover:bg-red-600'}`}
           >
             {scanNowMut.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -381,7 +446,7 @@ export default function BcsAutoEntryStep() {
           {scanNowMut.isPending && (
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              Scanning SPXW chain and checking market direction... this may take 15–30 seconds.
+              Scanning SPX chain and checking market direction... this may take 15–30 seconds.
             </p>
           )}
         </CardContent>
@@ -416,7 +481,10 @@ export default function BcsAutoEntryStep() {
             </div>
           ) : !history || history.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <TrendingDown className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              {isBPS
+                ? <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                : <TrendingDown className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              }
               <p className="text-sm">No scan history yet.</p>
               <p className="text-xs mt-1">Run a scan or wait for the scheduled scan to fire.</p>
             </div>

@@ -1317,6 +1317,8 @@ export const bcsAutoEntrySettings = mysqlTable('bcsAutoEntrySettings', {
   maxConcurrent: int('maxConcurrent').notNull().default(2),
   approvalTimeoutMins: int('approvalTimeoutMins').notNull().default(30),
   accountId: varchar('accountId', { length: 64 }),
+  /** Strategy: 'bps' = Bull Put Spread (default), 'bcs' = Bear Call Spread */
+  strategy: varchar('strategy', { length: 8 }).notNull().default('bps'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (table) => ({

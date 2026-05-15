@@ -9755,3 +9755,11 @@ ROC Fix Mar 18 2026
 - [x] Add archiveFeedback, deleteFeedback procedures to feedback router (user-facing)
 - [x] Update Admin Feedback page with Archive and Delete action buttons per row + bulk archive
 - [x] Update Daily Actions Inbox with Archive and Delete action buttons per row
+
+## Step 6: SPX Spreads Rebrand (May 15, 2026)
+- [x] Rename Step 6 tab from "BCS Auto" to "SPX Spreads"
+- [x] Add BPS/BCS strategy toggle (default: Bull Put Spread)
+- [x] Update component title/description to reflect SPX Bull Put Spread as primary strategy
+- [x] Update backend scan to support BPS (sell put spread: sell higher put, buy lower put)
+- [x] Update Telegram notification message to reflect BPS vs BCS strategy
+- [x] Update entry criteria labels (Min Short Delta → put delta for BPS, call delta for BCS)

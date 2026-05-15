@@ -1,0 +1,1 @@
+ALTER TABLE `bcsAutoEntrySettings` ADD `strategy` varchar(8) DEFAULT 'bps' NOT NULL;

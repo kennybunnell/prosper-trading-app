@@ -1870,7 +1870,7 @@ export default function AutomationDashboard() {
           </TabsTrigger>
           <TabsTrigger value="step6-bcs" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">6</span>
-            <span>BCS Auto</span>
+            <span>SPX Spreads</span>
           </TabsTrigger>
         </TabsList>
 

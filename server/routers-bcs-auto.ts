@@ -1,15 +1,21 @@
 /**
- * BCS Auto-Entry Router
- * Manages automated SPX Bear Call Spread scanning, Telegram inline approval,
- * and live order submission via Tastytrade.
+ * SPX Spreads Auto-Entry Router (formerly BCS Auto)
+ * Manages automated SPX Bull Put Spread (default) or Bear Call Spread scanning,
+ * Telegram inline approval, and live order submission via Tastytrade.
+ *
+ * Strategy:
+ *  - BPS (Bull Put Spread, default): Sell higher put + Buy lower put (bullish/neutral bias)
+ *  - BCS (Bear Call Spread): Sell lower call + Buy higher call (bearish/neutral bias)
  *
  * Flow:
  *  1. Cron job fires at configured scan time (default 10:30 AM ET Mon-Fri)
- *  2. Checks market direction: SPX price > 20-day MA AND RSI < 70 (neutral/bullish bias)
- *  3. Scans SPXW option chain for qualifying OTM call spreads
+ *  2. Checks market direction based on strategy:
+ *     - BPS: SPX price > 20-day MA (bullish) — put spreads benefit from upward/stable market
+ *     - BCS: SPX price < 20-day MA AND RSI > 30 (bearish/neutral)
+ *  3. Scans SPXW option chain for qualifying OTM spreads
  *  4. Sends Telegram message with inline Approve / Skip buttons
  *  5. Awaits approval (configurable timeout, default 30 min)
- *  6. On Approve: submits live 2-leg BCS order to Tastytrade
+ *  6. On Approve: submits live 2-leg order to Tastytrade
  *  7. On Skip/Timeout: logs as skipped
  */
 import { z } from 'zod';
@@ -34,11 +40,6 @@ function generateToken(): string {
   return crypto.randomBytes(12).toString('hex');
 }
 
-/** Format a date as YYYY-MM-DD */
-function formatDate(d: Date): string {
-  return d.toISOString().split('T')[0];
-}
-
 /** Calculate DTE from today to expiration string (YYYY-MM-DD) */
 function calcDTE(expiration: string): number {
   const exp = new Date(expiration + 'T16:00:00-05:00'); // 4 PM ET
@@ -49,7 +50,7 @@ function calcDTE(expiration: string): number {
 // ─── router ───────────────────────────────────────────────────────────────────
 export const bcsAutoRouter = router({
   /**
-   * Get BCS auto-entry settings for the current user.
+   * Get SPX spread auto-entry settings for the current user.
    * Returns defaults if no row exists yet.
    */
   getSettings: protectedProcedure.query(async ({ ctx }) => {
@@ -61,7 +62,6 @@ export const bcsAutoRouter = router({
       .where(eq(bcsAutoEntrySettings.userId, ctx.user.id))
       .limit(1);
     if (rows.length === 0) {
-      // Return defaults — no DB row yet
       return {
         id: null,
         userId: ctx.user.id,
@@ -77,13 +77,17 @@ export const bcsAutoRouter = router({
         maxConcurrent: 2,
         approvalTimeoutMins: 30,
         accountId: null,
+        strategy: 'bps',  // Default to Bull Put Spread
       };
     }
-    return rows[0];
+    // Ensure strategy field has a default if missing from old rows
+    const row = rows[0] as any;
+    if (!row.strategy) row.strategy = 'bps';
+    return row;
   }),
 
   /**
-   * Upsert BCS auto-entry settings.
+   * Upsert SPX spread auto-entry settings.
    */
   updateSettings: protectedProcedure
     .input(z.object({
@@ -99,6 +103,7 @@ export const bcsAutoRouter = router({
       maxConcurrent: z.number().int().min(1).max(10).optional(),
       approvalTimeoutMins: z.number().int().min(5).max(120).optional(),
       accountId: z.string().nullable().optional(),
+      strategy: z.enum(['bps', 'bcs']).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -123,6 +128,7 @@ export const bcsAutoRouter = router({
           maxConcurrent: input.maxConcurrent ?? 2,
           approvalTimeoutMins: input.approvalTimeoutMins ?? 30,
           accountId: input.accountId ?? null,
+          strategy: input.strategy ?? 'bps',
         });
       } else {
         const updateData: Record<string, any> = {};
@@ -138,6 +144,7 @@ export const bcsAutoRouter = router({
         if (input.maxConcurrent !== undefined) updateData.maxConcurrent = input.maxConcurrent;
         if (input.approvalTimeoutMins !== undefined) updateData.approvalTimeoutMins = input.approvalTimeoutMins;
         if (input.accountId !== undefined) updateData.accountId = input.accountId;
+        if (input.strategy !== undefined) updateData.strategy = input.strategy;
         if (Object.keys(updateData).length > 0) {
           await db
             .update(bcsAutoEntrySettings)
@@ -149,7 +156,7 @@ export const bcsAutoRouter = router({
     }),
 
   /**
-   * Manual "Scan Now" trigger — runs the BCS scan immediately for the current user.
+   * Manual "Scan Now" trigger — runs the spread scan immediately for the current user.
    */
   scanNow: protectedProcedure.mutation(async ({ ctx }) => {
     const db = await getDb();
@@ -195,9 +202,8 @@ export const bcsAutoRouter = router({
 // ─── Core scan function (called by cron and scanNow) ─────────────────────────
 
 /**
- * Run the BCS auto-entry scan for a specific user.
- * Finds the best qualifying SPX Bear Call Spread, sends Telegram approval,
- * and submits the order on approval.
+ * Run the SPX spread auto-entry scan for a specific user.
+ * Supports both BPS (Bull Put Spread, default) and BCS (Bear Call Spread).
  *
  * @param userId - The user's numeric DB id
  * @param isManual - true = triggered by "Scan Now" button (bypasses enabled check)
@@ -216,7 +222,8 @@ export async function runBcsAutoScanForUser(
     .where(eq(bcsAutoEntrySettings.userId, userId))
     .limit(1);
 
-  const settings = settingsRows[0] ?? {
+  const rawSettings = settingsRows[0] as any;
+  const settings = rawSettings ?? {
     enabled: false,
     contracts: 2,
     spreadWidth: 50,
@@ -228,13 +235,18 @@ export async function runBcsAutoScanForUser(
     maxConcurrent: 2,
     approvalTimeoutMins: 30,
     accountId: null,
+    strategy: 'bps',
   };
 
+  // Default strategy to 'bps' if not set (backward compat)
+  const strategy: 'bps' | 'bcs' = (settings.strategy === 'bcs') ? 'bcs' : 'bps';
+  const isBPS = strategy === 'bps';
+
   if (!isManual && !settings.enabled) {
-    return { status: 'disabled', message: 'BCS auto-entry is disabled' };
+    return { status: 'disabled', message: 'SPX spread auto-entry is disabled' };
   }
 
-  // Check max concurrent — count pending+approved rows that haven't been resolved
+  // Check max concurrent
   const activeCounts = await db
     .select({ cnt: count() })
     .from(bcsPendingApprovals)
@@ -264,8 +276,8 @@ export async function runBcsAutoScanForUser(
     const tradierApi = createTradierAPI(credentials.tradierApiKey, false, userId);
 
     // ── Step 1: Market direction check ──────────────────────────────────────
-    // Bullish/neutral bias: SPX price > 20-day MA AND RSI < 70
-    console.log(`[BCS Auto] Checking market direction for user ${userId}...`);
+    const strategyLabel = isBPS ? 'Bull Put Spread' : 'Bear Call Spread';
+    console.log(`[SPX Auto] Checking market direction for ${strategyLabel} (user ${userId})...`);
     let marketOk = true;
     try {
       const spxIndicators = await tradierApi.getTechnicalIndicators('SPX');
@@ -273,28 +285,45 @@ export async function runBcsAutoScanForUser(
       const spxPrice = spxQuote?.last ?? spxQuote?.bid ?? 0;
       const ma20 = spxIndicators.movingAverage?.sma20 ?? 0;
       const rsi = spxIndicators.rsi ?? 50;
-      console.log(`[BCS Auto] SPX price=${spxPrice}, MA20=${ma20.toFixed(2)}, RSI=${rsi.toFixed(1)}`);
-      if (spxPrice > 0 && ma20 > 0 && spxPrice < ma20) {
-        console.log(`[BCS Auto] Market direction check FAILED: SPX (${spxPrice}) below 20-day MA (${ma20.toFixed(2)})`);
-        marketOk = false;
-      }
-      if (rsi > 70) {
-        console.log(`[BCS Auto] Market direction check FAILED: RSI (${rsi.toFixed(1)}) > 70 — overbought`);
-        marketOk = false;
+      console.log(`[SPX Auto] SPX price=${spxPrice}, MA20=${ma20.toFixed(2)}, RSI=${rsi.toFixed(1)}`);
+
+      if (isBPS) {
+        // Bull Put Spread: want bullish/neutral market — SPX above 20-day MA
+        if (spxPrice > 0 && ma20 > 0 && spxPrice < ma20) {
+          console.log(`[SPX Auto] BPS market check FAILED: SPX (${spxPrice}) below 20-day MA (${ma20.toFixed(2)})`);
+          marketOk = false;
+        }
+        // Also avoid extremely overbought (RSI > 80) since puts could get hit on reversal
+        if (rsi > 80) {
+          console.log(`[SPX Auto] BPS market check FAILED: RSI (${rsi.toFixed(1)}) > 80 — extremely overbought`);
+          marketOk = false;
+        }
+      } else {
+        // Bear Call Spread: want bearish/neutral market — SPX below 20-day MA
+        if (spxPrice > 0 && ma20 > 0 && spxPrice > ma20) {
+          console.log(`[SPX Auto] BCS market check FAILED: SPX (${spxPrice}) above 20-day MA (${ma20.toFixed(2)})`);
+          marketOk = false;
+        }
+        if (rsi > 70) {
+          console.log(`[SPX Auto] BCS market check FAILED: RSI (${rsi.toFixed(1)}) > 70 — overbought`);
+          marketOk = false;
+        }
       }
     } catch (techErr) {
-      console.warn(`[BCS Auto] Technical indicator check failed (proceeding anyway):`, techErr);
+      console.warn(`[SPX Auto] Technical indicator check failed (proceeding anyway):`, techErr);
     }
 
     if (!marketOk && !isManual) {
       return {
         status: 'no_opportunity',
-        message: 'Market direction check failed: SPX below 20-day MA or RSI > 70',
+        message: isBPS
+          ? 'Market direction check failed: SPX below 20-day MA (bearish bias — not ideal for Bull Put Spread)'
+          : 'Market direction check failed: SPX above 20-day MA or RSI > 70',
       };
     }
 
-    // ── Step 2: Fetch SPXW expirations ──────────────────────────────────────
-    console.log(`[BCS Auto] Fetching SPXW expirations...`);
+    // ── Step 2: Fetch SPX expirations ────────────────────────────────────────
+    console.log(`[SPX Auto] Fetching SPX expirations...`);
     const expirations = await tradierApi.getExpirations('SPX');
     const minDTE = settings.minDTE ?? 30;
     const maxDTE = settings.maxDTE ?? 45;
@@ -302,8 +331,6 @@ export async function runBcsAutoScanForUser(
     const minOI = settings.minOI ?? 500;
     const spreadWidth = settings.spreadWidth ?? 50;
 
-    // Filter expirations to the DTE window
-    const today = new Date();
     const validExpirations = expirations.filter(exp => {
       const dte = calcDTE(exp);
       return dte >= minDTE && dte <= maxDTE;
@@ -312,13 +339,13 @@ export async function runBcsAutoScanForUser(
     if (validExpirations.length === 0) {
       return {
         status: 'no_opportunity',
-        message: `No SPXW expirations found in ${minDTE}-${maxDTE} DTE window`,
+        message: `No SPX expirations found in ${minDTE}-${maxDTE} DTE window`,
       };
     }
 
-    console.log(`[BCS Auto] Found ${validExpirations.length} valid expirations: ${validExpirations.join(', ')}`);
+    console.log(`[SPX Auto] Found ${validExpirations.length} valid expirations: ${validExpirations.join(', ')}`);
 
-    // ── Step 3: Scan option chains for qualifying BCS ────────────────────────
+    // ── Step 3: Scan option chains ───────────────────────────────────────────
     let bestOpportunity: {
       expiration: string;
       dte: number;
@@ -331,7 +358,6 @@ export async function runBcsAutoScanForUser(
       score: number;
     } | null = null;
 
-    // Get SPX current price for context
     let spxCurrentPrice = 0;
     try {
       const spxQ = await tradierApi.getQuote('SPX');
@@ -341,97 +367,160 @@ export async function runBcsAutoScanForUser(
     for (const expiration of validExpirations) {
       try {
         const dte = calcDTE(expiration);
-        // Tradier uses 'SPX' as the root for SPXW chains
         const options = await withRateLimit(() => tradierApi.getOptionChain('SPX', expiration, true));
         if (!options || options.length === 0) continue;
 
-        // Find OTM call candidates: delta in [0.10, maxDelta], OI >= minOI
-        const callCandidates = options.filter(opt =>
-          opt.option_type === 'call' &&
-          opt.strike > spxCurrentPrice &&  // OTM
-          Math.abs(opt.greeks?.delta ?? 0) >= 0.10 &&
-          Math.abs(opt.greeks?.delta ?? 0) <= maxDelta &&
-          (opt.open_interest ?? 0) >= minOI &&
-          opt.bid != null && opt.ask != null && opt.bid > 0
-        );
+        if (isBPS) {
+          // ── Bull Put Spread: Sell OTM put (higher strike), Buy further OTM put (lower strike) ──
+          // Short put: OTM (below current price), delta in [-maxDelta, -0.10]
+          const putCandidates = options.filter(opt =>
+            opt.option_type === 'put' &&
+            opt.strike < spxCurrentPrice &&  // OTM put
+            Math.abs(opt.greeks?.delta ?? 0) >= 0.10 &&
+            Math.abs(opt.greeks?.delta ?? 0) <= maxDelta &&
+            (opt.open_interest ?? 0) >= minOI &&
+            opt.bid != null && opt.ask != null && opt.bid > 0
+          );
 
-        if (callCandidates.length === 0) continue;
+          if (putCandidates.length === 0) continue;
 
-        // Sort by delta descending (closest to maxDelta = most premium)
-        callCandidates.sort((a, b) =>
-          Math.abs(b.greeks?.delta ?? 0) - Math.abs(a.greeks?.delta ?? 0)
-        );
+          // Sort by delta descending (closest to -maxDelta = most premium)
+          putCandidates.sort((a, b) =>
+            Math.abs(b.greeks?.delta ?? 0) - Math.abs(a.greeks?.delta ?? 0)
+          );
 
-        const shortCall = callCandidates[0];
-        const targetLongStrike = shortCall.strike + spreadWidth;
+          const shortPut = putCandidates[0];
+          const targetLongStrike = shortPut.strike - spreadWidth;
 
-        // Find the closest available call strike at or above target long strike
-        const callStrikes = options
-          .filter(o => o.option_type === 'call' && o.bid != null && o.ask != null)
-          .map(o => o.strike)
-          .sort((a, b) => a - b);
+          // Find the closest available put strike at or below target long strike
+          const putStrikes = options
+            .filter(o => o.option_type === 'put' && o.bid != null && o.ask != null)
+            .map(o => o.strike)
+            .sort((a, b) => b - a); // descending
 
-        const bestLongStrike = callStrikes.find(s => s >= targetLongStrike);
-        if (bestLongStrike === undefined) continue;
+          const bestLongStrike = putStrikes.find(s => s <= targetLongStrike);
+          if (bestLongStrike === undefined) continue;
 
-        const longCall = options.find(o =>
-          o.option_type === 'call' && o.strike === bestLongStrike && o.bid != null
-        );
-        if (!longCall) continue;
+          const longPut = options.find(o =>
+            o.option_type === 'put' && o.strike === bestLongStrike && o.bid != null
+          );
+          if (!longPut) continue;
 
-        // Calculate net credit (mid prices)
-        const shortMid = ((shortCall.bid ?? 0) + (shortCall.ask ?? 0)) / 2;
-        const longMid = ((longCall.bid ?? 0) + (longCall.ask ?? 0)) / 2;
-        const netCredit = shortMid - longMid;
+          const shortMid = ((shortPut.bid ?? 0) + (shortPut.ask ?? 0)) / 2;
+          const longMid = ((longPut.bid ?? 0) + (longPut.ask ?? 0)) / 2;
+          const netCredit = shortMid - longMid;
 
-        if (netCredit <= 0) continue;
+          if (netCredit <= 0) continue;
 
-        // Credit/width ratio sanity check (< 80%)
-        const actualWidth = bestLongStrike - shortCall.strike;
-        const creditRatio = actualWidth > 0 ? netCredit / actualWidth : 0;
-        if (creditRatio > 0.80) continue;
+          const actualWidth = shortPut.strike - bestLongStrike;
+          const creditRatio = actualWidth > 0 ? netCredit / actualWidth : 0;
+          if (creditRatio > 0.80) continue;
 
-        // Simple score: weight credit ratio + DTE proximity to midpoint + delta quality
-        const dteMid = (minDTE + maxDTE) / 2;
-        const dteScore = Math.max(0, 100 - Math.abs(dte - dteMid) * 3);
-        const deltaScore = Math.max(0, 100 - Math.abs(Math.abs(shortCall.greeks?.delta ?? 0) - 0.16) * 500);
-        const creditScore = Math.min(100, creditRatio * 200);
-        const score = Math.round((dteScore * 0.3 + deltaScore * 0.4 + creditScore * 0.3));
+          const dteMid = (minDTE + maxDTE) / 2;
+          const dteScore = Math.max(0, 100 - Math.abs(dte - dteMid) * 3);
+          const deltaScore = Math.max(0, 100 - Math.abs(Math.abs(shortPut.greeks?.delta ?? 0) - 0.16) * 500);
+          const creditScore = Math.min(100, creditRatio * 200);
+          const score = Math.round((dteScore * 0.3 + deltaScore * 0.4 + creditScore * 0.3));
 
-        if (score < (settings.minScore ?? 70)) continue;
+          if (score < (settings.minScore ?? 70)) continue;
 
-        // Keep the best opportunity (highest score)
-        if (!bestOpportunity || score > bestOpportunity.score) {
-          bestOpportunity = {
-            expiration,
-            dte,
-            shortStrike: shortCall.strike,
-            longStrike: bestLongStrike,
-            netCredit,
-            delta: Math.abs(shortCall.greeks?.delta ?? 0),
-            shortOptionSymbol: shortCall.symbol,
-            longOptionSymbol: longCall.symbol,
-            score,
-          };
+          if (!bestOpportunity || score > bestOpportunity.score) {
+            bestOpportunity = {
+              expiration,
+              dte,
+              shortStrike: shortPut.strike,
+              longStrike: bestLongStrike,
+              netCredit,
+              delta: Math.abs(shortPut.greeks?.delta ?? 0),
+              shortOptionSymbol: shortPut.symbol,
+              longOptionSymbol: longPut.symbol,
+              score,
+            };
+          }
+        } else {
+          // ── Bear Call Spread: Sell OTM call (lower strike), Buy further OTM call (higher strike) ──
+          const callCandidates = options.filter(opt =>
+            opt.option_type === 'call' &&
+            opt.strike > spxCurrentPrice &&  // OTM call
+            Math.abs(opt.greeks?.delta ?? 0) >= 0.10 &&
+            Math.abs(opt.greeks?.delta ?? 0) <= maxDelta &&
+            (opt.open_interest ?? 0) >= minOI &&
+            opt.bid != null && opt.ask != null && opt.bid > 0
+          );
+
+          if (callCandidates.length === 0) continue;
+
+          callCandidates.sort((a, b) =>
+            Math.abs(b.greeks?.delta ?? 0) - Math.abs(a.greeks?.delta ?? 0)
+          );
+
+          const shortCall = callCandidates[0];
+          const targetLongStrike = shortCall.strike + spreadWidth;
+
+          const callStrikes = options
+            .filter(o => o.option_type === 'call' && o.bid != null && o.ask != null)
+            .map(o => o.strike)
+            .sort((a, b) => a - b);
+
+          const bestLongStrike = callStrikes.find(s => s >= targetLongStrike);
+          if (bestLongStrike === undefined) continue;
+
+          const longCall = options.find(o =>
+            o.option_type === 'call' && o.strike === bestLongStrike && o.bid != null
+          );
+          if (!longCall) continue;
+
+          const shortMid = ((shortCall.bid ?? 0) + (shortCall.ask ?? 0)) / 2;
+          const longMid = ((longCall.bid ?? 0) + (longCall.ask ?? 0)) / 2;
+          const netCredit = shortMid - longMid;
+
+          if (netCredit <= 0) continue;
+
+          const actualWidth = bestLongStrike - shortCall.strike;
+          const creditRatio = actualWidth > 0 ? netCredit / actualWidth : 0;
+          if (creditRatio > 0.80) continue;
+
+          const dteMid = (minDTE + maxDTE) / 2;
+          const dteScore = Math.max(0, 100 - Math.abs(dte - dteMid) * 3);
+          const deltaScore = Math.max(0, 100 - Math.abs(Math.abs(shortCall.greeks?.delta ?? 0) - 0.16) * 500);
+          const creditScore = Math.min(100, creditRatio * 200);
+          const score = Math.round((dteScore * 0.3 + deltaScore * 0.4 + creditScore * 0.3));
+
+          if (score < (settings.minScore ?? 70)) continue;
+
+          if (!bestOpportunity || score > bestOpportunity.score) {
+            bestOpportunity = {
+              expiration,
+              dte,
+              shortStrike: shortCall.strike,
+              longStrike: bestLongStrike,
+              netCredit,
+              delta: Math.abs(shortCall.greeks?.delta ?? 0),
+              shortOptionSymbol: shortCall.symbol,
+              longOptionSymbol: longCall.symbol,
+              score,
+            };
+          }
         }
       } catch (chainErr) {
-        console.error(`[BCS Auto] Error scanning chain for ${expiration}:`, chainErr);
+        console.error(`[SPX Auto] Error scanning chain for ${expiration}:`, chainErr);
       }
     }
 
     if (!bestOpportunity) {
       return {
         status: 'no_opportunity',
-        message: 'No qualifying SPX Bear Call Spread found matching your criteria',
+        message: isBPS
+          ? 'No qualifying SPX Bull Put Spread found matching your criteria'
+          : 'No qualifying SPX Bear Call Spread found matching your criteria',
       };
     }
 
-    console.log(`[BCS Auto] Best opportunity: ${JSON.stringify(bestOpportunity)}`);
+    console.log(`[SPX Auto] Best ${strategy.toUpperCase()} opportunity: ${JSON.stringify(bestOpportunity)}`);
 
     // ── Step 4: Determine account ────────────────────────────────────────────
     let accountId = settings.accountId ?? null;
     if (!accountId) {
-      // Use first available Tastytrade account
       const tt = await authenticateTastytrade(credentials, userId);
       if (!tt) {
         return { status: 'no_credentials', message: 'Failed to authenticate with Tastytrade' };
@@ -476,13 +565,20 @@ export async function runBcsAutoScanForUser(
 
     // ── Step 6: Send Telegram approval message ───────────────────────────────
     const totalCredit = (bestOpportunity.netCredit * contracts * 100).toFixed(0);
-    const maxRisk = ((bestOpportunity.longStrike - bestOpportunity.shortStrike - bestOpportunity.netCredit) * contracts * 100).toFixed(0);
-    const rocPct = ((bestOpportunity.netCredit / (bestOpportunity.longStrike - bestOpportunity.shortStrike - bestOpportunity.netCredit)) * 100).toFixed(1);
+    const spreadWidthActual = isBPS
+      ? bestOpportunity.shortStrike - bestOpportunity.longStrike
+      : bestOpportunity.longStrike - bestOpportunity.shortStrike;
+    const maxRisk = ((spreadWidthActual - bestOpportunity.netCredit) * contracts * 100).toFixed(0);
+    const rocPct = ((bestOpportunity.netCredit / (spreadWidthActual - bestOpportunity.netCredit)) * 100).toFixed(1);
+
+    const emoji = isBPS ? '🐂' : '🐻';
+    const spreadTypeLabel = isBPS ? 'Bull Put Spread' : 'Bear Call Spread';
+    const optionTypeLabel = isBPS ? 'Put' : 'Call';
 
     const approvalText =
-      `🐻 <b>SPX Bear Call Spread — Auto-Entry</b>\n\n` +
-      `<b>Short:</b> $${bestOpportunity.shortStrike} Call (δ ${bestOpportunity.delta.toFixed(2)})\n` +
-      `<b>Long:</b>  $${bestOpportunity.longStrike} Call\n` +
+      `${emoji} <b>SPX ${spreadTypeLabel} — Auto-Entry</b>\n\n` +
+      `<b>Short:</b> $${bestOpportunity.shortStrike} ${optionTypeLabel} (δ ${bestOpportunity.delta.toFixed(2)})\n` +
+      `<b>Long:</b>  $${bestOpportunity.longStrike} ${optionTypeLabel}\n` +
       `<b>Expiry:</b> ${bestOpportunity.expiration} (${bestOpportunity.dte}d)\n` +
       `<b>Net Credit:</b> $${bestOpportunity.netCredit.toFixed(2)}/share · <b>$${totalCredit} total</b>\n` +
       `<b>Max Risk:</b> $${maxRisk} · ROC ${rocPct}%\n` +
@@ -497,25 +593,22 @@ export async function runBcsAutoScanForUser(
     ]];
 
     await sendTelegramApproval(approvalText, buttons);
-    console.log(`[BCS Auto] Telegram approval sent for token ${token}`);
+    console.log(`[SPX Auto] Telegram approval sent for token ${token}`);
 
-    // ── Step 7: Await approval (non-blocking for other users) ────────────────
-    // This runs asynchronously — the cron job awaits it per-user sequentially
+    // ── Step 7: Await approval ────────────────────────────────────────────────
     const approved = await waitForTelegramApproval(token, approvalTimeoutMins * 60 * 1000);
 
     if (!approved) {
-      // Timeout or skip
-      const newStatus = 'skipped';
       await db
         .update(bcsPendingApprovals)
-        .set({ status: newStatus, resolvedAt: new Date() })
+        .set({ status: 'skipped', resolvedAt: new Date() })
         .where(eq(bcsPendingApprovals.token, token));
-      console.log(`[BCS Auto] Approval skipped/expired for token ${token}`);
+      console.log(`[SPX Auto] Approval skipped/expired for token ${token}`);
       return { status: 'skipped', message: 'Approval skipped or timed out' };
     }
 
     // ── Step 8: Submit live order ─────────────────────────────────────────────
-    console.log(`[BCS Auto] Approval received for token ${token} — submitting order...`);
+    console.log(`[SPX Auto] Approval received for token ${token} — submitting order...`);
     await db
       .update(bcsPendingApprovals)
       .set({ status: 'approved', approvedAt: new Date() })
@@ -528,6 +621,8 @@ export async function runBcsAutoScanForUser(
       const orderQty = String(contracts);
       const limitPrice = bestOpportunity.netCredit.toFixed(2);
 
+      // BPS: Sell higher put (short), Buy lower put (long)
+      // BCS: Sell lower call (short), Buy higher call (long)
       const orderRequest = {
         accountNumber: accountId,
         timeInForce: 'Day' as const,
@@ -550,22 +645,20 @@ export async function runBcsAutoScanForUser(
         ],
       };
 
-      console.log('[BCS Auto] Submitting order:', JSON.stringify(orderRequest, null, 2));
+      console.log('[SPX Auto] Submitting order:', JSON.stringify(orderRequest, null, 2));
       const result = await tt.submitOrder(orderRequest);
 
-      // Update DB with order ID
       await db
         .update(bcsPendingApprovals)
         .set({ status: 'approved', orderId: String(result.id), resolvedAt: new Date() })
         .where(eq(bcsPendingApprovals.token, token));
 
-      // Write trading log
       await writeTradingLog({
         userId,
         symbol: 'SPXW',
         optionSymbol: bestOpportunity.shortOptionSymbol,
         accountNumber: accountId,
-        strategy: 'BCS',
+        strategy: strategy.toUpperCase() as 'BPS' | 'BCS',
         action: 'STO',
         strike: String(bestOpportunity.shortStrike),
         expiration: bestOpportunity.expiration,
@@ -574,21 +667,19 @@ export async function runBcsAutoScanForUser(
         priceEffect: 'Credit',
         outcome: 'pending',
         orderId: String(result.id),
-        source: 'BCS Auto-Entry',
+        source: `SPX ${spreadTypeLabel} Auto-Entry`,
       });
 
-      // Telegram confirmation
       const confirmText =
-        `✅ <b>BCS Order Submitted</b>\n\n` +
-        `<b>SPXW</b> $${bestOpportunity.shortStrike}/$${bestOpportunity.longStrike} Call Spread\n` +
+        `✅ <b>${strategy.toUpperCase()} Order Submitted</b>\n\n` +
+        `<b>SPXW</b> $${bestOpportunity.shortStrike}/$${bestOpportunity.longStrike} ${optionTypeLabel} Spread\n` +
         `Expiry: ${bestOpportunity.expiration} · ${contracts} contract(s)\n` +
         `Net Credit: <b>+$${totalCredit}</b>\n` +
         `Order ID: ${result.id}`;
       await sendTelegramMessage(confirmText);
 
-      // Notify owner
       await notifyOwner({
-        title: `✅ BCS Auto-Entry: SPXW $${bestOpportunity.shortStrike}/$${bestOpportunity.longStrike} submitted`,
+        title: `✅ ${strategy.toUpperCase()} Auto-Entry: SPXW $${bestOpportunity.shortStrike}/$${bestOpportunity.longStrike} submitted`,
         content: `${contracts} contract(s) · Net Credit $${totalCredit} · Exp ${bestOpportunity.expiration} · Order ${result.id}`,
       }).catch(() => {});
 
@@ -598,7 +689,7 @@ export async function runBcsAutoScanForUser(
       };
     } catch (orderErr: any) {
       const errMsg = orderErr.message || 'Unknown order error';
-      console.error(`[BCS Auto] Order submission failed:`, orderErr);
+      console.error(`[SPX Auto] Order submission failed:`, orderErr);
       await db
         .update(bcsPendingApprovals)
         .set({ status: 'error', errorMessage: errMsg, resolvedAt: new Date() })
@@ -608,7 +699,7 @@ export async function runBcsAutoScanForUser(
         symbol: 'SPXW',
         optionSymbol: bestOpportunity.shortOptionSymbol,
         accountNumber: accountId,
-        strategy: 'BCS',
+        strategy: strategy.toUpperCase() as 'BPS' | 'BCS',
         action: 'STO',
         strike: String(bestOpportunity.shortStrike),
         expiration: bestOpportunity.expiration,
@@ -616,15 +707,15 @@ export async function runBcsAutoScanForUser(
         price: bestOpportunity.netCredit.toFixed(2),
         outcome: 'error',
         errorMessage: errMsg,
-        source: 'BCS Auto-Entry',
+        source: `SPX ${spreadTypeLabel} Auto-Entry`,
       });
       await sendTelegramMessage(
-        `❌ <b>BCS Order Failed</b>\n\nSPXW $${bestOpportunity.shortStrike}/$${bestOpportunity.longStrike}\nReason: ${errMsg}`
+        `❌ <b>${strategy.toUpperCase()} Order Failed</b>\n\nSPXW $${bestOpportunity.shortStrike}/$${bestOpportunity.longStrike}\nReason: ${errMsg}`
       );
       return { status: 'error', message: `Order failed: ${errMsg}` };
     }
   } catch (err: any) {
-    console.error(`[BCS Auto] Scan error for user ${userId}:`, err);
+    console.error(`[SPX Auto] Scan error for user ${userId}:`, err);
     return { status: 'error', message: err.message || 'Scan failed' };
   }
 }
