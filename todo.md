@@ -9775,3 +9775,31 @@ ROC Fix Mar 18 2026
 - [x] Fix delta comparison: backend auto-normalizes values > 1 (e.g. 28 → 0.28) before comparing
 - [x] Update CC settings UI inputs: add placeholder hints (e.g. 0.20) and onBlur auto-normalization
 - [x] Verify fix: delta 0.66 will now be excluded when max delta is 0.28 (or 28 auto-converted to 0.28)
+
+## Scoring v2 + Column Manager (May 15, 2026)
+- [ ] Fix ColumnVisibilityToggle: add visible borders to checkboxes, clear popover border/background, prominent Show All/Hide All
+- [ ] Build scoring v2 for CSP (new D1-D6 weights, Expected Move sub-score)
+- [ ] Build scoring v2 for CC (add IV Rank, Expected Move sub-score)
+- [ ] Build scoring v2 for BPS (rebalanced weights, Expected Move sub-score)
+- [ ] Build scoring v2 for BCS (rebalanced weights, Expected Move sub-score)
+- [ ] Build scoring v2 for IC (minor rebalancing, Expected Move sub-score)
+- [ ] Build scoring v2 for PMCC (restructured to D1-D6 unified dimensions)
+- [ ] Add Expected Move column to all 6 strategy dashboards (hidden by default)
+- [ ] Add Score Breakdown tooltip to all 6 strategy dashboards (hover score to see D1-D6 sub-scores)
+- [ ] Add ColumnVisibilityToggle to PMCC dashboard (currently missing)
+- [ ] Add ColumnVisibilityToggle to Automation Dashboard Step 3 CC scan table
+
+## Column Visibility & Expected Move (May 15, 2026 - Batch 2)
+- [x] Fix ColumnVisibilityToggle: stronger modal border (zinc-400 + shadow ring), visible unchecked button borders (zinc-500 + bg-zinc-800), improved checkbox indicators
+- [x] Add ColumnVisibilityToggle to PMCC dashboard (PMCC_COLUMNS with all columns)
+- [x] Add ColumnVisibilityToggle to Automation Dashboard Step 3 CC scan table
+- [x] Add Score Breakdown tooltip to CC dashboard score badge (D1-D6 sub-scores)
+- [x] Add Score Breakdown tooltip to PMCC dashboard score badge (stockQuality/leapStructure/costLiquidity/riskManagement)
+- [x] Add expectedMove field to server-side CSPOpportunity type (iv × price × √(dte/365))
+- [x] Add expectedMove field to CCOpportunity type in CCDashboard
+- [x] Add Exp Move column to CSP scan table (hidden by default, Greeks group)
+- [x] Add Exp Move column to BPS scan table (hidden by default, Greeks group)
+- [x] Add Exp Move column to CC scan table (hidden by default, Greeks group)
+- [x] Add Exp Move column to BCS scan table (hidden by default, Greeks group)
+- [x] Add Exp Move column to IC scan table (hidden by default, Greeks group)
+- [x] Add Exp Move column to PMCC scan table (hidden by default, Greeks group)

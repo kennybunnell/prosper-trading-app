@@ -10,6 +10,12 @@ import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshC
 import { AIRowIcon } from "@/components/AIRowIcon";
 import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HELP_CONTENT } from "@/lib/helpContent";
@@ -22,6 +28,29 @@ import { toast } from "sonner";
 import { cn, exportToCSV } from "@/lib/utils";
 import { Streamdown } from "streamdown";
 import { PositionCardsSkeleton } from "@/components/PositionTableSkeleton";
+import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
+
+// PMCC column definitions
+const PMCC_COLUMNS: ColumnDef[] = [
+  { key: 'select',        label: 'Select',       group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'symbol',        label: 'Symbol',       group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'strike',        label: 'Strike',       group: 'Position', pinned: true,  defaultVisible: true  },
+  { key: 'expiration',    label: 'Expiration',   group: 'Position',                defaultVisible: true  },
+  { key: 'dte',           label: 'DTE',          group: 'Position', pinned: true,  defaultVisible: true  },
+  { key: 'delta',         label: 'Delta',        group: 'Greeks',   pinned: true,  defaultVisible: true  },
+  { key: 'expMove',        label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'premium',       label: 'Premium',      group: 'Returns',  pinned: true,  defaultVisible: true  },
+  { key: 'bid',           label: 'Bid',          group: 'Returns',                 defaultVisible: false },
+  { key: 'ask',           label: 'Ask',          group: 'Returns',                 defaultVisible: false },
+  { key: 'spreadPct',     label: 'Spread %',     group: 'Liquidity',               defaultVisible: true  },
+  { key: 'oi',            label: 'Open Interest',group: 'Liquidity',               defaultVisible: true  },
+  { key: 'volume',        label: 'Volume',       group: 'Liquidity',               defaultVisible: true  },
+  { key: 'earnings',      label: 'Earnings',     group: 'Technical',               defaultVisible: true  },
+  { key: 'extrinsic',     label: 'Extrinsic %',  group: 'Technical',               defaultVisible: true  },
+  { key: 'monthsRecover', label: 'Mos. Recover', group: 'Technical',               defaultVisible: true  },
+  { key: 'score',         label: 'Score',        group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'ai',            label: 'AI',           group: 'Core',                    defaultVisible: true  },
+];
 
 type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premium' | 'bidAskSpread' | 'openInterest' | 'volume' | 'score';
 type SortDirection = 'asc' | 'desc';
@@ -248,6 +277,11 @@ export default function PMCCDashboard() {
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<any>(null);
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number; currentPrice?: number } | null>(null);
+
+  // Column visibility for PMCC table
+  const [visibleCols, setColVisibility, setAllCols, resetPmccCols] = useColumnVisibility(PMCC_COLUMNS, 'pmcc-columns');
+  const showAll = () => setAllCols(new Set(PMCC_COLUMNS.map(c => c.key)));
+  const hideAll = () => setAllCols(new Set(PMCC_COLUMNS.filter(c => c.pinned).map(c => c.key)));
 
   // Sell Calls wiring: ref to scroll to ShortCallScanner, preSelectLeapKey to pre-select the LEAP
   const scannerRef = useRef<HTMLDivElement>(null);
@@ -999,6 +1033,12 @@ export default function PMCCDashboard() {
                       <Button onClick={clearAllLeaps} variant="outline" size="sm">
                         Clear All
                       </Button>
+                      <ColumnVisibilityToggle
+                        columns={PMCC_COLUMNS}
+                        visibleColumns={visibleCols}
+                        onVisibilityChange={setColVisibility}
+                        onReset={resetPmccCols}
+                      />
                       <Button
                         onClick={() => setShowSelectedOnly(!showSelectedOnly)}
                         variant={showSelectedOnly ? "default" : "outline"}
@@ -1049,75 +1089,24 @@ export default function PMCCDashboard() {
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50">
                         <tr>
-                          <th className="p-2 text-left">Select</th>
-                          <th className="p-2 text-left cursor-pointer hover:bg-muted" onClick={() => handleSort('symbol')}>
-                            <div className="flex items-center gap-1">
-                              Symbol
-                              {sortColumn === 'symbol' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('strike')}>
-                            <div className="flex items-center justify-end gap-1">
-                              Strike
-                              {sortColumn === 'strike' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-left cursor-pointer hover:bg-muted" onClick={() => handleSort('expiration')}>
-                            <div className="flex items-center gap-1">
-                              Expiration
-                              {sortColumn === 'expiration' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('dte')}>
-                            <div className="flex items-center justify-end gap-1">
-                              DTE
-                              <HelpBadge content={HELP_CONTENT.DTE} />
-                              {sortColumn === 'dte' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('delta')}>
-                            <div className="flex items-center justify-end gap-1">
-                              Delta
-                              <HelpBadge content={HELP_CONTENT.DELTA_CC} />
-                              {sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('premium')}>
-                            <div className="flex items-center justify-end gap-1">
-                              Premium
-                              {sortColumn === 'premium' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-right">Bid</th>
-                          <th className="p-2 text-right">Ask</th>
-                          <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('bidAskSpread')}>
-                            <div className="flex items-center justify-end gap-1">
-                              Spread %
-                              {sortColumn === 'bidAskSpread' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('openInterest')}>
-                            <div className="flex items-center justify-end gap-1">
-                              OI
-                              {sortColumn === 'openInterest' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('volume')}>
-                            <div className="flex items-center justify-end gap-1">
-                              Volume
-                              {sortColumn === 'volume' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-center">Earnings</th>
-                          <th className="p-2 text-right">Extrinsic%</th>
-                          <th className="p-2 text-right">Mos. Recover</th>
-                          <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('score')}>
-                            <div className="flex items-center justify-end gap-1">
-                              Score
-                              {sortColumn === 'score' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-                            </div>
-                          </th>
-                          <th className="p-2 text-center">AI</th>
+                          {visibleCols.has('select') && <th className="p-2 text-left">Select</th>}
+                          {visibleCols.has('symbol') && <th className="p-2 text-left cursor-pointer hover:bg-muted" onClick={() => handleSort('symbol')}><div className="flex items-center gap-1">Symbol{sortColumn === 'symbol' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('strike') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('strike')}><div className="flex items-center justify-end gap-1">Strike{sortColumn === 'strike' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('expiration') && <th className="p-2 text-left cursor-pointer hover:bg-muted" onClick={() => handleSort('expiration')}><div className="flex items-center gap-1">Expiration{sortColumn === 'expiration' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('dte') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('dte')}><div className="flex items-center justify-end gap-1">DTE<HelpBadge content={HELP_CONTENT.DTE} />{sortColumn === 'dte' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('delta') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('delta')}><div className="flex items-center justify-end gap-1">Delta<HelpBadge content={HELP_CONTENT.DELTA_CC} />{sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('expMove') && <th className="p-2 text-right">Exp Move</th>}
+                          {visibleCols.has('premium') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('premium')}><div className="flex items-center justify-end gap-1">Premium{sortColumn === 'premium' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('bid') && <th className="p-2 text-right">Bid</th>}
+                          {visibleCols.has('ask') && <th className="p-2 text-right">Ask</th>}
+                          {visibleCols.has('spreadPct') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('bidAskSpread')}><div className="flex items-center justify-end gap-1">Spread %{sortColumn === 'bidAskSpread' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('oi') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('openInterest')}><div className="flex items-center justify-end gap-1">OI{sortColumn === 'openInterest' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('volume') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('volume')}><div className="flex items-center justify-end gap-1">Volume{sortColumn === 'volume' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('earnings') && <th className="p-2 text-center">Earnings</th>}
+                          {visibleCols.has('extrinsic') && <th className="p-2 text-right">Extrinsic%</th>}
+                          {visibleCols.has('monthsRecover') && <th className="p-2 text-right">Mos. Recover</th>}
+                          {visibleCols.has('score') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('score')}><div className="flex items-center justify-end gap-1">Score{sortColumn === 'score' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('ai') && <th className="p-2 text-center">AI</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -1126,72 +1115,91 @@ export default function PMCCDashboard() {
                           const isSelected = selectedLeaps.has(key);
                           return (
                             <tr key={key} className={isSelected ? "bg-amber-900/20" : "hover:bg-muted/50"}>
-                              <td className="p-2">
-                                <Checkbox
-                                  checked={isSelected}
-                                  onCheckedChange={() => toggleLeapSelection(leap)}
-                                  className="border-2 border-muted-foreground data-[state=checked]:border-green-500 data-[state=checked]:bg-green-500"
-                                />
-                              </td>
-                              <td className="p-2 font-medium"><div className="flex items-center gap-1.5"><span>{leap.symbol}</span><button title={`View ${leap.symbol} chart`} onClick={() => setChartSymbol({ symbol: leap.symbol, strike: leap.strike, currentPrice: leap.currentPrice })} className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"><BarChart2 className="h-3.5 w-3.5" /></button></div></td>
-                              <td className="p-2 text-right">${leap.strike.toFixed(2)}</td>
-                              <td className="p-2">{leap.expiration}</td>
-                              <td className="p-2 text-right">{leap.dte}</td>
-                              <td className="p-2 text-right">{leap.delta.toFixed(2)}</td>
-                              <td className="p-2 text-right">${leap.premium.toFixed(2)}</td>
-                              <td className="p-2 text-right">${leap.bid.toFixed(2)}</td>
-                              <td className="p-2 text-right">${leap.ask.toFixed(2)}</td>
-                              <td className="p-2 text-right">{leap.bidAskSpread.toFixed(2)}%</td>
-                              <td className="p-2 text-right">{leap.openInterest.toLocaleString()}</td>
-                              <td className="p-2 text-right">{leap.volume.toLocaleString()}</td>
+                              {visibleCols.has('select') && <td className="p-2"><Checkbox checked={isSelected} onCheckedChange={() => toggleLeapSelection(leap)} className="border-2 border-muted-foreground data-[state=checked]:border-green-500 data-[state=checked]:bg-green-500" /></td>}
+                              {visibleCols.has('symbol') && <td className="p-2 font-medium"><div className="flex items-center gap-1.5"><span>{leap.symbol}</span><button title={`View ${leap.symbol} chart`} onClick={() => setChartSymbol({ symbol: leap.symbol, strike: leap.strike, currentPrice: leap.currentPrice })} className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"><BarChart2 className="h-3.5 w-3.5" /></button></div></td>}
+                              {visibleCols.has('strike') && <td className="p-2 text-right">${leap.strike.toFixed(2)}</td>}
+                              {visibleCols.has('expiration') && <td className="p-2">{leap.expiration}</td>}
+                              {visibleCols.has('dte') && <td className="p-2 text-right">{leap.dte}</td>}
+                              {visibleCols.has('delta') && <td className="p-2 text-right">{leap.delta.toFixed(2)}</td>}
+                              {visibleCols.has('expMove') && <td className="p-2 text-right"><span className="text-xs font-mono text-cyan-300">{(leap as any).expectedMove != null ? `$${(leap as any).expectedMove.toFixed(2)}` : '—'}</span></td>}
+                              {visibleCols.has('premium') && <td className="p-2 text-right">${leap.premium.toFixed(2)}</td>}
+                              {visibleCols.has('bid') && <td className="p-2 text-right">${leap.bid.toFixed(2)}</td>}
+                              {visibleCols.has('ask') && <td className="p-2 text-right">${leap.ask.toFixed(2)}</td>}
+                              {visibleCols.has('spreadPct') && <td className="p-2 text-right">{leap.bidAskSpread.toFixed(2)}%</td>}
+                              {visibleCols.has('oi') && <td className="p-2 text-right">{leap.openInterest.toLocaleString()}</td>}
+                              {visibleCols.has('volume') && <td className="p-2 text-right">{leap.volume.toLocaleString()}</td>}
                               {/* Earnings warning */}
-                              <td className="p-2 text-center">
+                              {visibleCols.has('earnings') && <td className="p-2 text-center">
                                 {leap.earningsWarning ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded" title={`Earnings in ${leap.daysToEarnings} days (${leap.earningsDate})`}>
-                                    ⚠ {leap.daysToEarnings}d
-                                  </span>
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded" title={`Earnings in ${leap.daysToEarnings} days (${leap.earningsDate})`}>⚠ {leap.daysToEarnings}d</span>
                                 ) : leap.daysToEarnings !== null && leap.daysToEarnings !== undefined && leap.daysToEarnings <= 45 ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded" title={`Earnings in ${leap.daysToEarnings} days (${leap.earningsDate})`}>
-                                    {leap.daysToEarnings}d
-                                  </span>
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded" title={`Earnings in ${leap.daysToEarnings} days (${leap.earningsDate})`}>{leap.daysToEarnings}d</span>
                                 ) : (
                                   <span className="text-xs text-muted-foreground">{leap.daysToEarnings !== null && leap.daysToEarnings !== undefined ? `${leap.daysToEarnings}d` : '—'}</span>
                                 )}
-                              </td>
+                              </td>}
                               {/* Extrinsic % */}
-                              <td className="p-2 text-right">
+                              {visibleCols.has('extrinsic') && <td className="p-2 text-right">
                                 {leap.extrinsicPercent !== undefined ? (
-                                  <span className={`text-xs font-medium ${
-                                    leap.extrinsicWarning ? 'text-red-400' :
-                                    leap.extrinsicPercent > 15 ? 'text-amber-400' :
-                                    'text-green-400'
-                                  }`}>
-                                    {leap.extrinsicPercent.toFixed(1)}%
-                                  </span>
+                                  <span className={`text-xs font-medium ${ leap.extrinsicWarning ? 'text-red-400' : leap.extrinsicPercent > 15 ? 'text-amber-400' : 'text-green-400' }`}>{leap.extrinsicPercent.toFixed(1)}%</span>
                                 ) : '—'}
-                              </td>
+                              </td>}
                               {/* Months to Recover */}
-                              <td className="p-2 text-right">
+                              {visibleCols.has('monthsRecover') && <td className="p-2 text-right">
                                 {leap.monthsToRecover !== null && leap.monthsToRecover !== undefined ? (
-                                  <span className={`text-xs font-medium ${
-                                    leap.monthsToRecover <= 12 ? 'text-green-400' :
-                                    leap.monthsToRecover <= 18 ? 'text-amber-400' :
-                                    'text-red-400'
-                                  }`}>
-                                    {leap.monthsToRecover.toFixed(1)}
-                                  </span>
+                                  <span className={`text-xs font-medium ${ leap.monthsToRecover <= 12 ? 'text-green-400' : leap.monthsToRecover <= 18 ? 'text-amber-400' : 'text-red-400' }`}>{leap.monthsToRecover.toFixed(1)}</span>
                                 ) : '—'}
-                              </td>
-                              <td className="p-2 text-right">
-                                <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold ${
-                                  leap.score >= 80 ? 'bg-green-900/50 text-green-400' :
-                                  leap.score >= 60 ? 'bg-amber-900/50 text-amber-400' :
-                                  'bg-red-900/50 text-red-400'
-                                }`}>
-                                  {Math.round(leap.score)}
-                                </span>
-                              </td>
-                              <td className="p-2 text-center">
+                              </td>}
+                              {visibleCols.has('score') && <td className="p-2 text-right">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold cursor-help ${
+                                        leap.score >= 80 ? 'bg-green-900/50 text-green-400' :
+                                        leap.score >= 60 ? 'bg-amber-900/50 text-amber-400' :
+                                        'bg-red-900/50 text-red-400'
+                                      }`}>
+                                        {Math.round(leap.score)}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="bg-gray-900 border-purple-500/50 p-3 max-w-xs">
+                                      <div className="space-y-1.5 text-sm">
+                                        <div className="font-semibold text-purple-400 border-b border-purple-500/30 pb-1 mb-2">
+                                          Score Breakdown ({Math.round(leap.score)}/100)
+                                        </div>
+                                        {(leap as any).scoreBreakdown ? (
+                                          <>
+                                            {[
+                                              { label: 'Stock Quality (RSI+BB+Trend)', key: 'stockQuality', max: 35 },
+                                              { label: 'LEAP Structure (Δ+DTE+Strike)', key: 'leapStructure', max: 30 },
+                                              { label: 'Cost & Liquidity (OI+Vol+Sprd)', key: 'costLiquidity', max: 25 },
+                                              { label: 'Risk Management (IV+Theta)', key: 'riskManagement', max: 10 },
+                                            ].map(({ label, key, max }) => {
+                                              const val = (leap as any).scoreBreakdown[key] ?? 0;
+                                              const pct = val / max;
+                                              return (
+                                                <div key={key} className="flex justify-between">
+                                                  <span className="text-gray-400">{label}:</span>
+                                                  <span className={`font-medium ${ pct >= 0.8 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-400' : 'text-red-400' }`}>{val}/{max}</span>
+                                                </div>
+                                              );
+                                            })}
+                                            {(leap as any).scoreBreakdown.earningsPenalty < 0 && (
+                                              <div className="flex justify-between text-red-400">
+                                                <span>Earnings Penalty:</span>
+                                                <span>{(leap as any).scoreBreakdown.earningsPenalty}</span>
+                                              </div>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <div className="text-gray-400 text-xs">Breakdown not available</div>
+                                        )}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </td>}
+                              {visibleCols.has('ai') && <td className="p-2 text-center">
                                 <AIRowIcon
                                   isLoading={analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}`}
                                   onClick={() => {
@@ -1202,7 +1210,7 @@ export default function PMCCDashboard() {
                                   title="AI explanation of this score"
                                   size="xs"
                                 />
-                              </td>
+                              </td>}
                             </tr>
                           );
                         })}

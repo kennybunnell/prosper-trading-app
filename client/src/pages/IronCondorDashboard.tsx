@@ -22,6 +22,7 @@ const IC_COLUMNS: ColumnDef[] = [
   { key: 'callDelta',  label: 'Call Δ',       group: 'Greeks',                  defaultVisible: true  },
   { key: 'netDelta',   label: 'Net Δ',        group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
+  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -1508,6 +1509,12 @@ export default function IronCondorDashboard() {
                           IV Rank {sortConfig?.key === 'ivRank' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                         </TableHead>
                       )}
+                      {/* Exp Move */}
+                      {icVisibleCols.has('expMove') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'expMove' && prev.direction === 'desc' ? { key: 'expMove', direction: 'asc' } : { key: 'expMove', direction: 'desc' })}>
+                          Exp Move {sortConfig?.key === 'expMove' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
                       {/* RSI */}
                       {icVisibleCols.has('rsi') && (
                         <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'rsi' && prev.direction === 'desc' ? { key: 'rsi', direction: 'asc' } : { key: 'rsi', direction: 'desc' })}>
@@ -1799,6 +1806,14 @@ export default function IronCondorDashboard() {
                                 <Badge className={getIVRankColor(opp.ivRank)}>
                                   {opp.ivRank?.toFixed(0) ?? "N/A"}
                                 </Badge>
+                              </TableCell>
+                            )}
+                            {/* Exp Move */}
+                            {icVisibleCols.has('expMove') && (
+                              <TableCell>
+                                <span className="text-xs font-mono text-cyan-300">
+                                  {(opp as any).expectedMove != null ? `$${(opp as any).expectedMove.toFixed(2)}` : '—'}
+                                </span>
                               </TableCell>
                             )}
                             {/* RSI */}

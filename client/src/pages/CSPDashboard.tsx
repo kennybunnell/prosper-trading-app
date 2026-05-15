@@ -238,6 +238,7 @@ const BPS_COLUMNS: ColumnDef[] = [
   { key: 'roc',        label: 'ROC %',        group: 'Returns',                 defaultVisible: true  },
   { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
+  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -264,6 +265,7 @@ const CSP_COLUMNS: ColumnDef[] = [
   { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'theta',      label: 'Theta (θ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
+  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -296,6 +298,8 @@ type ScoredOpportunity = {
   openInterest: number;
   rsi: number | null;
   ivRank: number | null;
+  iv: number | null;
+  expectedMove: number | null;
   bbPctB: number | null;
   spreadPct: number;
   collateral: number;
@@ -3083,6 +3087,7 @@ export default function CSPDashboard() {
                     ...(visibleCols.has('roc') ? [{ key: 'spreadROC', label: 'ROC %', help: HELP_CONTENT.SPREAD_ROC, pinned: false }] : []),
                     ...(visibleCols.has('delta') ? [{ key: 'delta', label: 'Delta (Δ)', help: HELP_CONTENT.DELTA_CSP, pinned: false }] : []),
                     ...(visibleCols.has('ivRank') ? [{ key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, pinned: false }] : []),
+                    ...(visibleCols.has('expMove') ? [{ key: 'expMove', label: 'Exp Move', help: null, pinned: false }] : []),
                     ...(visibleCols.has('rsi') ? [{ key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, pinned: false }] : []),
                     ...(visibleCols.has('bbPctB') ? [{ key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, pinned: false }] : []),
                     ...(visibleCols.has('openInterest') ? [{ key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', pinned: false }] : []),
@@ -3106,6 +3111,7 @@ export default function CSPDashboard() {
                     ...(visibleCols.has('delta') ? [{ key: 'delta', label: 'Delta (Δ)', help: HELP_CONTENT.DELTA_CSP, pinned: false }] : []),
                     ...(visibleCols.has('theta') ? [{ key: 'theta', label: 'Theta (θ)', help: null, pinned: false }] : []),
                     ...(visibleCols.has('ivRank') ? [{ key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, pinned: false }] : []),
+                    ...(visibleCols.has('expMove') ? [{ key: 'expMove', label: 'Exp Move', help: null, pinned: false }] : []),
                     ...(visibleCols.has('rsi') ? [{ key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, pinned: false }] : []),
                     ...(visibleCols.has('bbPctB') ? [{ key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, pinned: false }] : []),
                     ...(visibleCols.has('openInterest') ? [{ key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', pinned: false }] : []),
@@ -3224,31 +3230,45 @@ export default function CSPDashboard() {
                                             </>
                                           ) : (
                                             <>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-400">Technical (RSI+BB):</span>
-                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
-                                              </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
-                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
-                                              </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-400">Premium (Return+Spread):</span>
-                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
-                                              </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-400">Quality (Mag7+Cap):</span>
-                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
-                                              </div>
-                                              {(opp as any).scoreBreakdown.liquidity !== undefined && (
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-400">Liquidity (OI):</span>
-                                                  <span className={`font-medium ${
-                                                    (opp as any).scoreBreakdown.liquidity < 0 ? 'text-red-400' :
-                                                    (opp as any).scoreBreakdown.liquidity >= 12 ? 'text-green-400' :
-                                                    'text-yellow-400'
-                                                  }`}>{(opp as any).scoreBreakdown.liquidity}/15</span>
-                                                </div>
+                                              {(opp as any).scoreBreakdown.d1Liquidity !== undefined ? (
+                                                <>
+                                                  {[
+                                                    { label: 'D1 Liquidity (Spread/OI/Vol)', key: 'd1Liquidity', max: 15 },
+                                                    { label: 'D2 Probability (Δ+DTE+POP)', key: 'd2ProbabilityFit', max: 20 },
+                                                    { label: 'D3 Premium Efficiency', key: 'd3PremiumEfficiency', max: 20 },
+                                                    { label: 'D4 IV Richness (IV Rank)', key: 'd4IVRichness', max: 15 },
+                                                    { label: 'D5 Strike Safety (OTM vs EM)', key: 'd5StrikeSafety', max: 15 },
+                                                    { label: 'D6 Technical (RSI+BB+Trend)', key: 'd6Technical', max: 15 },
+                                                  ].map(({ label, key, max }) => {
+                                                    const val = (opp as any).scoreBreakdown[key] ?? 0;
+                                                    const pct = val / max;
+                                                    return (
+                                                      <div key={key} className="flex justify-between">
+                                                        <span className="text-gray-400">{label}:</span>
+                                                        <span className={`font-medium ${ pct >= 0.8 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-400' : 'text-red-400' }`}>{val}/{max}</span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-400">Technical (RSI+BB):</span>
+                                                    <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
+                                                    <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-400">Premium (Return+Spread):</span>
+                                                    <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-400">Quality (Mag7+Cap):</span>
+                                                    <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
+                                                  </div>
+                                                </>
                                               )}
                                             </>
                                           )}
@@ -3380,6 +3400,13 @@ export default function CSPDashboard() {
                                 </Badge>
                               </TableCell>
                             )}
+                            {visibleCols.has('expMove') && (
+                              <TableCell>
+                                <span className="text-xs font-mono text-cyan-300">
+                                  {(opp as any).expectedMove != null ? `$${(opp as any).expectedMove.toFixed(2)}` : '—'}
+                                </span>
+                              </TableCell>
+                            )}
                             {visibleCols.has('rsi') && (
                               <TableCell>
                                 <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
@@ -3483,6 +3510,13 @@ export default function CSPDashboard() {
                                 <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
                                   {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
                                 </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('expMove') && (
+                              <TableCell>
+                                <span className="text-xs font-mono text-cyan-300">
+                                  {(opp as any).expectedMove != null ? `$${(opp as any).expectedMove.toFixed(2)}` : '—'}
+                                </span>
                               </TableCell>
                             )}
                             {visibleCols.has('rsi') && (

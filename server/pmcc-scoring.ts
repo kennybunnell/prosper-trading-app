@@ -2,11 +2,12 @@
  * PMCC (Poor Man's Covered Call) Scoring System - Phase 1: LEAP Purchase
  * Evaluates LEAP options as synthetic stock positions
  * 
- * Scoring Criteria (100 points total, with penalties):
- * - Stock Quality & Growth (35 pts): RSI, BB %B, Price Trend
- * - LEAP Structure (30 pts): Delta, DTE, Strike positioning
- * - Cost & Liquidity (25 pts): Premium efficiency, OI, Volume, Spread
- * - Risk Management (10 pts): IV Rank, Theta decay
+ * Scoring Criteria v2 (100 points total, with penalties):
+ * - Stock Quality & Growth (30 pts): RSI, BB %B, Price Trend (D6 Technical)
+ * - LEAP Structure (30 pts): Delta, DTE, Strike positioning (D2 Probability Fit)
+ * - Cost & Liquidity (25 pts): Premium efficiency, OI, Volume, Spread (D1 Liquidity + D3 Premium)
+ * - IV Richness (10 pts): IV Rank (D4) — increased from 5 pts
+ * - Risk Management (5 pts): Theta decay (D5 Strike Safety proxy)
  * 
  * Penalties (applied after scoring):
  * - Earnings within 30 days: -15 pts (earnings warning)
@@ -207,45 +208,32 @@ export function calculatePMCCScore(leap: LeapOpportunity): { score: number; brea
 
   // ===== RISK MANAGEMENT (10 points) =====
 
-  // IV Rank - Want moderate IV for premium collection potential (5 points)
-  // Sweet spot: 30-70 (enough premium without excessive risk)
+  // IV Rank - D4 IV Richness (10 pts v2, up from 5)
+  // For LEAP purchase: lower IV is BETTER (buy cheap). Invert the scale.
   const ivRank = leap.ivRank;
   if (ivRank !== null && ivRank !== undefined) {
-    if (ivRank >= 30 && ivRank <= 70) {
-      riskManagementScore += 5; // Ideal range - good premium potential
-    } else if (ivRank >= 20 && ivRank < 30) {
-      riskManagementScore += 3; // Lower IV - less premium
-    } else if (ivRank > 70 && ivRank <= 80) {
-      riskManagementScore += 3; // Higher IV - more risk
-    } else if (ivRank >= 10 && ivRank < 20) {
-      riskManagementScore += 1; // Very low IV - minimal premium
-    } else if (ivRank > 80) {
-      riskManagementScore += 1; // Very high IV - too risky
-    }
-    // < 10 or > 90 = 0 points
+    if (ivRank <= 20)       riskManagementScore += 10; // Low IV — cheap LEAP, excellent
+    else if (ivRank <= 30)  riskManagementScore += 8;  // Moderate-low IV — good
+    else if (ivRank <= 40)  riskManagementScore += 6;  // Moderate IV — acceptable
+    else if (ivRank <= 55)  riskManagementScore += 4;  // Elevated IV — expensive
+    else if (ivRank <= 70)  riskManagementScore += 2;  // High IV — risky purchase
+    else                    riskManagementScore += 0;  // Very high IV — avoid
   } else {
-    riskManagementScore += 2; // Neutral if no data
+    riskManagementScore += 5; // Neutral if no data
   }
 
-  // Theta - Want low theta decay for long hold (5 points)
+  // Theta - D5 Strike Safety proxy (5 pts v2, down from 5 — same weight)
   // LEAPs should have minimal daily decay
   const theta = leap.theta;
   if (theta !== null && theta !== undefined) {
     const absTheta = Math.abs(theta);
-    if (absTheta <= 0.05) {
-      riskManagementScore += 5; // Minimal decay - excellent
-    } else if (absTheta <= 0.10) {
-      riskManagementScore += 4; // Low decay - good
-    } else if (absTheta <= 0.15) {
-      riskManagementScore += 3; // Moderate decay - acceptable
-    } else if (absTheta <= 0.20) {
-      riskManagementScore += 2; // Higher decay - concerning
-    } else if (absTheta <= 0.25) {
-      riskManagementScore += 1; // High decay - poor
-    }
-    // > 0.25 = 0 points (too much decay)
+    if (absTheta <= 0.05)      riskManagementScore += 5; // Minimal decay
+    else if (absTheta <= 0.10) riskManagementScore += 4;
+    else if (absTheta <= 0.15) riskManagementScore += 3;
+    else if (absTheta <= 0.20) riskManagementScore += 2;
+    else if (absTheta <= 0.25) riskManagementScore += 1;
   } else {
-    riskManagementScore += 2; // Neutral if no data
+    riskManagementScore += 2;
   }
 
   // ===== PENALTIES =====

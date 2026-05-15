@@ -15,6 +15,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
 import { useAccount } from "@/contexts/AccountContext";
 import { useTradingMode } from "@/contexts/TradingModeContext";
@@ -83,6 +89,8 @@ const BCS_COLUMNS: ColumnDef[] = [
   { key: 'roc',        label: 'ROC %',        group: 'Returns',                 defaultVisible: true  },
   { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
+  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -108,6 +116,8 @@ const CC_COLUMNS: ColumnDef[] = [
   { key: 'roc',        label: 'ROC %',        group: 'Returns',                 defaultVisible: true  },
   { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
+  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -259,6 +269,8 @@ type CCOpportunity = {
   spreadPct: number;
   rsi: number | null;
   ivRank: number | null;
+  iv: number | null;
+  expectedMove: number | null;
   bbPctB: number | null;
   sharesOwned: number;
   maxContracts: number;
@@ -3366,6 +3378,15 @@ export default function CCDashboard() {
                           </div>
                         </TableHead>
                       )}
+                      {/* 11b. Exp Move */}
+                      {visibleCols.has('expMove') && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('expectedMove')}>
+                          <div className="flex items-center justify-end gap-1">
+                            Exp Move
+                            {sortColumn === 'expectedMove' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
                       {/* 12. RSI */}
                       {visibleCols.has('rsi') && (
                         <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('rsi')}>
@@ -3475,9 +3496,45 @@ export default function CCDashboard() {
                         {/* 2. Score */}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Badge variant="secondary" className={getScoreBadgeClass(opp.score)}>
-                              {opp.score}
-                            </Badge>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className={getScoreBadgeClass(opp.score)}>
+                                    {opp.score}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="bg-gray-900 border-amber-500/50 p-3 max-w-xs">
+                                  <div className="space-y-1.5 text-sm">
+                                    <div className="font-semibold text-amber-400 border-b border-amber-500/30 pb-1 mb-2">
+                                      Score Breakdown ({opp.score}/100)
+                                    </div>
+                                    {(opp as any).scoreBreakdown?.d1Liquidity !== undefined ? (
+                                      <>
+                                        {[
+                                          { label: 'D1 Liquidity (Spread/OI/Vol)', key: 'd1Liquidity', max: 15 },
+                                          { label: 'D2 Probability (Δ+DTE+POP)', key: 'd2ProbabilityFit', max: 20 },
+                                          { label: 'D3 Premium Efficiency', key: 'd3PremiumEfficiency', max: 20 },
+                                          { label: 'D4 IV Richness (IV Rank)', key: 'd4IVRichness', max: 15 },
+                                          { label: 'D5 Strike Safety (OTM vs EM)', key: 'd5StrikeSafety', max: 15 },
+                                          { label: 'D6 Technical (RSI+BB+Trend)', key: 'd6Technical', max: 15 },
+                                        ].map(({ label, key, max }) => {
+                                          const val = (opp as any).scoreBreakdown[key] ?? 0;
+                                          const pct = val / max;
+                                          return (
+                                            <div key={key} className="flex justify-between">
+                                              <span className="text-gray-400">{label}:</span>
+                                              <span className={`font-medium ${ pct >= 0.8 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-400' : 'text-red-400' }`}>{val}/{max}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </>
+                                    ) : (
+                                      <div className="text-gray-400 text-xs">Breakdown not available</div>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                             <AIRowIcon
                               isLoading={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}
                               onClick={() => {
@@ -3629,6 +3686,14 @@ export default function CCDashboard() {
                         {visibleCols.has('ivRank') && (
                           <TableCell className="text-right">
                             {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
+                          </TableCell>
+                        )}
+                        {/* 11b. Exp Move */}
+                        {visibleCols.has('expMove') && (
+                          <TableCell className="text-right">
+                            <span className="text-xs font-mono text-cyan-300">
+                              {(opp as any).expectedMove != null ? `$${(opp as any).expectedMove.toFixed(2)}` : '—'}
+                            </span>
                           </TableCell>
                         )}
                         {/* 12. RSI */}

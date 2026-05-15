@@ -5,8 +5,8 @@
  *   - Equity path  (isIndex = false): original formula, unchanged
  *   - Index path   (isIndex = true):  recalibrated for SPX/SPXW structural characteristics
  *
- * EQUITY formula (max 100):
- *   ROC×15 + R/R×15 + POP×15 + IVRank×10 + DTE×15 + RSI×10 + BB×10 + DeltaBalance×10
+ * EQUITY formula (max 100) v2:
+ *   ROC×15 + R/R×15 + POP×15 + IVRank×15 + DTE×15 + RSI×7.5 + BB×7.5 + DeltaBalance×10
  *
  * INDEX (SPXW/NDX/etc.) formula (max 100):
  *   ROC×20 + CreditWidth×15 + ProfitZone×15 + IVRank×15 + DTE×15 + DeltaBalance×20
@@ -127,29 +127,29 @@ function scoreEquityIC(ic: ICInput): ICScoreBreakdown {
   const profitZonePct = (ic.profitZone / ic.currentPrice) * 100;
   const pop = Math.min((profitZonePct / 20) * 15, 15);
 
-  // IV Rank: 0–10
-  const ivRank = ic.ivRank !== null ? (ic.ivRank / 100) * 10 : 5;
+  // IV Rank: 0–15 (v2: increased from 10 to 15, RSI/BB reduced proportionally)
+  const ivRank = ic.ivRank !== null ? (ic.ivRank / 100) * 15 : 7.5;
 
   // DTE: prefer 30–45, weight 15
   const dte = ic.dte >= 30 && ic.dte <= 45
     ? 15
     : Math.max(0, 15 - Math.abs(ic.dte - 37.5) / 3);
 
-  // RSI: prefer neutral 40–60
-  let rsi = 5;
+  // RSI: prefer neutral 40–60 (v2: max 7.5 pts, down from 10)
+  let rsi = 3.75;
   if (ic.rsi !== null) {
-    if (ic.rsi >= 40 && ic.rsi <= 60) rsi = 10;
-    else if (ic.rsi >= 35 && ic.rsi <= 65) rsi = 7;
-    else if (ic.rsi >= 30 && ic.rsi <= 70) rsi = 4;
-    else rsi = 2;
+    if (ic.rsi >= 40 && ic.rsi <= 60) rsi = 7.5;
+    else if (ic.rsi >= 35 && ic.rsi <= 65) rsi = 5.25;
+    else if (ic.rsi >= 30 && ic.rsi <= 70) rsi = 3;
+    else rsi = 1.5;
   }
 
-  // BB %B: prefer middle 0.3–0.7
-  let bb = 5;
+  // BB %B: prefer middle 0.3–0.7 (v2: max 7.5 pts, down from 10)
+  let bb = 3.75;
   if (ic.bbPctB !== null) {
-    if (ic.bbPctB >= 0.3 && ic.bbPctB <= 0.7) bb = 10;
-    else if (ic.bbPctB >= 0.2 && ic.bbPctB <= 0.8) bb = 6;
-    else bb = 2;
+    if (ic.bbPctB >= 0.3 && ic.bbPctB <= 0.7) bb = 7.5;
+    else if (ic.bbPctB >= 0.2 && ic.bbPctB <= 0.8) bb = 4.5;
+    else bb = 1.5;
   }
 
   // Delta Balance: symmetry of put/call short deltas (10 pts for equity)

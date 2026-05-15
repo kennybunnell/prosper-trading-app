@@ -148,6 +148,8 @@ export interface CSPOpportunity {
   openInterest: number;
   rsi: number | null;
   ivRank: number | null;
+  iv: number | null; // Raw annualised IV (mid_iv from greeks), used for Expected Move calculation
+  expectedMove: number | null; // 1-SD expected move in $ over DTE: price × (iv/100) × √(dte/365)
   bbPctB: number | null;
   spreadPct: number;
   collateral: number;
@@ -915,6 +917,10 @@ export class TradierAPI {
               openInterest: oi,
               rsi: indicators.rsi ? Math.round(indicators.rsi * 10) / 10 : null,
               ivRank,
+              iv: put.greeks?.mid_iv ? Math.round(put.greeks.mid_iv * 10000) / 100 : null, // mid_iv is 0-1 decimal, convert to %
+              expectedMove: put.greeks?.mid_iv && underlyingPrice && dte > 0
+                ? Math.round(underlyingPrice * put.greeks.mid_iv * Math.sqrt(dte / 365) * 100) / 100
+                : null,
               bbPctB: indicators.bollingerBands ? Math.round(indicators.bollingerBands.percentB * 100) / 100 : null,
               spreadPct: Math.round(spreadPct * 10) / 10,
               collateral,

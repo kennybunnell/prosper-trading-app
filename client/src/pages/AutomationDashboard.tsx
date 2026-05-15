@@ -60,9 +60,27 @@ import PMCCDashboard from './PMCCDashboard';
 import GtcOrdersInline from '@/components/GtcOrdersInline';
 import AutoCloseStep from '@/components/AutoCloseStep';
 import BcsAutoEntryStep from '@/components/BcsAutoEntryStep';
+import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from '@/components/ColumnVisibilityToggle';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PositionTableSkeleton } from '@/components/PositionTableSkeleton';
+
+// Automation Step 3 CC table column definitions
+const AUTO_CC_COLUMNS: ColumnDef[] = [
+  { key: 'select',     label: 'Select',      group: 'Core',      pinned: true,  defaultVisible: true  },
+  { key: 'symbol',     label: 'Symbol',      group: 'Core',      pinned: true,  defaultVisible: true  },
+  { key: 'account',    label: 'Account',     group: 'Core',                     defaultVisible: true  },
+  { key: 'qty',        label: 'Qty',         group: 'Position',                 defaultVisible: true  },
+  { key: 'strike',     label: 'Strike',      group: 'Position',  pinned: true,  defaultVisible: true  },
+  { key: 'expiration', label: 'Expiration',  group: 'Position',                 defaultVisible: true  },
+  { key: 'dte',        label: 'DTE',         group: 'Position',  pinned: true,  defaultVisible: true  },
+  { key: 'delta',      label: 'Delta',       group: 'Greeks',    pinned: true,  defaultVisible: true  },
+  { key: 'mid',        label: 'Mid',         group: 'Returns',   pinned: true,  defaultVisible: true  },
+  { key: 'total',      label: 'Total',       group: 'Returns',                  defaultVisible: true  },
+  { key: 'wklyPct',    label: 'Wkly%',       group: 'Returns',                  defaultVisible: true  },
+  { key: 'aiScore',    label: 'AI Score',    group: 'Technical',                defaultVisible: true  },
+  { key: 'ai',         label: 'AI',          group: 'Core',                     defaultVisible: true  },
+];
 
 type ScanResult = {
   account: string;
@@ -236,6 +254,7 @@ export default function AutomationDashboard() {
   const [activeScanStep, setActiveScanStep] = useState<'all' | 'btc' | 'cc' | null>(null); // Track which scan is running
   const [lastRunResult, setLastRunResult] = useState<RunResult | null>(null);
   const [selectedCCPositions, setSelectedCCPositions] = useState<Set<string>>(new Set());
+  const [autoCcVisibleCols, setAutoCcColVisible, , resetAutoCcCols] = useColumnVisibility(AUTO_CC_COLUMNS, 'prosper_col_vis_auto_cc');
   const [isAiScoring, setIsAiScoring] = useState(false);
   const [showScanResults, setShowScanResults] = useState(true);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
@@ -4307,6 +4326,12 @@ export default function AutomationDashboard() {
                           Review &amp; Submit {selectedCCPositions.size} CC Order{selectedCCPositions.size !== 1 ? 's' : ''}
                         </Button>
                       )}
+                      <ColumnVisibilityToggle
+                        columns={AUTO_CC_COLUMNS}
+                        visibleColumns={autoCcVisibleCols}
+                        onVisibilityChange={setAutoCcColVisible}
+                        onReset={resetAutoCcCols}
+                      />
                     </div>
                   </div>
                   {/* CC Summary Stats */}
@@ -4333,28 +4358,19 @@ export default function AutomationDashboard() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-muted-foreground">
-                          <th className="py-2 pr-2 w-8">
-                            <Checkbox
-                              checked={selectedCCPositions.size === lastRunResult.ccScanResults.length}
-                              onCheckedChange={(checked) => {
-                                if (checked) setSelectedCCPositions(new Set(lastRunResult.ccScanResults.map(r => `${r.optionSymbol}|${r.account}`)));
-                                else setSelectedCCPositions(new Set());
-                              }}
-                              aria-label="Select all CC opportunities"
-                            />
-                          </th>
-                          <th className="text-left py-2 pr-2">Symbol</th>
-                          <th className="text-left py-2 pr-2">Account</th>
-                          <th className="text-right py-2 pr-2">Qty</th>
-                          <th className="text-left py-2 pr-2">Strike</th>
-                          <th className="text-left py-2 pr-2">Expiration</th>
-                          <th className="text-right py-2 pr-2">DTE</th>
-                          <th className="text-right py-2 pr-2">Delta</th>
-                          <th className="text-right py-2 pr-2">Mid</th>
-                          <th className="text-right py-2 pr-2">Total</th>
-                          <th className="text-right py-2 pr-2">Wkly%</th>
-                          {hasAiScores && <th className="text-left py-2 pl-3" style={{minWidth:'220px'}}>AI Score &amp; Rationale</th>}
-                          <th className="text-center py-2 pl-2 w-8">AI</th>
+                          {autoCcVisibleCols.has('select') && <th className="py-2 pr-2 w-8"><Checkbox checked={selectedCCPositions.size === lastRunResult.ccScanResults.length} onCheckedChange={(checked) => { if (checked) setSelectedCCPositions(new Set(lastRunResult.ccScanResults.map(r => `${r.optionSymbol}|${r.account}`))); else setSelectedCCPositions(new Set()); }} aria-label="Select all CC opportunities" /></th>}
+                          {autoCcVisibleCols.has('symbol') && <th className="text-left py-2 pr-2">Symbol</th>}
+                          {autoCcVisibleCols.has('account') && <th className="text-left py-2 pr-2">Account</th>}
+                          {autoCcVisibleCols.has('qty') && <th className="text-right py-2 pr-2">Qty</th>}
+                          {autoCcVisibleCols.has('strike') && <th className="text-left py-2 pr-2">Strike</th>}
+                          {autoCcVisibleCols.has('expiration') && <th className="text-left py-2 pr-2">Expiration</th>}
+                          {autoCcVisibleCols.has('dte') && <th className="text-right py-2 pr-2">DTE</th>}
+                          {autoCcVisibleCols.has('delta') && <th className="text-right py-2 pr-2">Delta</th>}
+                          {autoCcVisibleCols.has('mid') && <th className="text-right py-2 pr-2">Mid</th>}
+                          {autoCcVisibleCols.has('total') && <th className="text-right py-2 pr-2">Total</th>}
+                          {autoCcVisibleCols.has('wklyPct') && <th className="text-right py-2 pr-2">Wkly%</th>}
+                          {autoCcVisibleCols.has('aiScore') && hasAiScores && <th className="text-left py-2 pl-3" style={{minWidth:'220px'}}>AI Score &amp; Rationale</th>}
+                          {autoCcVisibleCols.has('ai') && <th className="text-center py-2 pl-2 w-8">AI</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -4375,81 +4391,28 @@ export default function AutomationDashboard() {
                                 isAmber ? 'bg-amber-500/5 border-amber-500/20' : isSelected ? 'bg-blue-500/5' : ''
                               }`}
                             >
-                              <td className="py-2 pr-2">
-                                <Checkbox
-                                  checked={isSelected}
-                                  onCheckedChange={() => setSelectedCCPositions(prev => {
-                                    const next = new Set(prev);
-                                    if (next.has(key)) next.delete(key); else next.add(key);
-                                    return next;
-                                  })}
-                                />
-                              </td>
-                              <td className="py-2 pr-2 font-semibold">
-                                {r.symbol}
-                                {isAmber && !isSelected && (
-                                  <div className="text-[9px] font-medium text-amber-400 mt-0.5">Pending Rescan</div>
-                                )}
-                              </td>
-                              <td className="py-2 pr-2 text-xs text-muted-foreground">{r.account}</td>
-                              <td className="py-2 pr-2 text-right">{r.quantity}</td>
-                              <td className="py-2 pr-2 font-mono">${r.strike}</td>
-                              <td className="py-2 pr-2 font-mono text-xs">{new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>
-                              <td className="py-2 pr-2 text-right font-mono text-xs">
-                                {r.dte}
-                                {isAmber && (
-                                  <div
-                                    className="inline-flex items-center ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-help"
-                                    title={`AI recommends ${r.aiRecommendedDte}-DTE for better premium`}
-                                  >
-                                    → {r.aiRecommendedDte}d
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-2 pr-2 text-right font-mono text-xs">{r.delta.toFixed(2)}</td>
-                              <td className="py-2 pr-2 text-right font-mono text-green-400">${r.mid.toFixed(2)}</td>
-                              <td className="py-2 pr-2 text-right font-mono text-green-400">${r.totalPremium.toFixed(0)}</td>
-                              <td className="py-2 pr-2 text-right font-mono text-purple-400">{r.weeklyReturn.toFixed(2)}%</td>
-                              {hasAiScores && (
+                              {autoCcVisibleCols.has('select') && <td className="py-2 pr-2"><Checkbox checked={isSelected} onCheckedChange={() => setSelectedCCPositions(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; })} /></td>}
+                              {autoCcVisibleCols.has('symbol') && <td className="py-2 pr-2 font-semibold">{r.symbol}{isAmber && !isSelected && <div className="text-[9px] font-medium text-amber-400 mt-0.5">Pending Rescan</div>}</td>}
+                              {autoCcVisibleCols.has('account') && <td className="py-2 pr-2 text-xs text-muted-foreground">{r.account}</td>}
+                              {autoCcVisibleCols.has('qty') && <td className="py-2 pr-2 text-right">{r.quantity}</td>}
+                              {autoCcVisibleCols.has('strike') && <td className="py-2 pr-2 font-mono">${r.strike}</td>}
+                              {autoCcVisibleCols.has('expiration') && <td className="py-2 pr-2 font-mono text-xs">{new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>}
+                              {autoCcVisibleCols.has('dte') && <td className="py-2 pr-2 text-right font-mono text-xs">{r.dte}{isAmber && <div className="inline-flex items-center ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-help" title={`AI recommends ${r.aiRecommendedDte}-DTE for better premium`}>→ {r.aiRecommendedDte}d</div>}</td>}
+                              {autoCcVisibleCols.has('delta') && <td className="py-2 pr-2 text-right font-mono text-xs">{r.delta.toFixed(2)}</td>}
+                              {autoCcVisibleCols.has('mid') && <td className="py-2 pr-2 text-right font-mono text-green-400">${r.mid.toFixed(2)}</td>}
+                              {autoCcVisibleCols.has('total') && <td className="py-2 pr-2 text-right font-mono text-green-400">${r.totalPremium.toFixed(0)}</td>}
+                              {autoCcVisibleCols.has('wklyPct') && <td className="py-2 pr-2 text-right font-mono text-purple-400">{r.weeklyReturn.toFixed(2)}%</td>}
+                              {autoCcVisibleCols.has('aiScore') && hasAiScores && (
                                 <td className="py-2 pl-3" style={{minWidth:'220px'}}>
                                   {r.aiScore !== undefined ? (
                                     <div className="flex items-start gap-2">
                                       <span className={`font-mono font-bold text-base shrink-0 w-7 text-right ${scoreColor}`}>{r.aiScore}</span>
-                                      {r.aiRationale && (
-                                        <span
-                                          className="text-[10px] text-muted-foreground leading-snug cursor-help line-clamp-2"
-                                          title={r.aiRationale}
-                                          style={{maxWidth:'170px'}}
-                                        >
-                                          {r.aiRationale}
-                                        </span>
-                                      )}
+                                      {r.aiRationale && <span className="text-[10px] text-muted-foreground leading-snug cursor-help line-clamp-2" title={r.aiRationale} style={{maxWidth:'170px'}}>{r.aiRationale}</span>}
                                     </div>
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">—</span>
-                                  )}
+                                  ) : <span className="text-muted-foreground text-xs">—</span>}
                                 </td>
                               )}
-                              <td className="py-2 pl-2 text-center">
-                                <AIRowIcon
-                                  onClick={() => setAiSellCallCandidate({
-                                    symbol: r.symbol,
-                                    account: r.account,
-                                    strike: r.strike,
-                                    expiration: new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }),
-                                    dte: r.dte,
-                                    delta: r.delta,
-                                    mid: r.mid,
-                                    totalPremium: r.totalPremium,
-                                    weeklyReturn: r.weeklyReturn,
-                                    currentPrice: r.currentPrice,
-                                    quantity: r.quantity,
-                                    aiScore: r.aiScore,
-                                    aiRationale: r.aiRationale,
-                                  })}
-                                  title={`AI analysis for ${r.symbol} covered call`}
-                                />
-                              </td>
+                              {autoCcVisibleCols.has('ai') && <td className="py-2 pl-2 text-center"><AIRowIcon onClick={() => setAiSellCallCandidate({ symbol: r.symbol, account: r.account, strike: r.strike, expiration: new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), dte: r.dte, delta: r.delta, mid: r.mid, totalPremium: r.totalPremium, weeklyReturn: r.weeklyReturn, currentPrice: r.currentPrice, quantity: r.quantity, aiScore: r.aiScore, aiRationale: r.aiRationale })} title={`AI analysis for ${r.symbol} covered call`} /></td>}
                             </tr>
                           );
                         })}

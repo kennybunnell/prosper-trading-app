@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Columns3, Check, RotateCcw } from "lucide-react";
+import { Columns3, Check, RotateCcw, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -43,7 +43,17 @@ const GROUP_COLORS: Record<ColumnDef["group"], string> = {
   Greeks:    "text-purple-400",
   Technical: "text-cyan-400",
   Liquidity: "text-orange-400",
-  Quote:     "text-slate-400",
+  Quote:     "text-slate-300",
+};
+
+const GROUP_BG: Record<ColumnDef["group"], string> = {
+  Core:      "bg-amber-500/10 border-amber-500/30",
+  Position:  "bg-blue-500/10 border-blue-500/30",
+  Returns:   "bg-green-500/10 border-green-500/30",
+  Greeks:    "bg-purple-500/10 border-purple-500/30",
+  Technical: "bg-cyan-500/10 border-cyan-500/30",
+  Liquidity: "bg-orange-500/10 border-orange-500/30",
+  Quote:     "bg-slate-500/10 border-slate-400/30",
 };
 
 export function ColumnVisibilityToggle({
@@ -83,7 +93,7 @@ export function ColumnVisibilityToggle({
           variant="outline"
           size="sm"
           className={cn(
-            "relative gap-2 text-xs h-8 px-3 border-border/50 hover:border-primary/50 transition-colors",
+            "relative gap-2 text-xs h-8 px-3 border-border/50 hover:border-primary/50 transition-colors bg-background",
             hiddenCount > 0 && "border-amber-500/40 text-amber-400 hover:border-amber-500/70"
           )}
         >
@@ -97,40 +107,54 @@ export function ColumnVisibilityToggle({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-72 p-3 bg-card/95 backdrop-blur-sm border border-border shadow-2xl"
+        className="w-80 p-0 bg-zinc-900 border-2 border-zinc-400 shadow-[0_0_0_1px_rgba(255,255,255,0.15),0_8px_40px_rgba(0,0,0,0.8)] rounded-xl overflow-hidden"
         align="end"
         sideOffset={6}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/60">
-          <span className="text-sm font-semibold text-foreground">Column Visibility</span>
-          <div className="flex gap-1.5">
+        <div className="flex items-center justify-between px-4 py-3 bg-zinc-800 border-b-2 border-zinc-400">
+          <span className="text-sm font-bold text-white tracking-wide">Column Visibility</span>
+          <div className="flex items-center gap-1">
             <button
               onClick={() => toggleableColumns.forEach((c) => onVisibilityChange(c.key, true))}
               disabled={allVisible}
-              className="text-[11px] text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors px-1.5 py-0.5 rounded hover:bg-primary/10"
+              className={cn(
+                "flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all",
+                allVisible
+                  ? "opacity-40 cursor-not-allowed border-zinc-600 text-zinc-500"
+                  : "border-green-500/60 text-green-400 hover:bg-green-500/15 hover:border-green-400"
+              )}
             >
+              <Eye className="h-3 w-3" />
               Show all
             </button>
-            <span className="text-muted-foreground/40">|</span>
             <button
               onClick={() => toggleableColumns.forEach((c) => onVisibilityChange(c.key, false))}
               disabled={noneVisible}
-              className="text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-40 transition-colors px-1.5 py-0.5 rounded hover:bg-destructive/10"
+              className={cn(
+                "flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all",
+                noneVisible
+                  ? "opacity-40 cursor-not-allowed border-zinc-600 text-zinc-500"
+                  : "border-red-500/60 text-red-400 hover:bg-red-500/15 hover:border-red-400"
+              )}
             >
+              <EyeOff className="h-3 w-3" />
               Hide all
             </button>
           </div>
         </div>
 
         {/* Groups */}
-        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+        <div className="space-y-3 max-h-80 overflow-y-auto p-3">
           {Object.entries(grouped).map(([group, cols]) => (
             <div key={group}>
-              <div className={cn("text-[10px] font-semibold uppercase tracking-wider mb-1.5", GROUP_COLORS[group as ColumnDef["group"]])}>
+              <div className={cn(
+                "text-[10px] font-bold uppercase tracking-widest mb-1.5 px-1",
+                GROUP_COLORS[group as ColumnDef["group"]]
+              )}>
                 {group}
               </div>
-              <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-1">
                 {cols.map((col) => {
                   const isVisible = visibleColumns.has(col.key);
                   return (
@@ -138,21 +162,22 @@ export function ColumnVisibilityToggle({
                       key={col.key}
                       onClick={() => onVisibilityChange(col.key, !isVisible)}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-all text-left border",
+                        "flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium transition-all text-left border-2",
                         isVisible
-                          ? "text-foreground bg-accent/30 border-border/70 hover:bg-accent/50 hover:border-primary/50"
-                          : "text-muted-foreground bg-transparent border-border/50 hover:bg-accent/20 hover:border-border/80 hover:text-foreground"
+                          ? cn("text-white border-zinc-300 bg-zinc-700 hover:bg-zinc-600 hover:border-white", GROUP_BG[group as ColumnDef["group"]])
+                          : "text-zinc-300 border-zinc-500 bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-300 hover:text-white"
                       )}
                     >
+                      {/* Highly visible checkbox */}
                       <div className={cn(
-                        "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors",
+                        "w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all",
                         isVisible
-                          ? "bg-primary border-primary"
-                          : "border-border/70 bg-background/50"
+                          ? "bg-white border-white"
+                          : "border-zinc-300 bg-zinc-700"
                       )}>
-                        {isVisible && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                        {isVisible && <Check className="h-2.5 w-2.5 text-zinc-900 stroke-[3]" />}
                       </div>
-                      <span>{col.label}</span>
+                      <span className="truncate">{col.label}</span>
                     </button>
                   );
                 })}
@@ -162,8 +187,8 @@ export function ColumnVisibilityToggle({
         </div>
 
         {/* Footer: Reset to defaults */}
-        <div className="mt-3 pt-2 border-t border-border/60 flex items-center justify-between">
-          <span className="text-[10px] text-muted-foreground/60">
+        <div className="px-4 py-2.5 bg-zinc-800 border-t-2 border-zinc-400 flex items-center justify-between">
+          <span className="text-[10px] text-zinc-500">
             Pinned columns always visible. Saved automatically.
           </span>
           {onReset && (
@@ -171,10 +196,10 @@ export function ColumnVisibilityToggle({
               onClick={() => { onReset(); }}
               disabled={isAtDefault}
               className={cn(
-                "flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors",
+                "flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-all",
                 isAtDefault
-                  ? "text-muted-foreground/30 cursor-not-allowed"
-                  : "text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
+                  ? "opacity-30 cursor-not-allowed border-zinc-700 text-zinc-500"
+                  : "border-amber-500/60 text-amber-400 hover:bg-amber-500/15 hover:border-amber-400"
               )}
               title="Reset to default column visibility"
             >

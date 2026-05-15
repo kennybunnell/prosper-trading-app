@@ -838,7 +838,8 @@ export const ccRouter = router({
       // Calculate composite scores for all opportunities
       const scoredOpportunities = deduplicatedOpportunities.map(opp => ({
         ...opp,
-        score: calculateCCScore(opp),
+        score: calculateCCScore(opp).score,
+        scoreBreakdown: calculateCCScore(opp).breakdown,
       }));
 
       // Sort by score descending
@@ -1899,126 +1900,95 @@ Summary: [One sentence overall assessment]`;
 });
 
 /**
- * Calculate CC Composite Score (0-100)
- * 
- * Weighting:
- * - Weekly Return % (25%): Higher = Better
- * - Delta (20%): 0.20-0.35 = Best (balance premium vs getting called)
- * - RSI (15%): Higher = Better for CC (overbought = good time to sell calls)
- * - BB %B (15%): Higher = Better for CC (stock near upper band)
- * - Distance to Strike % (15%): Higher = Better (more room before assignment)
- * - Spread % (10%): Lower = Better (tighter spreads)
+ * Calculate CC Composite Score v2 (0-100)
+ *
+ * Weights: D1 Liquidity 15% | D2 Probability Fit 20% | D3 Premium Efficiency 20%
+ *          D4 IV Richness 15% | D5 Strike Safety 15% | D6 Technical Context 15%
  */
-function calculateCCScore(opp: any): number {
-  let score = 0;
+function calculateCCScore(opp: any): { score: number; breakdown: Record<string, number> } {
+  // D1: Liquidity (15 pts)
+  let d1 = 0;
+  const bid = opp.bid || 0;
+  const ask = opp.ask || 0;
+  const mid = (bid + ask) / 2;
+  const sp  = mid > 0 ? ((ask - bid) / mid) * 100 : 100;
+  const oi  = opp.openInterest ?? 0;
+  const vol = opp.volume ?? 0;
+  if (sp <= 1)       d1 += 6;   else if (sp <= 2)  d1 += 5.1;
+  else if (sp <= 5)  d1 += 3.6; else if (sp <= 10) d1 += 1.8;
+  else if (sp <= 20) d1 += 0.6;
+  if (oi >= 1000)     d1 += 6;   else if (oi >= 500) d1 += 5.1;
+  else if (oi >= 200) d1 += 3.9; else if (oi >= 100) d1 += 2.7;
+  else if (oi >= 50)  d1 += 1.5; else if (oi >= 10)  d1 += 0.6;
+  else if (oi === 0)  d1 -= 4.5;
+  if (vol >= 500)      d1 += 3;    else if (vol >= 200) d1 += 2.25;
+  else if (vol >= 50)  d1 += 1.2;  else if (vol >= 10)  d1 += 0.45;
+  d1 = Math.max(0, Math.min(15, d1));
 
-  // 1. Weekly Return % (25 points) - Scale 0.3% to 2.0%
-  const weekly = opp.weeklyReturn || 0;
-  if (weekly >= 2.0) {
-    score += 25;
-  } else if (weekly >= 0.3) {
-    score += 25 * ((weekly - 0.3) / 1.7);
-  }
-
-  // 2. Delta (20 points) - Sweet spot around 0.20-0.35
+  // D2: Probability Fit (20 pts) — delta + DTE
+  let d2 = 0;
   const delta = Math.abs(opp.delta || 0);
-  if (delta >= 0.20 && delta <= 0.35) {
-    score += 20; // Perfect range
-  } else if (delta >= 0.15 && delta <= 0.40) {
-    score += 15; // Good range
-  } else if (delta >= 0.10 && delta <= 0.50) {
-    score += 10; // Acceptable
-  } else {
-    score += 5; // Outside ideal range
-  }
+  const dte   = opp.dte || 0;
+  if (delta >= 0.20 && delta <= 0.35)       d2 += 10;
+  else if (delta >= 0.15 && delta < 0.20)   d2 += 8;
+  else if (delta > 0.35 && delta <= 0.40)   d2 += 8;
+  else if (delta >= 0.10 && delta < 0.15)   d2 += 5;
+  else if (delta > 0.40 && delta <= 0.50)   d2 += 5;
+  else                                       d2 += 2;
+  if (dte >= 7 && dte <= 14)       d2 += 10; else if (dte >= 15 && dte <= 21) d2 += 7.5;
+  else if (dte >= 22 && dte <= 30) d2 += 5;  else if (dte >= 31 && dte <= 45) d2 += 3;
+  else                             d2 += 0.5;
+  d2 = Math.max(0, Math.min(20, d2));
 
-  // 3. RSI (15 points) - Higher is better for CC (overbought)
+  // D3: Premium Efficiency (20 pts) — weekly return %
+  let d3 = 0;
+  const weekly = opp.weeklyReturn || 0;
+  if (weekly >= 1.5)       d3 = 20;  else if (weekly >= 1.0)  d3 = 16;
+  else if (weekly >= 0.75) d3 = 13;  else if (weekly >= 0.50) d3 = 8;
+  else if (weekly >= 0.30) d3 = 4;
+  d3 = Math.max(0, Math.min(20, d3));
+
+  // D4: IV Richness (15 pts) — IV Rank
+  let d4 = 0;
+  const ivRank = opp.ivRank;
+  if (ivRank !== null && ivRank !== undefined) {
+    if (ivRank >= 80)      d4 = 15;   else if (ivRank >= 60) d4 = 12.75;
+    else if (ivRank >= 50) d4 = 11.25; else if (ivRank >= 40) d4 = 9;
+    else if (ivRank >= 30) d4 = 6.75;  else if (ivRank >= 20) d4 = 4.5;
+    else if (ivRank >= 10) d4 = 2.25;  else                   d4 = 0.75;
+  } else { d4 = 6; }
+
+  // D5: Strike Safety (15 pts) — distance OTM
+  let d5 = 0;
+  const distPct = opp.distanceOtm || 0;
+  if (distPct >= 15)      d5 = 15;  else if (distPct >= 10) d5 = 12;
+  else if (distPct >= 7)  d5 = 9;   else if (distPct >= 5)  d5 = 6.75;
+  else if (distPct >= 3)  d5 = 3.75; else if (distPct >= 1)  d5 = 1.5;
+  d5 = Math.max(0, Math.min(15, d5));
+
+  // D6: Technical Context (15 pts) — RSI + BB %B (overbought preferred for CC)
+  let d6 = 0;
   const rsi = opp.rsi;
+  const bb  = opp.bbPctB;
   if (rsi !== null && rsi !== undefined) {
-    if (rsi > 70) {
-      score += 15; // Overbought - excellent for selling calls
-    } else if (rsi > 60) {
-      score += 12;
-    } else if (rsi > 50) {
-      score += 9;
-    } else if (rsi > 40) {
-      score += 6;
-    } else if (rsi > 30) {
-      score += 3;
-    }
-    // < 30 = 0 points (oversold - bad for selling calls)
-  } else {
-    score += 7; // Neutral if no data
-  }
-
-  // 4. BB %B (15 points) - Higher is better for CC
-  const bb = opp.bbPctB;
+    if (rsi > 70) d6 += 7.5; else if (rsi > 60) d6 += 6;
+    else if (rsi > 50) d6 += 4.5; else if (rsi > 40) d6 += 3;
+    else if (rsi > 30) d6 += 1.5;
+  } else { d6 += 3.75; }
   if (bb !== null && bb !== undefined) {
-    if (bb > 0.8) {
-      score += 15; // Near upper band - excellent
-    } else if (bb > 0.7) {
-      score += 12;
-    } else if (bb > 0.5) {
-      score += 9;
-    } else if (bb > 0.3) {
-      score += 6;
-    } else if (bb > 0.2) {
-      score += 3;
-    }
-    // < 0.2 = 0 points (near lower band)
-  } else {
-    score += 7; // Neutral if no data
-  }
+    if (bb > 0.8) d6 += 7.5; else if (bb > 0.7) d6 += 6;
+    else if (bb > 0.5) d6 += 4.5; else if (bb > 0.3) d6 += 3;
+    else if (bb > 0.2) d6 += 1.5;
+  } else { d6 += 3.75; }
+  d6 = Math.max(0, Math.min(15, d6));
 
-  // 5. Distance to Strike % (15 points) - Higher is better
-  const distancePct = opp.distanceOtm || 0;
-  if (distancePct > 10) {
-    score += 15;
-  } else if (distancePct > 7) {
-    score += 12;
-  } else if (distancePct > 5) {
-    score += 9;
-  } else if (distancePct > 3) {
-    score += 6;
-  } else if (distancePct > 1) {
-    score += 3;
-  }
-  // < 1% = 0 points (too close)
-
-  // 6. Spread % (10 points) - Lower is better
-  const spread = opp.spreadPct;
-  if (spread !== null && spread !== undefined) {
-    if (spread <= 1) {
-      score += 10;
-    } else if (spread <= 2) {
-      score += 8;
-    } else if (spread <= 5) {
-      score += 5;
-    } else if (spread <= 10) {
-      score += 2;
-    }
-    // > 10% = 0 points
-  } else {
-    score += 5; // Neutral if no data
-  }
-
-
-  // 7. Open Interest / Liquidity (15 points)
-  // OI=0 contracts rarely fill — apply a hard penalty.
-  let ccLiquidityScore = 0;
-  const ccOi = opp.openInterest ?? 0;
-  if (ccOi >= 500) {
-    ccLiquidityScore += 15;
-  } else if (ccOi >= 200) {
-    ccLiquidityScore += 12;
-  } else if (ccOi >= 100) {
-    ccLiquidityScore += 9;
-  } else if (ccOi >= 50) {
-    ccLiquidityScore += 6;
-  } else if (ccOi >= 10) {
-    ccLiquidityScore += 3;
-  } else if (ccOi === 0) {
-    ccLiquidityScore -= 10; // Hard penalty: OI=0 contracts rarely fill
-  }
-  return Math.round(score + ccLiquidityScore);
+  const total = Math.round(Math.min(100, d1 + d2 + d3 + d4 + d5 + d6));
+  return {
+    score: total,
+    breakdown: {
+      d1Liquidity: Math.round(d1), d2ProbabilityFit: Math.round(d2),
+      d3PremiumEfficiency: Math.round(d3), d4IVRichness: Math.round(d4),
+      d5StrikeSafety: Math.round(d5), d6Technical: Math.round(d6), total,
+    },
+  };
 }
