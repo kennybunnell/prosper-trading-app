@@ -3249,6 +3249,15 @@ export default function CSPDashboard() {
                                                       </div>
                                                     );
                                                   })}
+                                                  {(opp as any).scoreBreakdown.safetyRatio != null && (
+                                                    <div className="flex justify-between border-t border-gray-700 pt-1 mt-1">
+                                                      <span className="text-gray-400">Safety Ratio (Strike/EM):</span>
+                                                      <span className={`font-medium ${
+                                                        (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
+                                                        (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                                      }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
+                                                    </div>
+                                                  )}
                                                 </>
                                               ) : (
                                                 <>

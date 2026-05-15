@@ -1190,6 +1190,15 @@ export default function PMCCDashboard() {
                                                 <span>{(leap as any).scoreBreakdown.earningsPenalty}</span>
                                               </div>
                                             )}
+                                            {(leap as any).scoreBreakdown.safetyRatio != null && (
+                                              <div className="flex justify-between border-t border-gray-700 pt-1 mt-1">
+                                                <span className="text-gray-400">Safety Ratio (LEAP/EM):</span>
+                                                <span className={`font-medium ${
+                                                  (leap as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
+                                                  (leap as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                                }`}>{((leap as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
+                                              </div>
+                                            )}
                                           </>
                                         ) : (
                                           <div className="text-gray-400 text-xs">Breakdown not available</div>

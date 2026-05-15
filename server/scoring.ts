@@ -159,28 +159,33 @@ function scoreD5StrikeSafety(
   ivAnnual: number | null | undefined,
   dte: number,
   maxPts = 15
-): number {
+): { score: number; safetyRatio: number | null } {
   // If we have IV, compare OTM distance to 1-sigma expected move
   if (ivAnnual && ivAnnual > 0 && price > 0) {
     const em = price * (ivAnnual / 100) * Math.sqrt(dte / 365);
     const emPct = (em / price) * 100;
-    const safetyRatio = otmPct / emPct; // >1 = beyond expected move
-    if (safetyRatio >= 2.0)      return maxPts;           // 2× beyond EM — very safe
-    if (safetyRatio >= 1.5)      return maxPts * 0.85;
-    if (safetyRatio >= 1.2)      return maxPts * 0.70;
-    if (safetyRatio >= 1.0)      return maxPts * 0.55;    // at the EM boundary
-    if (safetyRatio >= 0.75)     return maxPts * 0.35;
-    if (safetyRatio >= 0.50)     return maxPts * 0.15;
-    return maxPts * 0.05;                                  // inside EM — risky
+    const safetyRatio = emPct > 0 ? otmPct / emPct : null; // >1 = beyond expected move
+    const ratio = safetyRatio ?? 0;
+    let score: number;
+    if (ratio >= 2.0)      score = maxPts;           // 2× beyond EM — very safe
+    else if (ratio >= 1.5) score = maxPts * 0.85;
+    else if (ratio >= 1.2) score = maxPts * 0.70;
+    else if (ratio >= 1.0) score = maxPts * 0.55;    // at the EM boundary
+    else if (ratio >= 0.75) score = maxPts * 0.35;
+    else if (ratio >= 0.50) score = maxPts * 0.15;
+    else                   score = maxPts * 0.05;    // inside EM — risky
+    return { score, safetyRatio };
   }
   // Fallback: raw OTM %
-  if (otmPct >= 15)      return maxPts;
-  if (otmPct >= 10)      return maxPts * 0.80;
-  if (otmPct >= 7)       return maxPts * 0.60;
-  if (otmPct >= 5)       return maxPts * 0.45;
-  if (otmPct >= 3)       return maxPts * 0.25;
-  if (otmPct >= 1)       return maxPts * 0.10;
-  return 0;
+  let score: number;
+  if (otmPct >= 15)      score = maxPts;
+  else if (otmPct >= 10) score = maxPts * 0.80;
+  else if (otmPct >= 7)  score = maxPts * 0.60;
+  else if (otmPct >= 5)  score = maxPts * 0.45;
+  else if (otmPct >= 3)  score = maxPts * 0.25;
+  else if (otmPct >= 1)  score = maxPts * 0.10;
+  else                   score = 0;
+  return { score, safetyRatio: null };
 }
 
 // ─── D6: Technical Context (0–15 pts) ────────────────────────────────────────
@@ -283,6 +288,7 @@ export interface D6Breakdown {
   d5StrikeSafety: number;
   d6Technical: number;
   total: number;
+  safetyRatio?: number | null; // D5: strike distance / expected move (>1 = beyond EM)
   // Legacy fields for backward compat
   technical?: number;
   greeks?: number;
@@ -332,7 +338,7 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   const d2 = scoreD2ProbabilityCSP(delta, dte, isIndex, 20);
   const d3 = scoreD3PremiumCSP(weekly, isIndex, 20);
   const d4 = scoreD4IVRichness(opp.ivRank, 15);
-  const d5 = scoreD5StrikeSafety(otmPct, opp.currentPrice || 0, ivAnnual, dte, 15);
+  const { score: d5, safetyRatio } = scoreD5StrikeSafety(otmPct, opp.currentPrice || 0, ivAnnual, dte, 15);
   const d6 = scoreD6TechnicalCSP(opp.rsi, opp.bbPctB, isIndex, 15);
 
   const total = Math.round(Math.min(100, d1 + d2 + d3 + d4 + d5 + d6));
@@ -347,6 +353,7 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
       d4IVRichness:         Math.round(d4),
       d5StrikeSafety:       Math.round(d5),
       d6Technical:          Math.round(d6),
+      safetyRatio,
       // Legacy fields (kept for backward compat with existing UI)
       technical:  Math.round(d6),
       greeks:     Math.round(d2),
@@ -531,7 +538,7 @@ export function calculateBPSScore(
   const d4 = scoreD4IVRichness(opp.ivRank, 10);
 
   // D5 Strike Safety (10 pts)
-  const d5 = scoreD5StrikeSafety(otmPct, opp.currentPrice || 0, ivAnnual, dte, 10);
+  const { score: d5, safetyRatio } = scoreD5StrikeSafety(otmPct, opp.currentPrice || 0, ivAnnual, dte, 10);
 
   // D6 Technical Context (20 pts) — bullish context preferred for BPS
   const d6 = scoreD6TechnicalBPS(opp.rsi, opp.bbPctB, trend14d, isIndexMode, 20);
@@ -551,6 +558,7 @@ export function calculateBPSScore(
       d4IVRichness:        Math.round(d4),
       d5StrikeSafety:      Math.round(d5),
       d6Technical:         Math.round(d6),
+      safetyRatio,
       // Legacy fields
       direction:         Math.round(d6 + d2 * 0.3),
       spreadEfficiency:  Math.round(d3),

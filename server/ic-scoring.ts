@@ -49,6 +49,7 @@ export interface ICScoreBreakdown {
 
   total: number;        // 0–100
   isIndex: boolean;
+  safetyRatio?: number | null; // profit zone width / expected move (>1 = zone wider than EM)
 }
 
 export interface ICInput {
@@ -128,10 +129,12 @@ function scoreEquityIC(ic: ICInput): ICScoreBreakdown {
 
   // POP: profit zone width vs expected move (v2: uses EM when iv available, else raw %)
   let pop = 0;
+  let icEquitySafetyRatio: number | null = null;
   if (ic.iv && ic.iv > 0 && ic.currentPrice > 0 && ic.dte > 0) {
     // How wide is the profit zone relative to the 1-sigma expected move?
     const emDollar = ic.currentPrice * (ic.iv / 100) * Math.sqrt(ic.dte / 365);
     const popRatio = ic.profitZone / (2 * emDollar); // 2× EM = full 2-sigma zone
+    icEquitySafetyRatio = popRatio; // >1 = profit zone wider than 2-sigma EM
     pop = Math.min(popRatio * 15, 15);
   } else {
     const profitZonePct = (ic.profitZone / ic.currentPrice) * 100;
@@ -179,6 +182,7 @@ function scoreEquityIC(ic: ICInput): ICScoreBreakdown {
     deltaBalance: Math.round(deltaBalance * 10) / 10,
     total: Math.round(total * 10) / 10,
     isIndex: false,
+    safetyRatio: icEquitySafetyRatio,
   };
 }
 
@@ -196,9 +200,11 @@ function scoreIndexIC(ic: ICInput): ICScoreBreakdown {
 
   // Profit Zone: width vs expected move (v2: uses EM when iv available, else raw %)
   let profitZone = 0;
+  let icIndexSafetyRatio: number | null = null;
   if (ic.iv && ic.iv > 0 && ic.currentPrice > 0 && ic.dte > 0) {
     const emDollar = ic.currentPrice * (ic.iv / 100) * Math.sqrt(ic.dte / 365);
     const pzRatio = ic.profitZone / (2 * emDollar); // 2× EM = full 2-sigma zone
+    icIndexSafetyRatio = pzRatio; // >1 = profit zone wider than 2-sigma EM
     profitZone = Math.min(pzRatio * 15, 15);
   } else {
     const profitZonePct = ic.currentPrice > 0 ? (ic.profitZone / ic.currentPrice) * 100 : 0;
@@ -245,6 +251,7 @@ function scoreIndexIC(ic: ICInput): ICScoreBreakdown {
     deltaBalance: Math.round(deltaBalance * 10) / 10,
     total: Math.round(total * 10) / 10,
     isIndex: true,
+    safetyRatio: icIndexSafetyRatio,
   };
 }
 

@@ -1910,7 +1910,7 @@ Summary: [One sentence overall assessment]`;
  * Weights: D1 Liquidity 15% | D2 Probability Fit 20% | D3 Premium Efficiency 20%
  *          D4 IV Richness 15% | D5 Strike Safety 15% | D6 Technical Context 15%
  */
-function calculateCCScore(opp: any): { score: number; breakdown: Record<string, number> } {
+function calculateCCScore(opp: any): { score: number; breakdown: Record<string, number | null> } {
   // D1: Liquidity (15 pts)
   let d1 = 0;
   const bid = opp.bid || 0;
@@ -1965,18 +1965,20 @@ function calculateCCScore(opp: any): { score: number; breakdown: Record<string, 
 
   // D5: Strike Safety (15 pts) — OTM distance vs 1-sigma expected move
   let d5 = 0;
+  let ccSafetyRatio: number | null = null;
   const distPct = opp.distanceOtm || 0;
   const ivForD5 = opp.iv ?? null;
   if (ivForD5 && ivForD5 > 0 && opp.currentPrice > 0) {
     const em = opp.currentPrice * (ivForD5 / 100) * Math.sqrt(dte / 365);
     const emPct = (em / opp.currentPrice) * 100;
-    const safetyRatio = distPct / emPct;
-    if (safetyRatio >= 2.0)     d5 = 15;
-    else if (safetyRatio >= 1.5) d5 = 12.75;
-    else if (safetyRatio >= 1.2) d5 = 10.5;
-    else if (safetyRatio >= 1.0) d5 = 8.25;
-    else if (safetyRatio >= 0.75) d5 = 5.25;
-    else if (safetyRatio >= 0.50) d5 = 2.25;
+    ccSafetyRatio = emPct > 0 ? distPct / emPct : null;
+    const ratio = ccSafetyRatio ?? 0;
+    if (ratio >= 2.0)     d5 = 15;
+    else if (ratio >= 1.5) d5 = 12.75;
+    else if (ratio >= 1.2) d5 = 10.5;
+    else if (ratio >= 1.0) d5 = 8.25;
+    else if (ratio >= 0.75) d5 = 5.25;
+    else if (ratio >= 0.50) d5 = 2.25;
     else d5 = 0.75;
   } else {
     if (distPct >= 15)      d5 = 15;  else if (distPct >= 10) d5 = 12;
@@ -2007,7 +2009,9 @@ function calculateCCScore(opp: any): { score: number; breakdown: Record<string, 
     breakdown: {
       d1Liquidity: Math.round(d1), d2ProbabilityFit: Math.round(d2),
       d3PremiumEfficiency: Math.round(d3), d4IVRichness: Math.round(d4),
-      d5StrikeSafety: Math.round(d5), d6Technical: Math.round(d6), total,
+      d5StrikeSafety: Math.round(d5), d6Technical: Math.round(d6),
+      safetyRatio: ccSafetyRatio,
+      total,
     },
   };
 }

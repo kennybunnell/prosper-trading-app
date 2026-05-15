@@ -3527,6 +3527,43 @@ export default function CCDashboard() {
                                             </div>
                                           );
                                         })}
+                                        {(opp as any).scoreBreakdown.safetyRatio != null && (
+                                          <div className="flex justify-between border-t border-gray-700 pt-1 mt-1">
+                                            <span className="text-gray-400">Safety Ratio (Strike/EM):</span>
+                                            <span className={`font-medium ${
+                                              (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
+                                              (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                            }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
+                                          </div>
+                                        )}
+                                      </>
+                                    ) : (opp as any).scoreBreakdown?.direction !== undefined ? (
+                                      <>
+                                        {[
+                                          { label: 'Direction (Trend Align)', key: 'direction', max: 35 },
+                                          { label: 'Greeks & Spread Eff.', key: 'greeks', max: 25 },
+                                          { label: 'Technical (RSI+BB)', key: 'technical', max: 20 },
+                                          { label: 'Premium Quality', key: 'premium', max: 15 },
+                                          { label: 'Overall Quality', key: 'quality', max: 5 },
+                                        ].map(({ label, key, max }) => {
+                                          const val = (opp as any).scoreBreakdown[key] ?? 0;
+                                          const pct = val / max;
+                                          return (
+                                            <div key={key} className="flex justify-between">
+                                              <span className="text-gray-400">{label}:</span>
+                                              <span className={`font-medium ${ pct >= 0.8 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-400' : 'text-red-400' }`}>{val}/{max}</span>
+                                            </div>
+                                          );
+                                        })}
+                                        {(opp as any).scoreBreakdown.safetyRatio != null && (
+                                          <div className="flex justify-between border-t border-gray-700 pt-1 mt-1">
+                                            <span className="text-gray-400">Safety Ratio (Strike/EM):</span>
+                                            <span className={`font-medium ${
+                                              (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
+                                              (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                            }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
+                                          </div>
+                                        )}
                                       </>
                                     ) : (
                                       <div className="text-gray-400 text-xs">Breakdown not available</div>

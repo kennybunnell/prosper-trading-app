@@ -26,6 +26,7 @@ export interface PMCCScoreBreakdown {
   extrinsicPenalty: number; // Penalty for high extrinsic value (-10)
   strikeRulePenalty: number; // Penalty for short call strike rule violation (-20)
   total: number;           // Sum of all after penalties (0-100)
+  safetyRatio?: number | null; // LEAP strike cushion / EM dollar (>0 = strike below downside EM)
 }
 
 export interface PMCCScoredOpportunity extends LeapOpportunity {
@@ -224,12 +225,14 @@ export function calculatePMCCScore(leap: LeapOpportunity): { score: number; brea
 
   // Expected Move Safety (5 pts) — how far is the LEAP strike from the 1-sigma downside EM?
   // For PMCC, we want the LEAP strike well below the expected downside move.
+  let pmccSafetyRatio: number | null = null;
   const iv = leap.iv;
   if (iv && iv > 0 && leap.currentPrice > 0 && dte > 0) {
     const emDollar = leap.currentPrice * (iv / 100) * Math.sqrt(dte / 365);
     const downsideLevel = leap.currentPrice - emDollar; // 1-sigma downside
     const cushion = downsideLevel - leap.strike; // positive = strike below downside EM
     const cushionPct = (cushion / leap.currentPrice) * 100;
+    pmccSafetyRatio = emDollar > 0 ? cushion / emDollar : null; // >0 = strike below downside EM
     if (cushionPct >= 10)       riskManagementScore += 5; // Strike well below EM — very safe
     else if (cushionPct >= 5)   riskManagementScore += 4; // Good cushion below EM
     else if (cushionPct >= 0)   riskManagementScore += 3; // Strike near EM boundary
@@ -297,6 +300,7 @@ export function calculatePMCCScore(leap: LeapOpportunity): { score: number; brea
       extrinsicPenalty: Math.round(extrinsicPenalty),
       strikeRulePenalty: Math.round(strikeRulePenalty),
       total: Math.round(totalScore),
+      safetyRatio: pmccSafetyRatio,
     },
   };
 }

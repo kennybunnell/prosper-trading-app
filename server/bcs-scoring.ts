@@ -38,6 +38,7 @@ export interface BCSScoreBreakdown {
   isIndex: boolean;   // Whether index scoring was applied
   trend14d?: number;  // 14-day price change % used for direction scoring
   trendBias?: 'Bearish' | 'Neutral' | 'Bullish'; // Human-readable bias
+  safetyRatio?: number | null; // D5: strike distance / expected move (>1 = beyond EM)
 }
 
 export interface BCScoredOpportunity extends BearCallSpreadOpportunity {
@@ -229,15 +230,17 @@ export function calculateBCSScore(
 
   // Strike Safety vs Expected Move (3 points) — is the short strike beyond the 1-sigma EM?
   // Uses raw IV when available; falls back to IV Rank as a proxy
+  let bcsSafetyRatio: number | null = null;
   const ivRank = opp.ivRank;
   const ivForSafety = (opp as any).iv as number | null | undefined;
   const distanceOtm = (opp as any).distanceOtm as number | undefined; // % distance from current price
   if (ivForSafety && ivForSafety > 0 && opp.currentPrice > 0 && dte > 0 && distanceOtm !== undefined) {
     const emPct = (ivForSafety / 100) * Math.sqrt(dte / 365) * 100; // EM as % of price
-    const safetyRatio = distanceOtm / emPct;
-    if (safetyRatio >= 1.5)       greeksScore += 3; // well beyond EM — very safe
-    else if (safetyRatio >= 1.0)  greeksScore += 2; // at or beyond EM boundary
-    else if (safetyRatio >= 0.75) greeksScore += 1; // close to EM
+    bcsSafetyRatio = emPct > 0 ? distanceOtm / emPct : null;
+    const ratio = bcsSafetyRatio ?? 0;
+    if (ratio >= 1.5)       greeksScore += 3; // well beyond EM — very safe
+    else if (ratio >= 1.0)  greeksScore += 2; // at or beyond EM boundary
+    else if (ratio >= 0.75) greeksScore += 1; // close to EM
     // < 0.75 = 0 (inside EM — risky)
   } else if (ivRank !== null && ivRank !== undefined) {
     // Fallback: IV Rank as premium environment proxy
@@ -315,6 +318,7 @@ export function calculateBCSScore(
       isIndex: isIndexMode,
       trend14d: trend14d,
       trendBias,
+      safetyRatio: bcsSafetyRatio,
     },
   };
 }

@@ -9829,3 +9829,27 @@ ROC Fix Mar 18 2026
 - [x] IC Scoring v2: POP and profit zone scoring uses EM ratio when iv available (ic-scoring.ts)
 - [x] PMCC Scoring v2: Risk Management uses EM-based LEAP strike cushion when iv available (pmcc-scoring.ts)
 - [x] TypeScript: 0 errors confirmed
+
+## Safety Ratio Tooltip (In Progress)
+
+- [ ] Add safetyRatio field to ScoreBreakdown / D6Breakdown interfaces in scoring.ts
+- [ ] Compute and return safetyRatio in calculateCSPScore and calculateBPSScore
+- [ ] Compute and return safetyRatio in CC scoring (routers-cc.ts)
+- [ ] Compute and return safetyRatio in BCS scoring (bcs-scoring.ts)
+- [ ] Compute and return safetyRatio in IC scoring (ic-scoring.ts)
+- [ ] Compute and return safetyRatio in PMCC scoring (pmcc-scoring.ts)
+- [ ] Update CSP/BPS dashboard score tooltip to show Safety Ratio line
+- [ ] Update CC/BCS dashboard score tooltip to show Safety Ratio line
+- [ ] Update IC dashboard score tooltip to show Safety Ratio line
+- [ ] Update PMCC dashboard score tooltip to show Safety Ratio line
+
+## Safety Ratio Tooltip (Completed)
+- [x] Add safetyRatio field to CSP/BPS scoreD5StrikeSafety function (returns {score, safetyRatio})
+- [x] Add safetyRatio to CC scoring in routers-cc.ts
+- [x] Add safetyRatio to BCS scoring in bcs-scoring.ts
+- [x] Add safetyRatio to IC equity and index scoring in ic-scoring.ts
+- [x] Add safetyRatio to PMCC scoring in pmcc-scoring.ts
+- [x] Show Safety Ratio line in CSP/BPS score breakdown tooltip
+- [x] Show Safety Ratio line in CC/BCS score breakdown tooltip (both D1-D6 and direction branches)
+- [x] Show Safety Ratio line in IC score breakdown tooltip (both index and equity branches)
+- [x] Show Safety Ratio line in PMCC score breakdown tooltip

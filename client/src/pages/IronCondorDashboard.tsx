@@ -1601,6 +1601,15 @@ export default function IronCondorDashboard() {
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">IV Rank (idx)</span><span className="font-mono">{(opp as any).scoreBreakdown.ivRank}/15</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">DTE</span><span className="font-mono">{(opp as any).scoreBreakdown.dte}/20</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Balance</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaBalance}/20</span></div>
+                                          {(opp as any).scoreBreakdown.safetyRatio != null && (
+                                            <div className="flex justify-between gap-4 border-t border-gray-700 pt-1 mt-1">
+                                              <span className="text-muted-foreground">Safety Ratio (Zone/EM)</span>
+                                              <span className={`font-mono ${
+                                                (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
+                                                (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                              }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
+                                            </div>
+                                          )}
                                         </>
                                       ) : (
                                         <>
@@ -1611,7 +1620,16 @@ export default function IronCondorDashboard() {
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">DTE</span><span className="font-mono">{(opp as any).scoreBreakdown.dte}/15</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">RSI</span><span className="font-mono">{(opp as any).scoreBreakdown.rsi}/10</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">BB %B</span><span className="font-mono">{(opp as any).scoreBreakdown.bb}/10</span></div>
-                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Balance</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaBalance}/10</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Balance</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaBalance}/10</span></div>
+                                          {(opp as any).scoreBreakdown.safetyRatio != null && (
+                                            <div className="flex justify-between gap-4 border-t border-gray-700 pt-1 mt-1">
+                                              <span className="text-muted-foreground">Safety Ratio (POP/EM)</span>
+                                              <span className={`font-mono ${
+                                                (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
+                                                (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                              }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
+                                            </div>
+                                          )}
                                         </>
                                       )}
                                     </div>
