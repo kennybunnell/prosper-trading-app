@@ -9887,3 +9887,8 @@ ROC Fix Mar 18 2026
 - [x] Fixed CSP/BPS column misalignment — removed strategyType === 'csp' guard from Bid/Ask/Mid/DistOTM body cells so columns align with headers in both modes
 - [x] Updated Score tooltip (SCORE_CALCULATION_DIALOG) to reflect current D1–D6 v2 weights (15/20/20/15/15/15) replacing old v1 formula
 - [x] Recalibrated D3 premium thresholds (equity: 1.0%/wk = full score; 0.5% = 70%) and D4 IV Richness thresholds (IV Rank 35+ = 70%) to produce realistic score distribution (55–80 range)
+
+## 🐛 Bugs to Fix (May 16, 2026)
+- [x] Help badge tooltip dialogs show black block — fixed by overriding TooltipContent to bg-popover/text-popover-foreground for rich JSX content
+- [x] Safety ratio help badge dialog shows black block — fixed by removing DialogDescription wrapper from HelpDialog (was forcing text-muted-foreground on all children)
+- [x] Scoring recalibrated — D5 safety ratio thresholds adjusted for delta-0.20 zone (0.55x = 62%), D6 neutral RSI/BB now scores 50% instead of 20-25%; typical rows now score 55-65, good setups 70-80

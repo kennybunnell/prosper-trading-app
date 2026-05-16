@@ -446,40 +446,40 @@ export const HELP_CONTENT = {
 
         <div className="border-l-4 border-yellow-500 pl-4">
           <p className="font-semibold">D4 — 15% · IV Richness (IV Rank)</p>
-          <p className="text-xs text-muted-foreground">IV Rank ≥50 = full score (options are expensive vs history — ideal for selling). IV Rank &lt;20 = near zero (cheap options = poor premium). Higher IV Rank = better edge for option sellers.</p>
+          <p className="text-xs text-muted-foreground">IV Rank ≥50 = full score (options are expensive vs history — ideal for selling). IV Rank 30–50 = good (70%). IV Rank &lt;15 = low score (cheap options = poor premium for sellers).</p>
         </div>
 
         <div className="border-l-4 border-orange-500 pl-4">
           <p className="font-semibold">D5 — 15% · Strike Safety (OTM Distance vs Expected Move)</p>
-          <p className="text-xs text-muted-foreground">Compares the strike’s distance from current price to the 1-sigma expected move. Strike ≥2× beyond expected move = full score. Strike inside expected move = near-zero score. Shows as Safety × in the table.</p>
+          <p className="text-xs text-muted-foreground">Compares strike distance to the 1-sigma expected move. Safety × 1.5+ = full score. Safety × 0.55–0.75 (typical delta-0.20 zone) = 62–75%. Near-ATM strikes score low. Shows as Safety × in the table.</p>
         </div>
 
         <div className="border-l-4 border-red-500 pl-4">
           <p className="font-semibold">D6 — 15% · Technical Context (RSI + BB %B)</p>
-          <p className="text-xs text-muted-foreground">RSI &lt;30 (oversold) + BB %B &lt;0.20 (near lower band) = maximum score for puts — mean reversion setup. Neutral RSI/BB scores ~50%. Overbought conditions score low for CSP.</p>
+          <p className="text-xs text-muted-foreground">RSI &lt;30 (oversold) + BB %B &lt;0.15 (near lower band) = maximum score — ideal mean-reversion setup. Neutral RSI 40–60 scores 50–60%. Overbought (RSI &gt;70, BB &gt;0.80) scores near zero for CSP.</p>
         </div>
       </div>
 
       <div className="p-4 bg-muted rounded-lg">
-        <p className="font-semibold mb-2">Example Calculation</p>
+        <p className="font-semibold mb-2">Example Calculation (Typical Good Setup)</p>
         <div className="space-y-1 text-xs font-mono">
-          <p>D1 Liquidity: Spread 4%, OI 800, Vol 300 → 14/15 pts</p>
-          <p>D2 Probability: Delta 0.17, DTE 10 → 18/20 pts</p>
-          <p>D3 Premium: Weekly 1.2% → 20/20 pts</p>
-          <p>D4 IV Richness: IV Rank 55 → 15/15 pts</p>
-          <p>D5 Strike Safety: Strike 2.1× beyond EM → 15/15 pts</p>
-          <p>D6 Technical: RSI 28, BB 0.15 → 13/15 pts</p>
-          <p className="font-bold mt-2 pt-2 border-t border-border">Total Score: 95 / 100</p>
+          <p>D1 Liquidity: Spread 4%, OI 800, Vol 300 → 11/15 pts</p>
+          <p>D2 Probability: Delta 0.20, DTE 10 → 20/20 pts</p>
+          <p>D3 Premium: Weekly 0.65% → 14/20 pts</p>
+          <p>D4 IV Richness: IV Rank 42 → 11/15 pts</p>
+          <p>D5 Strike Safety: Safety × 0.82 → 11/15 pts</p>
+          <p>D6 Technical: RSI 38, BB 0.28 → 11/15 pts</p>
+          <p className="font-bold mt-2 pt-2 border-t border-border">Total Score: 78 / 100</p>
         </div>
       </div>
 
       <div className="space-y-2">
         <p className="font-semibold">Score Interpretation:</p>
         <ul className="list-disc list-inside space-y-1 text-xs">
-          <li>🟢 80-100: Excellent — strong setup across all six dimensions</li>
-          <li>🟡 60-79: Good — solid opportunity, minor weaknesses</li>
-          <li>🟠 40-59: Fair — acceptable but at least one dimension is weak</li>
-          <li>🔴 &lt;40: Poor — avoid unless you have specific conviction</li>
+          <li>🟢 75–100: Excellent — strong setup across most dimensions</li>
+          <li>🟡 60–74: Good — solid opportunity, one or two minor weaknesses</li>
+          <li>🟠 45–59: Fair — acceptable, but at least one dimension is weak</li>
+          <li>🔴 &lt;45: Poor — avoid unless you have specific conviction</li>
         </ul>
       </div>
     </div>

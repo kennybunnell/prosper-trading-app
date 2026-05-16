@@ -164,31 +164,33 @@ function scoreD5StrikeSafety(
   dte: number,
   maxPts = 15
 ): { score: number; safetyRatio: number | null } {
-  // If we have IV, compare OTM distance to 1-sigma expected move
+  // Recalibrated for realistic delta 0.15–0.25 CSP strikes:
+  // At delta 0.15–0.20 the strike is typically 0.3–0.7× the expected move.
+  // The old scale treated anything below 1.0× as poor (5–35%), which punished
+  // every normal low-delta strike. New scale: 0.5× = decent, 1.0× = great.
   if (ivAnnual && ivAnnual > 0 && price > 0) {
     const em = price * (ivAnnual / 100) * Math.sqrt(dte / 365);
     const emPct = (em / price) * 100;
-    const safetyRatio = emPct > 0 ? otmPct / emPct : null; // >1 = beyond expected move
+    const safetyRatio = emPct > 0 ? otmPct / emPct : null;
     const ratio = safetyRatio ?? 0;
     let score: number;
-    if (ratio >= 2.0)      score = maxPts;           // 2× beyond EM — very safe
-    else if (ratio >= 1.5) score = maxPts * 0.85;
-    else if (ratio >= 1.2) score = maxPts * 0.70;
-    else if (ratio >= 1.0) score = maxPts * 0.55;    // at the EM boundary
-    else if (ratio >= 0.75) score = maxPts * 0.35;
-    else if (ratio >= 0.50) score = maxPts * 0.15;
-    else                   score = maxPts * 0.05;    // inside EM — risky
+    if (ratio >= 1.5)       score = maxPts;           // well beyond EM — very safe
+    else if (ratio >= 1.0)  score = maxPts * 0.85;    // at or beyond EM
+    else if (ratio >= 0.75) score = maxPts * 0.75;    // 75% of EM — good
+    else if (ratio >= 0.55) score = maxPts * 0.62;    // typical delta-0.20 zone
+    else if (ratio >= 0.40) score = maxPts * 0.48;    // delta-0.25 zone
+    else if (ratio >= 0.25) score = maxPts * 0.30;    // close to ATM
+    else                    score = maxPts * 0.12;    // very close to ATM — risky
     return { score, safetyRatio };
   }
-  // Fallback: raw OTM %
+  // Fallback: raw OTM % (no IV data available)
   let score: number;
-  if (otmPct >= 15)      score = maxPts;
-  else if (otmPct >= 10) score = maxPts * 0.80;
-  else if (otmPct >= 7)  score = maxPts * 0.60;
-  else if (otmPct >= 5)  score = maxPts * 0.45;
-  else if (otmPct >= 3)  score = maxPts * 0.25;
-  else if (otmPct >= 1)  score = maxPts * 0.10;
-  else                   score = 0;
+  if (otmPct >= 12)      score = maxPts;
+  else if (otmPct >= 8)  score = maxPts * 0.80;
+  else if (otmPct >= 5)  score = maxPts * 0.65;
+  else if (otmPct >= 3)  score = maxPts * 0.45;
+  else if (otmPct >= 1.5) score = maxPts * 0.25;
+  else                   score = maxPts * 0.10;
   return { score, safetyRatio: null };
 }
 
@@ -200,34 +202,39 @@ function scoreD6TechnicalCSP(
   isIndex: boolean,
   maxPts = 15
 ): number {
+  // Recalibrated: neutral RSI (40–60) and neutral BB (0.30–0.60) are the
+  // most common real-world values. Old scale gave near-zero for neutral, which
+  // dragged every score down. New scale: neutral = 50%, oversold = 100%.
   if (isIndex) return maxPts * 0.67; // neutral for index (10/15)
   let s = 0;
   const rsiMax = maxPts * 0.5;
   const bbMax  = maxPts * 0.5;
 
-  // RSI — oversold preferred for CSP (bounce play)
+  // RSI — oversold preferred for CSP, neutral is acceptable
   if (rsi !== null && rsi !== undefined) {
-    if (rsi < 25)       s += rsiMax;
-    else if (rsi < 30)  s += rsiMax * 0.90;
-    else if (rsi < 35)  s += rsiMax * 0.75;
-    else if (rsi < 40)  s += rsiMax * 0.60;
-    else if (rsi < 50)  s += rsiMax * 0.40;
-    else if (rsi < 60)  s += rsiMax * 0.20;
-    // ≥60 = 0 (overbought — avoid CSP)
+    if (rsi < 25)                      s += rsiMax;           // deeply oversold — ideal
+    else if (rsi < 30)                 s += rsiMax * 0.90;
+    else if (rsi < 35)                 s += rsiMax * 0.80;
+    else if (rsi < 40)                 s += rsiMax * 0.70;    // mildly oversold
+    else if (rsi < 50)                 s += rsiMax * 0.60;    // neutral-low
+    else if (rsi < 60)                 s += rsiMax * 0.50;    // neutral (was 0.20 — too harsh)
+    else if (rsi < 70)                 s += rsiMax * 0.30;    // mildly overbought
+    // ≥70 = 0 (overbought — avoid CSP)
   } else {
-    s += rsiMax * 0.50;
+    s += rsiMax * 0.55; // slightly above neutral when unknown
   }
 
-  // BB %B — near lower band preferred
+  // BB %B — near lower band preferred, mid-range is acceptable
   if (bb !== null && bb !== undefined) {
-    if (bb < 0)         s += bbMax;
-    else if (bb < 0.15) s += bbMax * 0.90;
-    else if (bb < 0.30) s += bbMax * 0.75;
-    else if (bb < 0.50) s += bbMax * 0.50;
-    else if (bb < 0.70) s += bbMax * 0.25;
-    // ≥0.70 = 0
+    if (bb < 0)                        s += bbMax;            // below lower band — ideal
+    else if (bb < 0.15)                s += bbMax * 0.90;
+    else if (bb < 0.30)                s += bbMax * 0.78;
+    else if (bb < 0.50)                s += bbMax * 0.62;     // lower half of range
+    else if (bb < 0.65)                s += bbMax * 0.45;     // mid-range (was 0.25 — too harsh)
+    else if (bb < 0.80)                s += bbMax * 0.25;     // upper range
+    // ≥0.80 = 0 (near upper band — avoid puts)
   } else {
-    s += bbMax * 0.50;
+    s += bbMax * 0.55;
   }
 
   return Math.max(0, Math.min(maxPts, s));
