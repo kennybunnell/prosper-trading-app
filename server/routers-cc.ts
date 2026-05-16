@@ -599,10 +599,11 @@ export const ccRouter = router({
       const isBearCallSpreadMode = input.holdings.length === 0;
       console.log(`[CC Scanner] Mode: ${isBearCallSpreadMode ? 'Bear Call Spread (no holdings required)' : 'Covered Call (requires holdings)'}`);
 
-      // Process symbols in parallel with concurrency limit of 30 (aligned with tradierRateLimiter MAX_CONCURRENT)
-      const CONCURRENCY = 30;
-      const API_TIMEOUT_MS = 90000; // 90 second timeout per symbol (allows semaphore queue to drain)
-      console.log(`[CC Scanner] Processing ${input.symbols.length} symbols with ${CONCURRENCY} concurrent workers...`);
+      // ALL symbols are dispatched simultaneously — the tradierRateLimiter semaphore
+      // (MAX_CONCURRENT=30) handles throttling internally. No outer batch loop needed.
+      // A batch loop forces the slowest symbol in each batch to block all others.
+      const API_TIMEOUT_MS = 90000; // 90 second timeout per symbol
+      console.log(`[CC Scanner] Processing ${input.symbols.length} symbols concurrently (rate-limited to 30 slots)...`);
       
       // Helper function to add timeout to promises
       const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
@@ -614,9 +615,8 @@ export const ccRouter = router({
         ]);
       };
       
-      for (let i = 0; i < input.symbols.length; i += CONCURRENCY) {
-        const batch = input.symbols.slice(i, i + CONCURRENCY);
-        console.log(`[CC Scanner] Batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(input.symbols.length / CONCURRENCY)}: ${batch.join(', ')}`);
+      {
+        const batch = input.symbols; // all symbols at once
         
         const batchPromises = batch.map(async (symbol) => {
           // For bear call spreads, fetch current price from quote instead of holdings
@@ -814,10 +814,10 @@ export const ccRouter = router({
           return symbolOpportunities;
         });
         
-        // Wait for batch to complete
+        // Wait for ALL symbols to complete (rate limiter handles concurrency)
         const batchResults = await Promise.allSettled(batchPromises);
         
-        // Collect opportunities from batch
+        // Collect all opportunities
         batchResults.forEach((result) => {
           if (result.status === 'fulfilled') {
             opportunities.push(...result.value);

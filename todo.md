@@ -9967,3 +9967,8 @@ ROC Fix Mar 18 2026
 - [x] Increase CONCURRENCY in CC scan from 20 → 30 to match rate limiter
 - [x] Increase CONCURRENCY_LIMIT in BCS phase-2 from 20 → 30 to match
 - [x] Increase estimated scan time in LiveCountdown from 2.0s/symbol to 6.0s/symbol (more realistic for BCS two-phase scan)
+
+## BCS Scan Sequential Batch Loop Removal (May 16, 2026 - Session 9)
+- [x] Diagnose: sequential batch loop (30 symbols/batch) forced each batch to wait for slowest symbol (META 80s, MSTR 70s) before starting next batch — total 3 batches × ~90s = 270s+
+- [x] Fix: removed outer for-loop, dispatched ALL 64 symbols simultaneously via Promise.allSettled — tradierRateLimiter semaphore (MAX_CONCURRENT=30) handles throttling internally
+- [x] TypeScript: EXIT:0 confirmed (stale watcher error from 11:57 AM is not a real error)
