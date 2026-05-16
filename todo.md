@@ -9933,3 +9933,6 @@ ROC Fix Mar 18 2026
 ## UI Polish (May 16, 2026 - Session 3)
 - [x] Fix BPS loading modal: remove mid-scan green dot to match CC/CSP/IC/PMCC style (no live count during scan)
 - [x] Add visible border to all HelpBadge tooltips so dark tooltip doesn't get lost on dark background
+
+## Tooltip Border Color (May 16, 2026 - Session 4)
+- [x] Change HelpBadge tooltip border from invisible border-border to amber-500 gold border across all dashboards

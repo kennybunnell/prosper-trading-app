@@ -15,10 +15,9 @@ interface HelpBadgeProps {
  * HelpBadge component - displays a small info icon with tooltip
  * Used for inline help text on table headers, labels, etc.
  *
- * NOTE: TooltipContent default uses bg-foreground/text-background which inverts
- * the theme. For rich JSX content (colored borders, muted text, bg-muted blocks)
- * we override to bg-popover/text-popover-foreground so all child classes resolve
- * correctly against the card/dialog theme in both light and dark mode.
+ * All tooltips use bg-popover/text-popover-foreground so child classes resolve
+ * correctly in dark mode, with a visible amber-500 border that pops against
+ * the dark background.
  */
 export function HelpBadge({ content, className = "" }: HelpBadgeProps) {
   const isRichContent = typeof content !== 'string';
@@ -36,8 +35,8 @@ export function HelpBadge({ content, className = "" }: HelpBadgeProps) {
           sideOffset={5}
           className={
             isRichContent
-              ? "max-w-sm p-4 text-sm leading-relaxed bg-popover text-popover-foreground border border-border shadow-xl"
-              : "max-w-sm p-3 text-sm leading-relaxed bg-popover text-popover-foreground border border-border shadow-xl"
+              ? "max-w-sm p-4 text-sm leading-relaxed bg-popover text-popover-foreground border border-amber-500 shadow-xl shadow-amber-900/20"
+              : "max-w-sm p-3 text-sm leading-relaxed bg-popover text-popover-foreground border border-amber-500 shadow-xl shadow-amber-900/20"
           }
         >
           {typeof content === 'string' ? (
