@@ -633,7 +633,7 @@ export const ccRouter = router({
             };
             const quoteSymbol = INDEX_QUOTE_MAP[symbol.toUpperCase()] || symbol;
             try {
-              const quote = await withRateLimit(() => api.getQuote(quoteSymbol));
+              const quote = await api.getQuote(quoteSymbol);
               holding = {
                 symbol,
                 quantity: 0, // No stock ownership required for bear call spreads
@@ -674,23 +674,20 @@ export const ccRouter = router({
           try {
             // Fetch indicators (RSI, IV Rank, BB %B) with timeout
             // For index series use the underlying symbol (e.g. SPX not SPXW)
-            // withRateLimit ensures history fetches respect the global semaphore (MAX_CONCURRENT=30)
-            const indicators = await withRateLimit(() =>
-              withTimeout(
-                api.getTechnicalIndicators(underlyingSymbol),
-                API_TIMEOUT_MS
-              )
+            // NOTE: indicators/expirations run freely in parallel (lightweight calls).
+            // Only option chains go through withRateLimit (heavy multi-row responses).
+            const indicators = await withTimeout(
+              api.getTechnicalIndicators(underlyingSymbol),
+              API_TIMEOUT_MS
             ).catch(() => ({ rsi: null, ivRank: null, bollingerBands: { percentB: null } }));
             const rsi = indicators?.rsi || null;
             const ivRank = indicators?.ivRank || null;
             const bbPctB = indicators?.bollingerBands?.percentB || null;
 
             // Fetch expirations using Tradier-recognised option root (e.g. SPX for SPXW)
-            const expirations = await withRateLimit(() =>
-              withTimeout(
-                api.getExpirations(tradierRoot),
-                API_TIMEOUT_MS
-              )
+            const expirations = await withTimeout(
+              api.getExpirations(tradierRoot),
+              API_TIMEOUT_MS
             ).catch(() => []);
             const today = new Date();
             const filteredExpirations = expirations.filter(exp => {

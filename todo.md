@@ -9982,3 +9982,10 @@ ROC Fix Mar 18 2026
 - [x] Root cause: calculateBulkRiskAssessments had CONCURRENCY=5 sequential batches — 13 batches × ~20s = 260s of sequential Tradier calls AFTER the main scan completed
 - [x] Fix: removed batch loop, dispatch all symbols via Promise.allSettled; wrapped getTechnicalIndicators and getQuote in withRateLimit so risk-badge fetches share the 30-slot semaphore
 - [x] TypeScript: EXIT:0 confirmed
+
+## Scan Performance Regression Fix (May 16, 2026 - Session 12)
+- [x] Root cause: withRateLimit was incorrectly added to getTechnicalIndicators, getExpirations, getQuote in routers-cc.ts and riskAssessment.ts — these lightweight calls competed with option chains for the 30-slot semaphore, creating a bottleneck
+- [x] Fix: removed withRateLimit from all lightweight calls (indicators, expirations, quotes) — only option chains (getOptionChain) remain rate-limited
+- [x] riskAssessment.ts: removed withRateLimit from calculateRiskBadges, kept Promise.allSettled (no batch loop)
+- [x] routers-cc.ts: removed withRateLimit from getQuote (BCS mode), getTechnicalIndicators, getExpirations
+- [x] TypeScript: EXIT:0 confirmed

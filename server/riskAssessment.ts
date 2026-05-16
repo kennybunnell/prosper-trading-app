@@ -36,13 +36,14 @@ export async function calculateRiskBadges(
   const badges: RiskBadge[] = [];
 
   try {
-    // Fetch data if not provided — wrap in withRateLimit so risk-badge fetches
-    // share the same 30-slot semaphore as the main scan and don't overwhelm Tradier
+    // Fetch data if not provided
+    // NOTE: these lightweight calls run freely in parallel — only option chains
+    // go through withRateLimit (heavy multi-row responses that overwhelm Tradier).
     if (!indicators) {
-      indicators = await withRateLimit(() => tradierAPI.getTechnicalIndicators(symbol));
+      indicators = await tradierAPI.getTechnicalIndicators(symbol);
     }
     if (!quote) {
-      quote = await withRateLimit(() => tradierAPI.getQuote(symbol));
+      quote = await tradierAPI.getQuote(symbol);
     }
 
     const currentPrice = quote.last;
