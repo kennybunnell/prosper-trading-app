@@ -9882,3 +9882,8 @@ ROC Fix Mar 18 2026
 - [x] Add HelpBadge to PMCCDashboard expMove and safetyRatio headers (imports already present, added sort support + HelpBadge)
 - [x] Fix PMCCDashboard SortColumn type to include expectedMove and safetyRatio
 - [x] Fix PMCCDashboard sort comparator to use (a as any)[sortColumn] for dynamic fields
+
+## ✅ Bug Fixes (May 15, 2026)
+- [x] Fixed CSP/BPS column misalignment — removed strategyType === 'csp' guard from Bid/Ask/Mid/DistOTM body cells so columns align with headers in both modes
+- [x] Updated Score tooltip (SCORE_CALCULATION_DIALOG) to reflect current D1–D6 v2 weights (15/20/20/15/15/15) replacing old v1 formula
+- [x] Recalibrated D3 premium thresholds (equity: 1.0%/wk = full score; 0.5% = 70%) and D4 IV Richness thresholds (IV Rank 35+ = 70%) to produce realistic score distribution (55–80 range)

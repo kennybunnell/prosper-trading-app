@@ -424,62 +424,62 @@ export const HELP_CONTENT = {
   SCORE_CALCULATION_DIALOG: (
     <div className="space-y-4">
       <div className="p-4 bg-primary/10 rounded-lg">
-        <p className="font-semibold text-base mb-2">Composite Score Formula</p>
-        <p className="text-sm">The Score is a weighted combination of multiple factors that identifies the best risk/reward opportunities:</p>
+        <p className="font-semibold text-base mb-2">Composite Score Formula (D1–D6 v2)</p>
+        <p className="text-sm">The Score is a weighted combination of six dimensions that identifies the best risk/reward opportunities. Each dimension scores 0–100% of its maximum points:</p>
       </div>
 
       <div className="space-y-3">
         <div className="border-l-4 border-blue-500 pl-4">
-          <p className="font-semibold">30% - Weekly Return %</p>
-          <p className="text-xs text-muted-foreground">Premium as % of collateral, annualized to weekly basis. Higher = more income potential.</p>
+          <p className="font-semibold">D1 — 15% · Liquidity (Bid/Ask Spread + OI + Volume)</p>
+          <p className="text-xs text-muted-foreground">Measures how easy it is to get a good fill. Tight bid/ask spread (&lt;5%), high open interest (&gt;500), and solid volume (&gt;200) each contribute. Poor liquidity = wide slippage on entry/exit.</p>
         </div>
 
         <div className="border-l-4 border-green-500 pl-4">
-          <p className="font-semibold">20% - Delta</p>
-          <p className="text-xs text-muted-foreground">Probability of expiring ITM. Lower delta = safer (less likely to be assigned).</p>
+          <p className="font-semibold">D2 — 20% · Probability Fit (Delta + DTE)</p>
+          <p className="text-xs text-muted-foreground">Delta 0.15–0.20 is the sweet spot for CSP (high probability OTM). DTE 7–14 days maximises theta decay. Scores drop sharply outside these ranges.</p>
         </div>
 
         <div className="border-l-4 border-purple-500 pl-4">
-          <p className="font-semibold">15% - RSI (Relative Strength Index)</p>
-          <p className="text-xs text-muted-foreground">Momentum indicator. Lower RSI = oversold = better for puts. Higher RSI = overbought = better for calls.</p>
-        </div>
-
-        <div className="border-l-4 border-orange-500 pl-4">
-          <p className="font-semibold">15% - Bollinger Bands %B</p>
-          <p className="text-xs text-muted-foreground">Price position in BB range. Low %B = near lower band = good for puts. High %B = near upper band = good for calls.</p>
+          <p className="font-semibold">D3 — 20% · Premium Efficiency (Weekly Return %)</p>
+          <p className="text-xs text-muted-foreground">Premium received relative to capital at risk, normalised to a weekly basis. ≥1.0%/week = full score. Rewards trades that generate meaningful income for the risk taken.</p>
         </div>
 
         <div className="border-l-4 border-yellow-500 pl-4">
-          <p className="font-semibold">10% - IV Rank</p>
-          <p className="text-xs text-muted-foreground">Current volatility vs historical range. Higher IV Rank = higher premiums available.</p>
+          <p className="font-semibold">D4 — 15% · IV Richness (IV Rank)</p>
+          <p className="text-xs text-muted-foreground">IV Rank ≥50 = full score (options are expensive vs history — ideal for selling). IV Rank &lt;20 = near zero (cheap options = poor premium). Higher IV Rank = better edge for option sellers.</p>
+        </div>
+
+        <div className="border-l-4 border-orange-500 pl-4">
+          <p className="font-semibold">D5 — 15% · Strike Safety (OTM Distance vs Expected Move)</p>
+          <p className="text-xs text-muted-foreground">Compares the strike’s distance from current price to the 1-sigma expected move. Strike ≥2× beyond expected move = full score. Strike inside expected move = near-zero score. Shows as Safety × in the table.</p>
         </div>
 
         <div className="border-l-4 border-red-500 pl-4">
-          <p className="font-semibold">10% - Spread (Open Interest + Volume)</p>
-          <p className="text-xs text-muted-foreground">Liquidity indicator. Higher OI/Vol = tighter bid/ask spreads = better fills.</p>
+          <p className="font-semibold">D6 — 15% · Technical Context (RSI + BB %B)</p>
+          <p className="text-xs text-muted-foreground">RSI &lt;30 (oversold) + BB %B &lt;0.20 (near lower band) = maximum score for puts — mean reversion setup. Neutral RSI/BB scores ~50%. Overbought conditions score low for CSP.</p>
         </div>
       </div>
 
       <div className="p-4 bg-muted rounded-lg">
         <p className="font-semibold mb-2">Example Calculation</p>
         <div className="space-y-1 text-xs font-mono">
-          <p>Weekly Return: 2.5% → Score: 95/100 → Weighted: 95 × 0.30 = 28.5</p>
-          <p>Delta: 0.15 → Score: 85/100 → Weighted: 85 × 0.20 = 17.0</p>
-          <p>RSI: 28 → Score: 92/100 → Weighted: 92 × 0.15 = 13.8</p>
-          <p>BB %B: 0.12 → Score: 88/100 → Weighted: 88 × 0.15 = 13.2</p>
-          <p>IV Rank: 65 → Score: 65/100 → Weighted: 65 × 0.10 = 6.5</p>
-          <p>Spread: High OI/Vol → Score: 90/100 → Weighted: 90 × 0.10 = 9.0</p>
-          <p className="font-bold mt-2 pt-2 border-t border-border">Total Score: 88.0 / 100</p>
+          <p>D1 Liquidity: Spread 4%, OI 800, Vol 300 → 14/15 pts</p>
+          <p>D2 Probability: Delta 0.17, DTE 10 → 18/20 pts</p>
+          <p>D3 Premium: Weekly 1.2% → 20/20 pts</p>
+          <p>D4 IV Richness: IV Rank 55 → 15/15 pts</p>
+          <p>D5 Strike Safety: Strike 2.1× beyond EM → 15/15 pts</p>
+          <p>D6 Technical: RSI 28, BB 0.15 → 13/15 pts</p>
+          <p className="font-bold mt-2 pt-2 border-t border-border">Total Score: 95 / 100</p>
         </div>
       </div>
 
       <div className="space-y-2">
         <p className="font-semibold">Score Interpretation:</p>
         <ul className="list-disc list-inside space-y-1 text-xs">
-          <li>🟢 80-100: Excellent opportunity - strong technical setup + good premium</li>
-          <li>🟡 60-79: Good opportunity - decent balance of risk/reward</li>
-          <li>🟠 40-59: Fair opportunity - acceptable but not ideal</li>
-          <li>🔴 &lt;40: Poor opportunity - avoid unless you have specific conviction</li>
+          <li>🟢 80-100: Excellent — strong setup across all six dimensions</li>
+          <li>🟡 60-79: Good — solid opportunity, minor weaknesses</li>
+          <li>🟠 40-59: Fair — acceptable but at least one dimension is weak</li>
+          <li>🔴 &lt;40: Poor — avoid unless you have specific conviction</li>
         </ul>
       </div>
     </div>

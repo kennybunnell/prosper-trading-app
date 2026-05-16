@@ -3591,17 +3591,17 @@ export default function CSPDashboard() {
                             return <RiskBadgeList badges={badges} size="sm" maxDisplay={3} />;
                           })()}
                         </TableCell>
-                        {/* Bid, Ask, Mid, Dist OTM, Spread% — controlled by visibleCols */}
-                        {strategyType === 'csp' && visibleCols.has('bid') && (
-                          <TableCell>${opp.bid.toFixed(2)}</TableCell>
+                        {/* Bid, Ask, Mid, Dist OTM, Spread% — controlled by visibleCols (both CSP and BPS have these fields) */}
+                        {visibleCols.has('bid') && (
+                          <TableCell>${(opp.bid ?? 0).toFixed(2)}</TableCell>
                         )}
-                        {strategyType === 'csp' && visibleCols.has('ask') && (
-                          <TableCell>${opp.ask.toFixed(2)}</TableCell>
+                        {visibleCols.has('ask') && (
+                          <TableCell>${(opp.ask ?? 0).toFixed(2)}</TableCell>
                         )}
-                        {strategyType === 'csp' && visibleCols.has('mid') && (
-                          <TableCell>${((opp.bid + opp.ask) / 2).toFixed(2)}</TableCell>
+                        {visibleCols.has('mid') && (
+                          <TableCell>${(((opp.bid ?? 0) + (opp.ask ?? 0)) / 2).toFixed(2)}</TableCell>
                         )}
-                        {strategyType === 'csp' && visibleCols.has('distanceOtm') && (
+                        {visibleCols.has('distanceOtm') && (
                           <TableCell>{opp.currentPrice > 0 ? ((opp.currentPrice - opp.strike) / opp.currentPrice * 100).toFixed(1) : '—'}%</TableCell>
                         )}
                         {visibleCols.has('spreadPct') && (

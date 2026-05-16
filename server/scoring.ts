@@ -119,20 +119,23 @@ function scoreD2ProbabilityCSP(delta: number, dte: number, isIndex: boolean, max
 // ─── D3: Premium Efficiency (0–20 pts) ───────────────────────────────────────
 
 function scoreD3PremiumCSP(weeklyPct: number, isIndex: boolean, maxPts = 20): number {
+  // Calibrated to real-world CSP weekly returns:
+  // Index: 0.30%/wk is realistic top-end; Equity: 0.80%/wk is realistic top-end
   let s = 0;
   if (isIndex) {
-    if (weeklyPct >= 0.80)      s = maxPts;
-    else if (weeklyPct >= 0.60) s = maxPts * 0.80;
-    else if (weeklyPct >= 0.45) s = maxPts * 0.65;
-    else if (weeklyPct >= 0.30) s = maxPts * 0.45;
-    else if (weeklyPct >= 0.20) s = maxPts * 0.25;
-    else if (weeklyPct >= 0.10) s = maxPts * 0.10;
+    if (weeklyPct >= 0.50)      s = maxPts;           // exceptional for index
+    else if (weeklyPct >= 0.35) s = maxPts * 0.85;
+    else if (weeklyPct >= 0.25) s = maxPts * 0.70;
+    else if (weeklyPct >= 0.18) s = maxPts * 0.55;
+    else if (weeklyPct >= 0.12) s = maxPts * 0.35;
+    else if (weeklyPct >= 0.07) s = maxPts * 0.15;
   } else {
-    if (weeklyPct >= 1.5)       s = maxPts;
-    else if (weeklyPct >= 1.0)  s = maxPts * 0.80;
-    else if (weeklyPct >= 0.75) s = maxPts * 0.65;
-    else if (weeklyPct >= 0.50) s = maxPts * 0.40;
-    else if (weeklyPct >= 0.30) s = maxPts * 0.20;
+    if (weeklyPct >= 1.0)       s = maxPts;           // top-tier equity premium
+    else if (weeklyPct >= 0.70) s = maxPts * 0.85;
+    else if (weeklyPct >= 0.50) s = maxPts * 0.70;
+    else if (weeklyPct >= 0.35) s = maxPts * 0.55;
+    else if (weeklyPct >= 0.20) s = maxPts * 0.35;
+    else if (weeklyPct >= 0.10) s = maxPts * 0.15;
   }
   return Math.max(0, Math.min(maxPts, s));
 }
@@ -140,15 +143,16 @@ function scoreD3PremiumCSP(weeklyPct: number, isIndex: boolean, maxPts = 20): nu
 // ─── D4: IV Richness (0–15 pts) ──────────────────────────────────────────────
 
 function scoreD4IVRichness(ivRank: number | null | undefined, maxPts = 15): number {
-  if (ivRank === null || ivRank === undefined) return maxPts * 0.4; // neutral
-  if (ivRank >= 80)      return maxPts;
-  if (ivRank >= 60)      return maxPts * 0.85;
-  if (ivRank >= 50)      return maxPts * 0.75;
-  if (ivRank >= 40)      return maxPts * 0.60;
-  if (ivRank >= 30)      return maxPts * 0.45;
-  if (ivRank >= 20)      return maxPts * 0.30;
-  if (ivRank >= 10)      return maxPts * 0.15;
-  return maxPts * 0.05;
+  // Recalibrated: IV Rank 30+ is already a good selling environment;
+  // most stocks spend time in the 20-50 range, so reward that meaningfully.
+  if (ivRank === null || ivRank === undefined) return maxPts * 0.50; // neutral
+  if (ivRank >= 70)      return maxPts;           // very elevated IV
+  if (ivRank >= 50)      return maxPts * 0.85;    // elevated — good for selling
+  if (ivRank >= 35)      return maxPts * 0.70;    // moderate-high
+  if (ivRank >= 25)      return maxPts * 0.55;    // moderate
+  if (ivRank >= 15)      return maxPts * 0.35;    // below average
+  if (ivRank >= 8)       return maxPts * 0.18;    // low
+  return maxPts * 0.05;                           // very low IV — avoid
 }
 
 // ─── D5: Strike Safety (0–15 pts) ────────────────────────────────────────────
