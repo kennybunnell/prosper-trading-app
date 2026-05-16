@@ -250,6 +250,30 @@ function getROCColor(roc: number): string {
   return "bg-red-500/20 text-red-500 border-red-500/50";
 }
 
+function getBidAskColor(value: number): string {
+  // Bid/Ask/Mid: green ≥ $1.00 (solid premium), yellow $0.30–$0.99, red < $0.30
+  if (value >= 1.00) return "bg-green-500/20 text-green-400 border-green-500/50";
+  if (value >= 0.30) return "bg-yellow-500/20 text-yellow-400 border-yellow-500/50";
+  return "bg-red-500/20 text-red-400 border-red-500/50";
+}
+function getSpreadPctColor(pct: number): string {
+  // Bid-ask spread %: green < 5% (tight), yellow 5–15%, red > 15% (wide)
+  if (pct < 5) return "bg-green-500/20 text-green-400 border-green-500/50";
+  if (pct <= 15) return "bg-yellow-500/20 text-yellow-400 border-yellow-500/50";
+  return "bg-red-500/20 text-red-400 border-red-500/50";
+}
+function getDistOtmColor(pct: number): string {
+  // Distance OTM: green ≥ 10% (safe buffer), yellow 5–9.9%, red < 5% (close to money)
+  if (pct >= 10) return "bg-green-500/20 text-green-400 border-green-500/50";
+  if (pct >= 5) return "bg-yellow-500/20 text-yellow-400 border-yellow-500/50";
+  return "bg-red-500/20 text-red-400 border-red-500/50";
+}
+function getDteColor(dte: number): string {
+  // DTE: green > 21 days (plenty of time), yellow 7–21 days, red < 7 days (expiring soon)
+  if (dte > 21) return "bg-green-500/20 text-green-400 border-green-500/50";
+  if (dte >= 7) return "bg-yellow-500/20 text-yellow-400 border-yellow-500/50";
+  return "bg-red-500/20 text-red-400 border-red-500/50";
+}
 function getLiquidityColor(value: number, type: 'oi' | 'vol'): string {
   // OI: Green >500, Yellow 200-500, Red <200
   // Vol: Green >100, Yellow 50-100, Red <50
@@ -3679,7 +3703,9 @@ export default function CCDashboard() {
                           </TableCell>
                         )}
                         {/* 6. DTE — always shown */}
-                        <TableCell className="text-right">{opp.dte}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={cn("font-bold text-xs", getDteColor(opp.dte))}>{opp.dte}d</Badge>
+                        </TableCell>
                         {/* 7. Premium/Net Credit — always shown */}
                         <TableCell className="text-right">
                           <span className="text-green-400 font-semibold">
@@ -3778,27 +3804,42 @@ export default function CCDashboard() {
                         </TableCell>
                         {/* 17. Bid */}
                         {visibleCols.has('bid') && (
-                          <TableCell className="text-right">${opp.bid.toFixed(2)}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={cn("font-bold text-xs", getBidAskColor(opp.bid))}>${opp.bid.toFixed(2)}</Badge>
+                          </TableCell>
                         )}
                         {/* 18. Ask */}
                         {visibleCols.has('ask') && (
-                          <TableCell className="text-right">${opp.ask.toFixed(2)}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={cn("font-bold text-xs", getBidAskColor(opp.ask))}>${opp.ask.toFixed(2)}</Badge>
+                          </TableCell>
                         )}
                         {/* 19. Mid */}
                         {visibleCols.has('mid') && (
-                          <TableCell className="text-right">${opp.mid.toFixed(2)}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={cn("font-bold text-xs", getBidAskColor(opp.mid))}>${opp.mid.toFixed(2)}</Badge>
+                          </TableCell>
                         )}
                         {/* 20. Distance OTM */}
                         {visibleCols.has('distanceOtm') && (
-                          <TableCell className="text-right">{opp.distanceOtm.toFixed(1)}%</TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={cn("font-bold text-xs", getDistOtmColor(opp.distanceOtm))}>{opp.distanceOtm.toFixed(1)}%</Badge>
+                          </TableCell>
                         )}
                         {/* 21. Spread % */}
                         {visibleCols.has('spreadPct') && (
-                          <TableCell className="text-right">{opp.spreadPct.toFixed(1)}%</TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={cn("font-bold text-xs", getSpreadPctColor(opp.spreadPct))}>{opp.spreadPct.toFixed(1)}%</Badge>
+                          </TableCell>
                         )}
                         {/* 22. Expiration */}
                         {visibleCols.has('expiration') && (
-                          <TableCell>{opp.expiration}</TableCell>
+                          <TableCell className="text-center">
+                            {(() => {
+                              const daysUntil = Math.round((new Date(opp.expiration).getTime() - Date.now()) / 86400000);
+                              return <Badge className={cn("font-bold text-xs", getDteColor(daysUntil))}>{opp.expiration}</Badge>;
+                            })()}
+                          </TableCell>
                         )}
                       </TableRow>
 

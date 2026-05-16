@@ -9994,3 +9994,14 @@ ROC Fix Mar 18 2026
 - [x] Add Min/Max DTE controls to the Strategy Type section of CCDashboard (next to spread width)
 - [x] Wire minDte/maxDte state variables to the actual scan calls (replace hardcoded maxDte:45)
 - [x] Default maxDte to 30, with quick presets: Weekly (7-14), Standard (7-21), Monthly (7-30), Extended (7-45)
+
+## BCS Table Column Enhancements (May 16, 2026)
+- [ ] Add color pills to Bid, Ask, Mid columns (green/yellow/red based on value ranges)
+- [ ] Add color pill to Spread % column (green=tight <2%, yellow=moderate 2-5%, red=wide >5%)
+- [ ] Add color pill to Dist OTM column (green=far >10%, yellow=moderate 5-10%, red=close <5%)
+- [ ] Add color pill to Expiration column (show date with DTE-based color: green=far, yellow=near, red=very near)
+- [ ] Fix RSI and BB %B showing N/A for SPX index — investigate getTechnicalIndicators for index symbols
+
+## BCS Table Column Enhancements (May 16, 2026)
+- [x] Add color pills to Bid, Ask, Mid, Dist OTM, Spread %, Expiration, and DTE columns in BCS table
+- [x] Fix RSI and BB %B showing N/A for SPX (map SPX/SPXW → $SPX.X for Tradier history)

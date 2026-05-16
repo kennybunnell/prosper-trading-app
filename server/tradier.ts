@@ -415,13 +415,24 @@ export class TradierAPI {
    */
   async getTechnicalIndicators(symbol: string): Promise<TechnicalIndicators> {
     try {
+      // Tradier does not serve price history for cash-settled index tickers (SPX, NDX, RUT).
+      // Map them to the Tradier index data symbols ($SPX.X, $NDX.X, $RUT.X) which DO have history.
+      const INDEX_HISTORY_MAP: Record<string, string> = {
+        SPX: '$SPX.X', SPXW: '$SPX.X', SPXPM: '$SPX.X',
+        NDX: '$NDX.X', NDXP: '$NDX.X', XND: '$NDX.X',
+        RUT: '$RUT.X', MRUT: '$RUT.X',
+        DJX: '$DJI.X',
+        VIX: '$VIX.X', VIXW: '$VIX.X',
+        XSP: '$SPX.X',
+      };
+      const historySymbol = INDEX_HISTORY_MAP[symbol.toUpperCase()] || symbol;
       // Get 200 days of historical data for comprehensive analysis
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 250); // Extra buffer for calculations
 
       const history = await this.getHistoricalData(
-        symbol,
+        historySymbol,
         'daily',
         startDate.toISOString().split('T')[0],
         endDate.toISOString().split('T')[0]
