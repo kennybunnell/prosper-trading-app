@@ -10014,3 +10014,6 @@ ROC Fix Mar 18 2026
 ## Bug Fixes (May 16, 2026 — Color Pills & RSI/BB%B)
 - [x] Fix color pills not rendering in CSP/BPS table: changed defaultVisible to true for bid/ask/mid/distanceOtm/spreadPct/expiration columns in both BPS_COLUMNS and CSP_COLUMNS; bumped localStorage keys to v2 to clear stale hidden state
 - [x] Fix RSI/BB%B showing N/A for all CSP rows: added TECH_CONCURRENCY=10 local semaphore to prevent 64 simultaneous getTechnicalIndicators calls from overwhelming Tradier; added error logging to catch block
+## CSP/BPS DTE Range Controls (May 16, 2026)
+- [x] Add DTE range quick-select presets (Weekly/Standard/Monthly/Extended) to Strategy Type card in CSP/BPS dashboard, matching CC/BCS pattern
+- [x] Show DTE range badge in collapsed Strategy Type card header

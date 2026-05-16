@@ -1586,9 +1586,14 @@ export default function CSPDashboard() {
                     <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary" />
                   </Button>
                   {strategyPanelCollapsed && (
-                    <Badge variant="secondary" className="ml-2">
-                      {strategyType === 'csp' ? 'CSP Mode' : `Bull Put Spread - ${spreadWidth}pt`}
-                    </Badge>
+                    <>
+                      <Badge variant="secondary" className="ml-2">
+                        {strategyType === 'csp' ? 'CSP Mode' : `Bull Put Spread - ${spreadWidth}pt`}
+                      </Badge>
+                      <Badge variant="outline" className="ml-1 text-xs">
+                        DTE {minDte}–{maxDte}d
+                      </Badge>
+                    </>
                   )}
                 </CardTitle>
                 {!strategyPanelCollapsed && (
@@ -1779,6 +1784,33 @@ export default function CSPDashboard() {
                 </div>
               );
             })()}
+
+            {/* DTE Range Quick-Select */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="text-xs text-muted-foreground font-medium">DTE range:</span>
+              <div className="flex items-center gap-1.5">
+                {([
+                  { label: 'Weekly', min: 7, max: 14 },
+                  { label: 'Standard', min: 7, max: 21 },
+                  { label: 'Monthly', min: 7, max: 30 },
+                  { label: 'Extended', min: 7, max: 45 },
+                ] as { label: string; min: number; max: number }[]).map(preset => (
+                  <button
+                    key={preset.label}
+                    onClick={() => { setMinDte(preset.min); setMaxDte(preset.max); }}
+                    className={cn(
+                      "text-xs px-2 py-0.5 rounded border transition-colors",
+                      minDte === preset.min && maxDte === preset.max
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                    )}
+                  >
+                    {preset.label} ({preset.max}d)
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs text-muted-foreground">Current: {minDte}–{maxDte} days</span>
+            </div>
 
             {/* Info banner */}
             <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
