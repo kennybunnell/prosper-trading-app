@@ -9912,3 +9912,14 @@ ROC Fix Mar 18 2026
 - [x] Unify loading modal UI across CSP, CC, IC, PMCC to match BPS batch-style design
 - [x] Final D3/D4 scoring recalibration: D3 equity thresholds lowered (0.15%/wk = 40%), D4 floor added (IV Rank 0-8 = 12% not 5%)
 - [x] Scoring simulation verified: typical rows 60-65, good setups 80-85, poor setups 38
+
+## Loading Modal "Finishing up..." Fix (May 16, 2026)
+- [x] Fix CSP LiveCountdown: replace Math.min(30,...) with logarithmic formula Math.min(88, ratio * 100 * (1 - ratio * 0.3))
+- [x] Fix CSP LiveCountdown: conditional statusLine — "Batch X/Y — A/B symbols" when live progress, "Scanning N symbols..." otherwise
+- [x] Fix CSP LiveCountdown: replace "Finishing up..." with "Scanning in progress..." (animated, muted-foreground)
+- [x] Fix IC LiveCountdown: same logarithmic progress formula, conditional statusLine, and "Scanning in progress..." text
+- [x] Fix PMCC inline progress: logarithmic formula with Math.max(30s floor), replace "Finishing up..." with "Scanning in progress..."
+- [x] Fix CC inline positions-scan modal: replace "Finishing up..." with "Scanning in progress..."
+- [x] Fix AutomationDashboard Scan All progress: replace "Finishing up…" with "Scanning in progress..."
+- [x] TypeScript: 0 errors confirmed (npx tsc --noEmit exit code 0)
+- [x] Per-row score breakdown tooltips wired into all 6 dashboards (CSP, BPS, CC, BCS, IC, PMCC)

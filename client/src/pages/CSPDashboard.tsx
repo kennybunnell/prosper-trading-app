@@ -137,20 +137,23 @@ function LiveCountdown({ startTime, totalSymbols, strategyType, liveProgress }: 
   const defaultBatchTotal = Math.ceil(totalSymbols / 20) || 1;
   const batchTotal = (hasLiveProgress && liveProgress?.batchTotal) ? liveProgress.batchTotal : defaultBatchTotal;
 
-  // Progress: use server data when available, else estimate from elapsed time
+  // Progress: use server data when available, else slow logarithmic estimate (never hits 90% until done)
   const secondsPerSymbol = strategyType === 'spread' ? 4.8 : 1.32;
-  const estimatedTotalSeconds = totalSymbols * secondsPerSymbol;
+  const estimatedTotalSeconds = Math.max(totalSymbols * secondsPerSymbol, 30);
   let progressPercent = 0;
   if (hasLiveProgress) {
     progressPercent = symbolsTotal > 0 ? Math.min(95, (symbolsDone / symbolsTotal) * 100) : 0;
   } else {
-    progressPercent = estimatedTotalSeconds > 0 ? Math.min(30, (elapsedSeconds / estimatedTotalSeconds) * 100) : 5;
+    const ratio = elapsedSeconds / estimatedTotalSeconds;
+    progressPercent = Math.min(88, ratio * 100 * (1 - ratio * 0.3));
   }
 
-  // Always show "Batch X/Y — A/B symbols" format
+  // Always show "Batch X/Y — A/B symbols" format when live progress available, else "Scanning N symbols..."
   const displayBatchCurrent = hasLiveProgress ? batchCurrent : 0;
   const displayBatchTotal = batchTotal;
-  const statusLine = `Batch ${displayBatchCurrent}/${displayBatchTotal} — ${symbolsDone}/${symbolsTotal} symbols`;
+  const statusLine = hasLiveProgress
+    ? `Batch ${displayBatchCurrent}/${displayBatchTotal} — ${symbolsDone}/${symbolsTotal} symbols`
+    : `Scanning ${totalSymbols} symbol${totalSymbols !== 1 ? 's' : ''}...`;
   const subLine = oppsFound > 0
     ? `${oppsFound} opportunities found so far`
     : strategyType === 'spread' ? 'Fetching spread chains...' : 'Fetching option chains...';
@@ -175,9 +178,7 @@ function LiveCountdown({ startTime, totalSymbols, strategyType, liveProgress }: 
           🟢 {oppsFound} opportunities found
         </p>
       ) : (
-        <p className="text-lg font-semibold text-primary animate-pulse">
-          Finishing up...
-        </p>
+        <p className="text-sm font-medium text-muted-foreground animate-pulse">Scanning in progress...</p>
       )}
       <p className="text-xs text-muted-foreground">{subLine}</p>
       <p className="text-xs text-muted-foreground opacity-60">{elapsedSeconds}s elapsed</p>

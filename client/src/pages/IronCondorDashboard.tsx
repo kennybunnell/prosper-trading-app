@@ -119,18 +119,21 @@ function LiveCountdown({ startTime, totalSymbols, liveProgress }: {
   const hasLiveProgress = liveProgress && (liveProgress.batchTotal > 0 || liveProgress.symbolsDone > 0);
 
   const secondsPerSymbol = 6;
-  const estimatedTotalSeconds = totalSymbols * secondsPerSymbol;
+  const estimatedTotalSeconds = Math.max(totalSymbols * secondsPerSymbol, 30);
   let progressPercent = 0;
   if (hasLiveProgress) {
     progressPercent = symbolsTotal > 0 ? Math.min(95, (symbolsDone / symbolsTotal) * 100) : 0;
   } else {
-    progressPercent = estimatedTotalSeconds > 0 ? Math.min(30, (elapsedSeconds / estimatedTotalSeconds) * 100) : 5;
+    const ratio = elapsedSeconds / estimatedTotalSeconds;
+    progressPercent = Math.min(88, ratio * 100 * (1 - ratio * 0.3));
   }
 
   const defaultBatchTotal = Math.ceil(totalSymbols / 20) || 1;
   const displayBatchCurrent = hasLiveProgress ? (liveProgress?.batchCurrent ?? 0) : 0;
   const displayBatchTotal = (hasLiveProgress && liveProgress?.batchTotal) ? liveProgress.batchTotal : defaultBatchTotal;
-  const statusLine = `Batch ${displayBatchCurrent}/${displayBatchTotal} — ${symbolsDone}/${symbolsTotal} symbols`;
+  const statusLine = hasLiveProgress
+    ? `Batch ${displayBatchCurrent}/${displayBatchTotal} — ${symbolsDone}/${symbolsTotal} symbols`
+    : `Scanning ${totalSymbols} symbol${totalSymbols !== 1 ? 's' : ''}...`;
   const subLine = oppsFound > 0
     ? `${oppsFound} opportunities found so far`
     : 'Fetching iron condor chains...';
@@ -155,9 +158,7 @@ function LiveCountdown({ startTime, totalSymbols, liveProgress }: {
           🟢 {oppsFound} opportunities found
         </p>
       ) : (
-        <p className="text-lg font-semibold text-primary animate-pulse">
-          Finishing up...
-        </p>
+        <p className="text-sm font-medium text-muted-foreground animate-pulse">Scanning in progress...</p>
       )}
       <p className="text-xs text-muted-foreground">{subLine}</p>
       <p className="text-xs text-muted-foreground opacity-60">{elapsedSeconds}s elapsed</p>

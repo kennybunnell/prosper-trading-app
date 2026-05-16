@@ -458,8 +458,9 @@ export default function PMCCDashboard() {
 
     const interval = setInterval(() => {
       const elapsed = (Date.now() - scanStartTime) / 1000;
-      const estimatedTotal = watchlist.length * 2.0; // 2.0s per symbol (adjusted for buffer)
-      const progress = Math.min(95, (elapsed / estimatedTotal) * 100);
+      const estimatedTotal = Math.max(watchlist.length * 2.0, 30); // 2.0s per symbol (min 30s)
+      const ratio = elapsed / estimatedTotal;
+      const progress = Math.min(88, ratio * 100 * (1 - ratio * 0.3));
       setScanProgress(progress);
     }, 100);
 
@@ -1236,14 +1237,12 @@ export default function PMCCDashboard() {
                   />
                 </div>
               </div>
-              {scanProgress >= 95 ? (
+              {scanProgress >= 88 ? (
                 <p className="text-lg font-bold text-green-500">
                   🟢 Opportunities found
                 </p>
               ) : (
-                <p className="text-lg font-semibold text-primary animate-pulse">
-                  Finishing up...
-                </p>
+                <p className="text-sm font-medium text-muted-foreground animate-pulse">Scanning in progress...</p>
               )}
               <p className="text-xs text-muted-foreground">Fetching LEAP option chains...</p>
               {scanStartTime && (

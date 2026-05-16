@@ -3013,7 +3013,7 @@ export default function AutomationDashboard() {
                   ? `${mins}m ${secs}s remaining`
                   : scanSecondsLeft > 0
                     ? `~${secs}s remaining`
-                    : 'Finishing up…';
+                    : 'Scanning in progress...';
                 return (
                   <div className="mt-2 w-full">
                     <div className="flex items-center justify-between mb-1">

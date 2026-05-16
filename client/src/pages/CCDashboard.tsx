@@ -162,18 +162,31 @@ function LiveCountdown({ startTime, totalSymbols, liveProgress }: {
   const displayBatchCurrent = hasLiveProgress ? (liveProgress?.batchCurrent ?? 0) : 0;
   const displayBatchTotal = (hasLiveProgress && liveProgress?.batchTotal) ? liveProgress.batchTotal : defaultBatchTotal;
 
-  const estimatedTotalSeconds = totalSymbols * 1.32;
+  // For blocking scans (no live progress), use a slow-moving time-based bar that never exceeds 90%
+  // For async scans with live progress, use actual symbol completion percentage
+  const estimatedTotalSeconds = Math.max(totalSymbols * 2.0, 30);
   let progressPercent = 0;
   if (hasLiveProgress) {
     progressPercent = symbolsTotal > 0 ? Math.min(95, (symbolsDone / symbolsTotal) * 100) : 0;
   } else {
-    progressPercent = estimatedTotalSeconds > 0 ? Math.min(30, (elapsedSeconds / estimatedTotalSeconds) * 100) : 5;
+    // Slow logarithmic growth: fast at start, slows down, never reaches 90% until done
+    const ratio = elapsedSeconds / estimatedTotalSeconds;
+    progressPercent = Math.min(88, ratio * 100 * (1 - ratio * 0.3));
   }
 
-  const statusLine = `Batch ${displayBatchCurrent}/${displayBatchTotal} — ${symbolsDone}/${symbolsTotal} symbols`;
+  const statusLine = hasLiveProgress
+    ? `Batch ${displayBatchCurrent}/${displayBatchTotal} — ${symbolsDone}/${symbolsTotal} symbols`
+    : `Scanning ${totalSymbols} symbol${totalSymbols !== 1 ? 's' : ''}...`;
+
   const subLine = oppsFound > 0
     ? `${oppsFound} opportunities found so far`
-    : 'Fetching option chains...';
+    : hasLiveProgress ? 'Fetching option chains...' : 'Analyzing option chains — this may take a few minutes';
+
+  // Status message: only show green completion when opps actually found
+  // Never show "Finishing up" during a blocking scan — it's misleading
+  const statusMessage = oppsFound > 0
+    ? <p className="text-lg font-bold text-green-500">🟢 {oppsFound} opportunities found</p>
+    : <p className="text-sm font-medium text-muted-foreground animate-pulse">Scanning in progress...</p>;
 
   return (
     <div className="flex flex-col items-center justify-center space-y-4">
@@ -190,15 +203,7 @@ function LiveCountdown({ startTime, totalSymbols, liveProgress }: {
           />
         </div>
       </div>
-      {oppsFound > 0 ? (
-        <p className="text-lg font-bold text-green-500">
-          🟢 {oppsFound} opportunities found
-        </p>
-      ) : (
-        <p className="text-lg font-semibold text-primary animate-pulse">
-          Finishing up...
-        </p>
-      )}
+      {statusMessage}
       <p className="text-xs text-muted-foreground">{subLine}</p>
       <p className="text-xs text-muted-foreground opacity-60">{elapsedSeconds}s elapsed</p>
     </div>
@@ -2012,15 +2017,7 @@ export default function CCDashboard() {
                 <div className="flex flex-col items-center justify-center space-y-4 py-6">
                   <Loader2 className="w-12 h-12 animate-spin text-primary" />
                   <Progress value={scanProgress} className="w-full" />
-                  <p className="text-sm text-muted-foreground">
-                    {scanProgress < 100 ? (
-                      <>
-                        {Math.floor((100 - scanProgress) * selectedStocks.length * 2.0 / 100)}s remaining
-                      </>
-                    ) : (
-                      <>Finishing up...</>
-                    )}
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground animate-pulse">Scanning in progress...</p>
                 </div>
               </DialogContent>
             </Dialog>
