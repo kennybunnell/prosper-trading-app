@@ -3,6 +3,8 @@ import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { Label } from "@/components/ui/label";
 import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection } from "@shared/orderUtils";
 import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
+import { HelpBadge } from "@/components/HelpBadge";
+import { HELP_CONTENT } from "@/lib/helpContent";
 
 // Iron Condor unified column definitions
 const IC_COLUMNS: ColumnDef[] = [
@@ -1513,13 +1515,21 @@ export default function IronCondorDashboard() {
                       {/* Exp Move */}
                       {icVisibleCols.has('expMove') && (
                         <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'expMove' && prev.direction === 'desc' ? { key: 'expMove', direction: 'asc' } : { key: 'expMove', direction: 'desc' })}>
-                          Exp Move {sortConfig?.key === 'expMove' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          <div className="flex items-center gap-1">
+                            Exp Move
+                            <HelpBadge content={HELP_CONTENT.EXP_MOVE} />
+                            {sortConfig?.key === 'expMove' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          </div>
                         </TableHead>
                       )}
                       {/* Safety Ratio */}
                       {icVisibleCols.has('safetyRatio') && (
                         <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'safetyRatio' && prev.direction === 'desc' ? { key: 'safetyRatio', direction: 'asc' } : { key: 'safetyRatio', direction: 'desc' })}>
-                          Safety × {sortConfig?.key === 'safetyRatio' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          <div className="flex items-center gap-1">
+                            Safety ×
+                            <HelpBadge content={HELP_CONTENT.SAFETY_RATIO} />
+                            {sortConfig?.key === 'safetyRatio' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          </div>
                         </TableHead>
                       )}
                       {/* RSI */}

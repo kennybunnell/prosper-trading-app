@@ -3384,6 +3384,7 @@ export default function CCDashboard() {
                         <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('expectedMove')}>
                           <div className="flex items-center justify-end gap-1">
                             Exp Move
+                            <HelpBadge content={HELP_CONTENT.EXP_MOVE} />
                             {sortColumn === 'expectedMove' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                           </div>
                         </TableHead>
@@ -3393,6 +3394,7 @@ export default function CCDashboard() {
                         <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('safetyRatio')}>
                           <div className="flex items-center justify-end gap-1">
                             Safety ×
+                            <HelpBadge content={HELP_CONTENT.SAFETY_RATIO} />
                             {sortColumn === 'safetyRatio' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                           </div>
                         </TableHead>

@@ -851,5 +851,63 @@ export const HELP_CONTENT = {
       </div>
     </div>
   ),
+
+  EXP_MOVE: (
+    <div className="space-y-3">
+      <p className="font-semibold">Expected Move is the 1-standard-deviation price range the market expects for the stock over the option's lifetime.</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Formula:</p>
+        <p className="text-xs font-mono bg-muted px-2 py-1 rounded">Price × (IV / 100) × √(DTE / 365)</p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">What It Means:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Statistically, ~68% of the time the stock stays within ±1 Expected Move</li>
+          <li>Higher IV = Larger expected move = More uncertainty</li>
+          <li>Shorter DTE = Smaller expected move = Less time for big moves</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">How to Use It:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Compare your strike to the expected move to gauge safety</li>
+          <li>Strike beyond 1× EM = strike outside the expected range (safer)</li>
+          <li>Strike inside 1× EM = strike inside the expected range (riskier)</li>
+        </ul>
+      </div>
+    </div>
+  ),
+
+  SAFETY_RATIO: (
+    <div className="space-y-3">
+      <p className="font-semibold">Safety Ratio measures how far your strike is beyond the 1-sigma Expected Move — a higher ratio means a safer, more OTM strike.</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Formula:</p>
+        <p className="text-xs font-mono bg-muted px-2 py-1 rounded">Strike Distance from Current Price ÷ Expected Move</p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Color Guide:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>🟢 ≥ 1.5× — Strike is well beyond the expected move (very safe)</li>
+          <li>🟡 1.0–1.5× — Strike is at or just beyond the expected move (moderate)</li>
+          <li>🔴 &lt; 1.0× — Strike is inside the expected move (elevated risk)</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Example:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Stock at $100, Expected Move = $8, Strike at $88</li>
+          <li>Distance = $12, Safety Ratio = 12 ÷ 8 = 1.5×</li>
+          <li>Strike is 1.5 standard deviations below current price</li>
+        </ul>
+      </div>
+    </div>
+  ),
 };
 

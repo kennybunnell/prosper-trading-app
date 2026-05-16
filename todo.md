@@ -9876,3 +9876,9 @@ ROC Fix Mar 18 2026
 - [x] Add RSI/BB technical indicator fetch to BPS scan (was skipTechnicals=true, now fetches in parallel)
 - [x] Propagate RSI/BB from cspOpp into spreadOpp2 via ...cspOpp spread in calculateBullPutSpread
 - [x] Audit CC/BCS, IC, PMCC tables for column misalignment - all confirmed aligned
+
+## HelpBadge Completion (May 15, 2026)
+- [x] Add HelpBadge to IronCondorDashboard expMove and safetyRatio headers (imports + flex div wrapper)
+- [x] Add HelpBadge to PMCCDashboard expMove and safetyRatio headers (imports already present, added sort support + HelpBadge)
+- [x] Fix PMCCDashboard SortColumn type to include expectedMove and safetyRatio
+- [x] Fix PMCCDashboard sort comparator to use (a as any)[sortColumn] for dynamic fields

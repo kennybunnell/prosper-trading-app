@@ -53,7 +53,7 @@ const PMCC_COLUMNS: ColumnDef[] = [
   { key: 'ai',            label: 'AI',           group: 'Core',                    defaultVisible: true  },
 ];
 
-type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premium' | 'bidAskSpread' | 'openInterest' | 'volume' | 'score';
+type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premium' | 'bidAskSpread' | 'openInterest' | 'volume' | 'score' | 'expectedMove' | 'safetyRatio';
 type SortDirection = 'asc' | 'desc';
 
 // Active Positions Section Component
@@ -602,8 +602,8 @@ export default function PMCCDashboard() {
     
     // Sort
     filtered.sort((a, b) => {
-      let aVal: any = a[sortColumn];
-      let bVal: any = b[sortColumn];
+      let aVal: any = (a as any)[sortColumn];
+      let bVal: any = (b as any)[sortColumn];
       
       if (sortColumn === 'expiration') {
         aVal = new Date(aVal).getTime();
@@ -1096,8 +1096,8 @@ export default function PMCCDashboard() {
                           {visibleCols.has('expiration') && <th className="p-2 text-left cursor-pointer hover:bg-muted" onClick={() => handleSort('expiration')}><div className="flex items-center gap-1">Expiration{sortColumn === 'expiration' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
                           {visibleCols.has('dte') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('dte')}><div className="flex items-center justify-end gap-1">DTE<HelpBadge content={HELP_CONTENT.DTE} />{sortColumn === 'dte' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
                           {visibleCols.has('delta') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('delta')}><div className="flex items-center justify-end gap-1">Delta<HelpBadge content={HELP_CONTENT.DELTA_CC} />{sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
-                          {visibleCols.has('expMove') && <th className="p-2 text-right">Exp Move</th>}
-                          {visibleCols.has('safetyRatio') && <th className="p-2 text-right">Safety ×</th>}
+                          {visibleCols.has('expMove') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('expectedMove')}><div className="flex items-center justify-end gap-1">Exp Move<HelpBadge content={HELP_CONTENT.EXP_MOVE} />{sortColumn === 'expectedMove' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('safetyRatio') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('safetyRatio')}><div className="flex items-center justify-end gap-1">Safety ×<HelpBadge content={HELP_CONTENT.SAFETY_RATIO} />{sortColumn === 'safetyRatio' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
                           {visibleCols.has('premium') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('premium')}><div className="flex items-center justify-end gap-1">Premium{sortColumn === 'premium' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
                           {visibleCols.has('bid') && <th className="p-2 text-right">Bid</th>}
                           {visibleCols.has('ask') && <th className="p-2 text-right">Ask</th>}
