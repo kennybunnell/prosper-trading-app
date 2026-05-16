@@ -84,6 +84,8 @@ export default function AutoCloseStep() {
   // Row selection state for bulk Apply to Selected
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [applySelectedProfitPct, setApplySelectedProfitPct] = useState<ProfitTargetPct>(50);
+  const [applySelectedStopLoss, setApplySelectedStopLoss] = useState<number | null>(null);
+  const [applySelectedDteFloor, setApplySelectedDteFloor] = useState<number | null>(null);
   // Global defaults panel state
   const [showDefaults, setShowDefaults] = useState(false);
   const [defaultProfitPct, setDefaultProfitPct] = useState<ProfitTargetPct>(50);
@@ -684,10 +686,11 @@ export default function AutoCloseStep() {
         <div className="space-y-2">
         {/* -- Apply to Selected action bar -- */}
         {selectedRows.size > 0 && (
-          <div className="flex items-center gap-3 px-4 py-2.5 mb-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
+          <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 mb-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
             <span className="text-xs text-orange-300 font-medium">{selectedRows.size} selected</span>
             <span className="text-gray-600">·</span>
-            <span className="text-xs text-gray-400">Set Profit Target:</span>
+            {/* Profit Target */}
+            <span className="text-xs text-gray-400">Profit Target:</span>
             <Select
               value={String(applySelectedProfitPct)}
               onValueChange={(v) => setApplySelectedProfitPct(parseInt(v) as ProfitTargetPct)}
@@ -702,10 +705,49 @@ export default function AutoCloseStep() {
                 <SelectItem value="90">90%</SelectItem>
               </SelectContent>
             </Select>
+            <span className="text-gray-700">|</span>
+            {/* Stop Loss */}
+            <span className="text-xs text-gray-400">Stop Loss:</span>
+            <Select
+              value={applySelectedStopLoss === null ? 'off' : String(applySelectedStopLoss)}
+              onValueChange={(v) => setApplySelectedStopLoss(v === 'off' ? null : parseInt(v))}
+            >
+              <SelectTrigger className="w-[90px] h-7 text-xs bg-gray-800 border-gray-600 text-gray-300">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-700">
+                <SelectItem value="off">Off</SelectItem>
+                <SelectItem value="100">100%</SelectItem>
+                <SelectItem value="150">150%</SelectItem>
+                <SelectItem value="200">200%</SelectItem>
+                <SelectItem value="300">300%</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-gray-700">|</span>
+            {/* DTE Floor */}
+            <span className="text-xs text-gray-400">DTE Floor:</span>
+            <Select
+              value={applySelectedDteFloor === null ? 'off' : String(applySelectedDteFloor)}
+              onValueChange={(v) => setApplySelectedDteFloor(v === 'off' ? null : parseInt(v))}
+            >
+              <SelectTrigger className="w-[80px] h-7 text-xs bg-gray-800 border-gray-600 text-gray-300">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-700">
+                <SelectItem value="off">Off</SelectItem>
+                <SelectItem value="3">3</SelectItem>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="7">7</SelectItem>
+                <SelectItem value="14">14</SelectItem>
+                <SelectItem value="21">21</SelectItem>
+              </SelectContent>
+            </Select>
             <button
               onClick={() => {
                 bulkApplySelectedMut.mutate({
                   profitTargetPct: applySelectedProfitPct,
+                  stopLossPct: applySelectedStopLoss,
+                  dteFloor: applySelectedDteFloor,
                   rowKeys: Array.from(selectedRows),
                 });
               }}
