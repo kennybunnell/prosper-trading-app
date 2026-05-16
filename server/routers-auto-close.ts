@@ -511,38 +511,43 @@ export const autoCloseRouter = router({
     }),
 
   /**
-   * Bulk apply defaults to ALL existing monitored positions.
-   * Unlike bulkSetTargets (which skips already-monitored positions), this
-   * overwrites every row — used by the "Apply to All" button in Global
-   * Bracket Defaults.
+   * Bulk apply a single field to ALL existing monitored positions.
+   * Each field is optional — only the provided fields are updated.
+   * Used by the per-field ⚡ Apply to All buttons (Stop Loss, DTE Floor).
+   * Profit Target is intentionally excluded from bulk apply.
    */
   bulkApplyDefaults: protectedProcedure
     .input(z.object({
-      profitTargetPct: z.number().int().min(10).max(100),
       stopLossPct: z.number().int().min(100).max(1000).nullable().optional(),
       dteFloor: z.number().int().min(0).max(60).nullable().optional(),
-    }))
+    }).refine(
+      (d) => d.stopLossPct !== undefined || d.dteFloor !== undefined,
+      { message: 'At least one field must be provided' }
+    ))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
 
-      // Update every monitored position for this user
+      // Build the partial update — only include fields that were explicitly passed
+      const updateFields: Record<string, unknown> = {};
+      if (input.stopLossPct !== undefined) updateFields.stopLossPct = input.stopLossPct;
+      if (input.dteFloor !== undefined) updateFields.dteFloor = input.dteFloor;
+
       const result = await db
         .update(positionTargets)
-        .set({
-          profitTargetPct: input.profitTargetPct,
-          stopLossPct: input.stopLossPct ?? null,
-          dteFloor: input.dteFloor ?? null,
-        })
+        .set(updateFields as any)
         .where(eq(positionTargets.userId, ctx.user.id));
 
       const count = (result as any)?.[0]?.affectedRows ?? 0;
 
       // Telegram summary
       try {
-        const stopPart = input.stopLossPct != null ? ` | Stop: ${input.stopLossPct}%` : '';
-        const dtePart = input.dteFloor != null ? ` | DTE \u2264 ${input.dteFloor}` : '';
-        await sendTelegramMessage(`\ud83d\udd04 Auto-Close: Defaults Applied to All\n\nUpdated ${count} monitored position${count !== 1 ? 's' : ''} with:\n\u2705 Profit: ${input.profitTargetPct}%${stopPart}${dtePart}`);
+        const parts: string[] = [];
+        if (input.stopLossPct !== undefined)
+          parts.push(input.stopLossPct === null ? 'Stop: Off' : `Stop: ${input.stopLossPct}%`);
+        if (input.dteFloor !== undefined)
+          parts.push(input.dteFloor === null ? 'DTE Floor: Off' : `DTE ≤ ${input.dteFloor}`);
+        await sendTelegramMessage(`⚡ Auto-Close: Field Applied to All\n\nUpdated ${count} position${count !== 1 ? 's' : ''} with: ${parts.join(' | ')}`);
       } catch (err) {
         console.error('[AutoClose] Bulk apply Telegram notify failed:', err);
       }

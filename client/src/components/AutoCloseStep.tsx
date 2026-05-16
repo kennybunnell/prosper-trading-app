@@ -394,9 +394,10 @@ export default function AutoCloseStep() {
               These values pre-fill the bracket dropdowns for every unmonitored position. They do not automatically opt in any position — you still click <strong className="text-orange-400">Monitor</strong> to activate.
             </p>
             <div className="flex items-end gap-4 flex-wrap">
-              {/* Default Profit Target */}
+              {/* Default Profit Target — pre-fill only, no bulk apply */}
               <div className="space-y-1.5">
                 <label className="text-xs text-orange-300 font-medium">Default Profit Target</label>
+                <p className="text-[10px] text-gray-500">pre-fill only</p>
                 <Select
                   value={String(defaultProfitPct)}
                   onValueChange={(v) => setDefaultProfitPct(parseInt(v) as ProfitTargetPct)}
@@ -413,14 +414,33 @@ export default function AutoCloseStep() {
                 </Select>
               </div>
 
-              {/* Default Stop Loss */}
+              {/* Default Stop Loss — with per-field Apply to All */}
               <div className="space-y-1.5">
-                <label className="text-xs text-red-300 font-medium">Default Stop Loss</label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs text-red-300 font-medium">Default Stop Loss</label>
+                  <button
+                    onClick={() => {
+                      if (!window.confirm(
+                        `Apply Stop Loss: ${defaultStopLoss == null ? 'Off' : defaultStopLoss + '%'} to ALL monitored positions?\nThis will overwrite individual stop loss settings.`
+                      )) return;
+                      bulkApplyDefaultsMut.mutate({ stopLossPct: defaultStopLoss });
+                    }}
+                    disabled={bulkApplyDefaultsMut.isPending}
+                    title="Apply this stop loss to all monitored positions"
+                    className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 disabled:opacity-50 transition-colors"
+                  >
+                    {bulkApplyDefaultsMut.isPending
+                      ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      : <span>⚡</span>
+                    }
+                    Apply to All
+                  </button>
+                </div>
                 <Select
                   value={defaultStopLoss == null ? 'off' : String(defaultStopLoss)}
                   onValueChange={(v) => setDefaultStopLoss(v === 'off' ? null : parseInt(v))}
                 >
-                  <SelectTrigger className="w-[90px] h-8 text-xs bg-gray-800 border-red-500/30 text-red-300">
+                  <SelectTrigger className="w-[110px] h-8 text-xs bg-gray-800 border-red-500/30 text-red-300">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-gray-700">
@@ -433,14 +453,33 @@ export default function AutoCloseStep() {
                 </Select>
               </div>
 
-              {/* Default DTE Floor */}
+              {/* Default DTE Floor — with per-field Apply to All */}
               <div className="space-y-1.5">
-                <label className="text-xs text-yellow-300 font-medium">Default DTE Floor</label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs text-yellow-300 font-medium">Default DTE Floor</label>
+                  <button
+                    onClick={() => {
+                      if (!window.confirm(
+                        `Apply DTE Floor: ${defaultDteFloor == null ? 'Off' : '≤ ' + defaultDteFloor + 'd'} to ALL monitored positions?\nThis will overwrite individual DTE floor settings.`
+                      )) return;
+                      bulkApplyDefaultsMut.mutate({ dteFloor: defaultDteFloor });
+                    }}
+                    disabled={bulkApplyDefaultsMut.isPending}
+                    title="Apply this DTE floor to all monitored positions"
+                    className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 disabled:opacity-50 transition-colors"
+                  >
+                    {bulkApplyDefaultsMut.isPending
+                      ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      : <span>⚡</span>
+                    }
+                    Apply to All
+                  </button>
+                </div>
                 <Select
                   value={defaultDteFloor == null ? 'off' : String(defaultDteFloor)}
                   onValueChange={(v) => setDefaultDteFloor(v === 'off' ? null : parseInt(v))}
                 >
-                  <SelectTrigger className="w-[90px] h-8 text-xs bg-gray-800 border-yellow-500/30 text-yellow-300">
+                  <SelectTrigger className="w-[110px] h-8 text-xs bg-gray-800 border-yellow-500/30 text-yellow-300">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-gray-700">
@@ -461,36 +500,13 @@ export default function AutoCloseStep() {
                   dteFloor: defaultDteFloor,
                 })}
                 disabled={setDefaultsMut.isPending}
-                className="bg-orange-600 hover:bg-orange-500 text-white h-8 text-xs"
+                className="bg-orange-600 hover:bg-orange-500 text-white h-8 text-xs self-end"
               >
                 {setDefaultsMut.isPending
                   ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                   : <Save className="h-3.5 w-3.5 mr-1.5" />
                 }
                 Save Defaults
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  if (!window.confirm(
-                    `Apply Profit: ${defaultProfitPct}%${defaultStopLoss ? `, Stop: ${defaultStopLoss}%` : ''}${defaultDteFloor ? `, DTE ≤ ${defaultDteFloor}` : ''} to ALL monitored positions? This will overwrite any custom settings on individual positions.`
-                  )) return;
-                  bulkApplyDefaultsMut.mutate({
-                    profitTargetPct: defaultProfitPct,
-                    stopLossPct: defaultStopLoss,
-                    dteFloor: defaultDteFloor,
-                  });
-                }}
-                disabled={bulkApplyDefaultsMut.isPending}
-                className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 h-8 text-xs"
-              >
-                {bulkApplyDefaultsMut.isPending
-                  ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                  : <span className="mr-1.5 text-sm">⚡</span>
-                }
-                Apply to All
               </Button>
             </div>
           </div>

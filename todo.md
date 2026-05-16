@@ -10034,3 +10034,10 @@ ROC Fix Mar 18 2026
 - [x] Confirmation dialog warns user that custom per-position settings will be overwritten
 - [x] Success toast shows count of positions updated and the applied values
 - [x] Telegram notification sent on bulk apply
+
+## Per-Field Apply to All (May 16, 2026)
+- [x] Update bulkApplyDefaults server procedure to accept optional fields (only update what's provided)
+- [x] Remove single "Apply to All" button from Global Bracket Defaults
+- [x] Add per-field ⚡ Apply to All button next to Stop Loss dropdown only
+- [x] Add per-field ⚡ Apply to All button next to DTE Floor dropdown only
+- [x] Profit Target keeps "Save Default" only (no bulk apply)
