@@ -90,7 +90,7 @@ const BCS_COLUMNS: ColumnDef[] = [
   { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
   { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
-  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'safetyRatio', label: 'Safety Ratio', group: 'Greeks',                 defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -117,7 +117,7 @@ const CC_COLUMNS: ColumnDef[] = [
   { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
   { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
-  { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'safetyRatio', label: 'Safety Ratio', group: 'Greeks',                 defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -271,6 +271,7 @@ type CCOpportunity = {
   ivRank: number | null;
   iv: number | null;
   expectedMove: number | null;
+  safetyRatio: number | null;
   bbPctB: number | null;
   sharesOwned: number;
   maxContracts: number;
@@ -3387,6 +3388,15 @@ export default function CCDashboard() {
                           </div>
                         </TableHead>
                       )}
+                      {/* 11c. Safety Ratio */}
+                      {visibleCols.has('safetyRatio') && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('safetyRatio')}>
+                          <div className="flex items-center justify-end gap-1">
+                            Safety ×
+                            {sortColumn === 'safetyRatio' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
                       {/* 12. RSI */}
                       {visibleCols.has('rsi') && (
                         <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('rsi')}>
@@ -3556,12 +3566,21 @@ export default function CCDashboard() {
                                           );
                                         })}
                                         {(opp as any).scoreBreakdown.safetyRatio != null && (
-                                          <div className="flex justify-between border-t border-gray-700 pt-1 mt-1">
-                                            <span className="text-gray-400">Safety Ratio (Strike/EM):</span>
-                                            <span className={`font-medium ${
-                                              (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
-                                              (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
-                                            }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
+                                          <div className="flex flex-col gap-0.5 border-t border-gray-700 pt-1 mt-1">
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-400">Short Call / Exp Move:</span>
+                                              <span className={`font-medium ${
+                                                (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
+                                                (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                              }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
+                                            </div>
+                                            <div className="text-gray-500 text-[10px] leading-tight">
+                                              {(opp as any).scoreBreakdown.safetyRatio >= 1.5
+                                                ? 'Strike well above expected upside — strong bearish buffer'
+                                                : (opp as any).scoreBreakdown.safetyRatio >= 1.0
+                                                ? 'Strike near expected upside — moderate conviction needed'
+                                                : 'Strike inside expected upside — high bearish conviction required'}
+                                            </div>
                                           </div>
                                         )}
                                       </>
@@ -3730,6 +3749,18 @@ export default function CCDashboard() {
                           <TableCell className="text-right">
                             <span className="text-xs font-mono text-cyan-300">
                               {(opp as any).expectedMove != null ? `$${(opp as any).expectedMove.toFixed(2)}` : '—'}
+                            </span>
+                          </TableCell>
+                        )}
+                        {/* 11c. Safety Ratio */}
+                        {visibleCols.has('safetyRatio') && (
+                          <TableCell className="text-right">
+                            <span className={`text-xs font-mono font-bold ${
+                              opp.safetyRatio == null ? 'text-gray-500' :
+                              opp.safetyRatio >= 1.5 ? 'text-green-400' :
+                              opp.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                            }`}>
+                              {opp.safetyRatio != null ? `${opp.safetyRatio.toFixed(2)}×` : '—'}
                             </span>
                           </TableCell>
                         )}

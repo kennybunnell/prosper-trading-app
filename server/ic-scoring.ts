@@ -271,9 +271,9 @@ export function scoreIronCondor(ic: ICInput): { score: number; scoreBreakdown: I
  * Batch score an array of IC opportunities.
  * Returns the same array with `score` and `scoreBreakdown` added.
  */
-export function scoreIronCondors<T extends ICInput>(ics: T[]): (T & { score: number; scoreBreakdown: ICScoreBreakdown })[] {
+export function scoreIronCondors<T extends ICInput>(ics: T[]): (T & { score: number; scoreBreakdown: ICScoreBreakdown; safetyRatio: number | null })[] {
   return ics.map(ic => {
     const { score, scoreBreakdown } = scoreIronCondor(ic);
-    return { ...ic, score, scoreBreakdown };
+    return { ...ic, score, scoreBreakdown, safetyRatio: scoreBreakdown.safetyRatio ?? null };
   });
 }

@@ -372,7 +372,7 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
 export function scoreOpportunities(opportunities: CSPOpportunity[]): ScoredOpportunity[] {
   const scored = opportunities.map((opp) => {
     const { score, breakdown } = calculateCSPScore(opp);
-    return { ...opp, score, scoreBreakdown: breakdown };
+    return { ...opp, score, scoreBreakdown: breakdown, safetyRatio: breakdown.safetyRatio ?? null };
   });
   scored.sort((a, b) => b.score - a.score);
   return scored;
@@ -580,7 +580,7 @@ export function scoreBPSOpportunities(
 ): ScoredBPSOpportunity[] {
   const scored = opportunities.map((opp) => {
     const { score, breakdown } = calculateBPSScore(opp, options);
-    return { ...opp, score, scoreBreakdown: breakdown, trendBias: breakdown.trendBias };
+    return { ...opp, score, scoreBreakdown: breakdown, trendBias: breakdown.trendBias, safetyRatio: breakdown.safetyRatio ?? null };
   });
   scored.sort((a, b) => b.score - a.score);
   return scored;

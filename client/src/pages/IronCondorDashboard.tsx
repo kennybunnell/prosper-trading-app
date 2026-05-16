@@ -23,6 +23,7 @@ const IC_COLUMNS: ColumnDef[] = [
   { key: 'netDelta',   label: 'Net Δ',        group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
   { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'safetyRatio', label: 'Safety Ratio', group: 'Greeks',                 defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -1515,6 +1516,12 @@ export default function IronCondorDashboard() {
                           Exp Move {sortConfig?.key === 'expMove' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                         </TableHead>
                       )}
+                      {/* Safety Ratio */}
+                      {icVisibleCols.has('safetyRatio') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'safetyRatio' && prev.direction === 'desc' ? { key: 'safetyRatio', direction: 'asc' } : { key: 'safetyRatio', direction: 'desc' })}>
+                          Safety × {sortConfig?.key === 'safetyRatio' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
                       {/* RSI */}
                       {icVisibleCols.has('rsi') && (
                         <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'rsi' && prev.direction === 'desc' ? { key: 'rsi', direction: 'asc' } : { key: 'rsi', direction: 'desc' })}>
@@ -1831,6 +1838,18 @@ export default function IronCondorDashboard() {
                               <TableCell>
                                 <span className="text-xs font-mono text-cyan-300">
                                   {(opp as any).expectedMove != null ? `$${(opp as any).expectedMove.toFixed(2)}` : '—'}
+                                </span>
+                              </TableCell>
+                            )}
+                            {/* Safety Ratio */}
+                            {icVisibleCols.has('safetyRatio') && (
+                              <TableCell>
+                                <span className={`text-xs font-mono font-bold ${
+                                  (opp as any).safetyRatio == null ? 'text-gray-500' :
+                                  (opp as any).safetyRatio >= 1.5 ? 'text-green-400' :
+                                  (opp as any).safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                }`}>
+                                  {(opp as any).safetyRatio != null ? `${((opp as any).safetyRatio as number).toFixed(2)}×` : '—'}
                                 </span>
                               </TableCell>
                             )}

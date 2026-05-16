@@ -841,11 +841,10 @@ export const ccRouter = router({
       }
 
       // Calculate composite scores for all opportunities
-      const scoredOpportunities = deduplicatedOpportunities.map(opp => ({
-        ...opp,
-        score: calculateCCScore(opp).score,
-        scoreBreakdown: calculateCCScore(opp).breakdown,
-      }));
+      const scoredOpportunities = deduplicatedOpportunities.map(opp => {
+        const { score, breakdown } = calculateCCScore(opp);
+        return { ...opp, score, scoreBreakdown: breakdown, safetyRatio: (breakdown as any).safetyRatio ?? null };
+      });
 
       // Sort by score descending
       scoredOpportunities.sort((a, b) => b.score - a.score);
@@ -1106,6 +1105,7 @@ export const ccRouter = router({
                   spreadOpp.score = score;
                   (spreadOpp as any).scoreBreakdown = breakdown;
                   (spreadOpp as any).trendBias = breakdown.trendBias;
+                  (spreadOpp as any).safetyRatio = (breakdown as any).safetyRatio ?? null;
                   // Add long leg OCC symbol for TT price enrichment
                   (spreadOpp as any).longOptionSymbol = longCall.symbol;
                   spreadOpportunities.push(spreadOpp);

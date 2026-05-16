@@ -254,8 +254,10 @@ export const pmccRouter = router({
                     };
                     
                     // Calculate score using new PMCC scoring system
-                    const { score } = calculatePMCCScore(leapOpp);
+                    const { score, breakdown: pmccBreakdown } = calculatePMCCScore(leapOpp);
                     leapOpp.score = score;
+                    (leapOpp as any).scoreBreakdown = pmccBreakdown;
+                    (leapOpp as any).safetyRatio = pmccBreakdown.safetyRatio ?? null;
 
                     // Add to opportunities
                     symbolOpportunities.push(leapOpp);

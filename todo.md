@@ -9853,3 +9853,20 @@ ROC Fix Mar 18 2026
 - [x] Show Safety Ratio line in CC/BCS score breakdown tooltip (both D1-D6 and direction branches)
 - [x] Show Safety Ratio line in IC score breakdown tooltip (both index and equity branches)
 - [x] Show Safety Ratio line in PMCC score breakdown tooltip
+
+## Safety Ratio Column (Completed)
+- [x] Add safetyRatio column to CSP_COLUMNS and BPS_COLUMNS in CSPDashboard.tsx
+- [x] Add safetyRatio to ScoredOpportunity type in CSPDashboard.tsx
+- [x] Hoist safetyRatio to top level in scoreOpportunities and scoreBPSOpportunities (scoring.ts)
+- [x] Add safetyRatio table header and body cell to CSP and BPS tables
+- [x] Add safetyRatio column to CC_COLUMNS and BCS_COLUMNS in CCDashboard.tsx
+- [x] Add safetyRatio to CCOpportunity type in CCDashboard.tsx
+- [x] Hoist safetyRatio to top level in CC and BCS scan results (routers-cc.ts)
+- [x] Add safetyRatio table header and body cell to CC and BCS tables
+- [x] Calibrate BCS tooltip with directional note (higher = further above expected upside move)
+- [x] Add safetyRatio column to IC_COLUMNS in IronCondorDashboard.tsx
+- [x] Hoist safetyRatio to top level in scoreIronCondors (ic-scoring.ts)
+- [x] Add safetyRatio table header and body cell to IC table
+- [x] Add safetyRatio column to PMCC_COLUMNS in PMCCDashboard.tsx
+- [x] Hoist safetyRatio to top level in PMCC scan results (routers-pmcc.ts)
+- [x] Add safetyRatio table header and body cell to PMCC table

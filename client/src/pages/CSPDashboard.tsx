@@ -239,6 +239,7 @@ const BPS_COLUMNS: ColumnDef[] = [
   { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
   { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'safetyRatio', label: 'Safety Ratio', group: 'Greeks',                 defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -266,6 +267,7 @@ const CSP_COLUMNS: ColumnDef[] = [
   { key: 'theta',      label: 'Theta (θ)',    group: 'Greeks',                  defaultVisible: false },
   { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
   { key: 'expMove',    label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'safetyRatio', label: 'Safety Ratio', group: 'Greeks',                 defaultVisible: false },
   { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
@@ -300,6 +302,7 @@ type ScoredOpportunity = {
   ivRank: number | null;
   iv: number | null;
   expectedMove: number | null;
+  safetyRatio: number | null;
   bbPctB: number | null;
   spreadPct: number;
   collateral: number;
@@ -3088,6 +3091,7 @@ export default function CSPDashboard() {
                     ...(visibleCols.has('delta') ? [{ key: 'delta', label: 'Delta (Δ)', help: HELP_CONTENT.DELTA_CSP, pinned: false }] : []),
                     ...(visibleCols.has('ivRank') ? [{ key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, pinned: false }] : []),
                     ...(visibleCols.has('expMove') ? [{ key: 'expMove', label: 'Exp Move', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('safetyRatio') ? [{ key: 'safetyRatio', label: 'Safety ×', help: null, pinned: false }] : []),
                     ...(visibleCols.has('rsi') ? [{ key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, pinned: false }] : []),
                     ...(visibleCols.has('bbPctB') ? [{ key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, pinned: false }] : []),
                     ...(visibleCols.has('openInterest') ? [{ key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', pinned: false }] : []),
@@ -3112,6 +3116,7 @@ export default function CSPDashboard() {
                     ...(visibleCols.has('theta') ? [{ key: 'theta', label: 'Theta (θ)', help: null, pinned: false }] : []),
                     ...(visibleCols.has('ivRank') ? [{ key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, pinned: false }] : []),
                     ...(visibleCols.has('expMove') ? [{ key: 'expMove', label: 'Exp Move', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('safetyRatio') ? [{ key: 'safetyRatio', label: 'Safety ×', help: null, pinned: false }] : []),
                     ...(visibleCols.has('rsi') ? [{ key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, pinned: false }] : []),
                     ...(visibleCols.has('bbPctB') ? [{ key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, pinned: false }] : []),
                     ...(visibleCols.has('openInterest') ? [{ key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', pinned: false }] : []),
@@ -3416,6 +3421,17 @@ export default function CSPDashboard() {
                                 </span>
                               </TableCell>
                             )}
+                            {visibleCols.has('safetyRatio') && (
+                              <TableCell>
+                                <span className={`text-xs font-mono font-bold ${
+                                  (opp as any).safetyRatio == null ? 'text-gray-500' :
+                                  (opp as any).safetyRatio >= 1.5 ? 'text-green-400' :
+                                  (opp as any).safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                }`}>
+                                  {(opp as any).safetyRatio != null ? `${((opp as any).safetyRatio as number).toFixed(2)}×` : '—'}
+                                </span>
+                              </TableCell>
+                            )}
                             {visibleCols.has('rsi') && (
                               <TableCell>
                                 <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
@@ -3525,6 +3541,17 @@ export default function CSPDashboard() {
                               <TableCell>
                                 <span className="text-xs font-mono text-cyan-300">
                                   {(opp as any).expectedMove != null ? `$${(opp as any).expectedMove.toFixed(2)}` : '—'}
+                                </span>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('safetyRatio') && (
+                              <TableCell>
+                                <span className={`text-xs font-mono font-bold ${
+                                  (opp as any).safetyRatio == null ? 'text-gray-500' :
+                                  (opp as any).safetyRatio >= 1.5 ? 'text-green-400' :
+                                  (opp as any).safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
+                                }`}>
+                                  {(opp as any).safetyRatio != null ? `${((opp as any).safetyRatio as number).toFixed(2)}×` : '—'}
                                 </span>
                               </TableCell>
                             )}

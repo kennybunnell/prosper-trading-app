@@ -39,6 +39,7 @@ const PMCC_COLUMNS: ColumnDef[] = [
   { key: 'dte',           label: 'DTE',          group: 'Position', pinned: true,  defaultVisible: true  },
   { key: 'delta',         label: 'Delta',        group: 'Greeks',   pinned: true,  defaultVisible: true  },
   { key: 'expMove',        label: 'Exp Move',     group: 'Greeks',                  defaultVisible: false },
+  { key: 'safetyRatio',   label: 'Safety Ratio', group: 'Greeks',                  defaultVisible: false },
   { key: 'premium',       label: 'Premium',      group: 'Returns',  pinned: true,  defaultVisible: true  },
   { key: 'bid',           label: 'Bid',          group: 'Returns',                 defaultVisible: false },
   { key: 'ask',           label: 'Ask',          group: 'Returns',                 defaultVisible: false },
@@ -1096,6 +1097,7 @@ export default function PMCCDashboard() {
                           {visibleCols.has('dte') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('dte')}><div className="flex items-center justify-end gap-1">DTE<HelpBadge content={HELP_CONTENT.DTE} />{sortColumn === 'dte' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
                           {visibleCols.has('delta') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('delta')}><div className="flex items-center justify-end gap-1">Delta<HelpBadge content={HELP_CONTENT.DELTA_CC} />{sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
                           {visibleCols.has('expMove') && <th className="p-2 text-right">Exp Move</th>}
+                          {visibleCols.has('safetyRatio') && <th className="p-2 text-right">Safety ×</th>}
                           {visibleCols.has('premium') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('premium')}><div className="flex items-center justify-end gap-1">Premium{sortColumn === 'premium' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
                           {visibleCols.has('bid') && <th className="p-2 text-right">Bid</th>}
                           {visibleCols.has('ask') && <th className="p-2 text-right">Ask</th>}
@@ -1122,6 +1124,7 @@ export default function PMCCDashboard() {
                               {visibleCols.has('dte') && <td className="p-2 text-right">{leap.dte}</td>}
                               {visibleCols.has('delta') && <td className="p-2 text-right">{leap.delta.toFixed(2)}</td>}
                               {visibleCols.has('expMove') && <td className="p-2 text-right"><span className="text-xs font-mono text-cyan-300">{(leap as any).expectedMove != null ? `$${(leap as any).expectedMove.toFixed(2)}` : '—'}</span></td>}
+                              {visibleCols.has('safetyRatio') && <td className="p-2 text-right"><span className={`text-xs font-mono font-bold ${ (leap as any).safetyRatio == null ? 'text-gray-500' : (leap as any).safetyRatio >= 1.5 ? 'text-green-400' : (leap as any).safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400' }`}>{(leap as any).safetyRatio != null ? `${((leap as any).safetyRatio as number).toFixed(2)}×` : '—'}</span></td>}
                               {visibleCols.has('premium') && <td className="p-2 text-right">${leap.premium.toFixed(2)}</td>}
                               {visibleCols.has('bid') && <td className="p-2 text-right">${leap.bid.toFixed(2)}</td>}
                               {visibleCols.has('ask') && <td className="p-2 text-right">${leap.ask.toFixed(2)}</td>}
