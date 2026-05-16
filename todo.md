@@ -9977,3 +9977,8 @@ ROC Fix Mar 18 2026
 - [x] Root cause: getTechnicalIndicators (→ getHistoricalData), getExpirations, and getQuote were NOT wrapped in withRateLimit — with 64 symbols dispatched simultaneously, 64 concurrent /markets/history requests overwhelmed Tradier, causing ECONNABORTED errors and withRetry delays (1.5s, 3s, 6s per retry)
 - [x] Fix: wrapped getTechnicalIndicators, getExpirations, and getQuote in withRateLimit() in the CC/BCS scan — all API calls now go through the 30-slot semaphore
 - [x] TypeScript: EXIT:0 confirmed
+
+## riskAssessment.ts Concurrency Fix (May 16, 2026 - Session 11)
+- [x] Root cause: calculateBulkRiskAssessments had CONCURRENCY=5 sequential batches — 13 batches × ~20s = 260s of sequential Tradier calls AFTER the main scan completed
+- [x] Fix: removed batch loop, dispatch all symbols via Promise.allSettled; wrapped getTechnicalIndicators and getQuote in withRateLimit so risk-badge fetches share the 30-slot semaphore
+- [x] TypeScript: EXIT:0 confirmed

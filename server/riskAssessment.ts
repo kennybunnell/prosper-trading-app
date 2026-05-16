@@ -4,6 +4,7 @@
  */
 
 import { TradierAPI, TechnicalIndicators, Quote } from './tradier';
+import { withRateLimit } from './tradierRateLimiter';
 import {
   RiskBadge,
   RiskAssessment,
@@ -35,12 +36,13 @@ export async function calculateRiskBadges(
   const badges: RiskBadge[] = [];
 
   try {
-    // Fetch data if not provided
+    // Fetch data if not provided — wrap in withRateLimit so risk-badge fetches
+    // share the same 30-slot semaphore as the main scan and don't overwhelm Tradier
     if (!indicators) {
-      indicators = await tradierAPI.getTechnicalIndicators(symbol);
+      indicators = await withRateLimit(() => tradierAPI.getTechnicalIndicators(symbol));
     }
     if (!quote) {
-      quote = await tradierAPI.getQuote(symbol);
+      quote = await withRateLimit(() => tradierAPI.getQuote(symbol));
     }
 
     const currentPrice = quote.last;
@@ -128,34 +130,20 @@ export async function calculateBulkRiskAssessments(
     const earningsMap = await tradierAPI.getEarningsCalendar(symbols);
     console.log(`[Risk Assessment] Found earnings dates for ${earningsMap.size} symbols`);
 
-    // Process symbols in parallel with concurrency limit
-    const CONCURRENCY = 5;
-    for (let i = 0; i < symbols.length; i += CONCURRENCY) {
-      const batch = symbols.slice(i, i + CONCURRENCY);
-
-      const batchPromises = batch.map(async (symbol) => {
+    // Dispatch ALL symbols concurrently — withRateLimit inside calculateRiskBadges
+    // handles throttling via the shared 30-slot semaphore, so no outer batch loop needed
+    await Promise.allSettled(
+      symbols.map(async (symbol) => {
         try {
           const badges = await calculateRiskBadges(symbol, tradierAPI, earningsMap);
           const overallRisk = calculateOverallRisk(badges);
-
-          assessmentMap.set(symbol, {
-            symbol,
-            badges,
-            overallRisk,
-          });
+          assessmentMap.set(symbol, { symbol, badges, overallRisk });
         } catch (error: any) {
           console.error(`[Risk Assessment] Failed for ${symbol}:`, error.message);
-          // Set empty assessment on error
-          assessmentMap.set(symbol, {
-            symbol,
-            badges: [],
-            overallRisk: 'low',
-          });
+          assessmentMap.set(symbol, { symbol, badges: [], overallRisk: 'low' });
         }
-      });
-
-      await Promise.allSettled(batchPromises);
-    }
+      })
+    );
 
     console.log(`[Risk Assessment] Completed assessment for ${assessmentMap.size} symbols`);
     // Log sample assessment
