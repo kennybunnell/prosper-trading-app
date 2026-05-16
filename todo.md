@@ -10005,3 +10005,9 @@ ROC Fix Mar 18 2026
 ## BCS Table Column Enhancements (May 16, 2026)
 - [x] Add color pills to Bid, Ask, Mid, Dist OTM, Spread %, Expiration, and DTE columns in BCS table
 - [x] Fix RSI and BB %B showing N/A for SPX (map SPX/SPXW → $SPX.X for Tradier history)
+
+## CSP/BPS Table Color Pills (May 16, 2026)
+- [ ] Apply color pills to Bid, Ask, Dist OTM, Spread %, DTE, and Expiration columns in CSP/BPS dashboard table
+
+## CSP/BPS Table Color Pills (May 16, 2026)
+- [x] Apply color pills to Bid, Ask, Mid, Dist OTM, Spread %, DTE, and Expiration columns in CSP/BPS dashboard table (both CSP and BPS rows)
