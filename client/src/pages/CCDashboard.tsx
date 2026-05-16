@@ -2006,18 +2006,18 @@ export default function CCDashboard() {
             }}>
               <DialogContent className="sm:max-w-md border-2 border-orange-500/50">
                 <DialogHeader>
-                  <DialogTitle>Scanning Options Chains</DialogTitle>
+                  <DialogTitle>Fetching Opportunities</DialogTitle>
                   <DialogDescription>
-                    Analyzing {selectedStocks.filter(symbol => {
-                      const holding = holdings.find(h => h.symbol === symbol);
-                      return holding && holding.maxContracts > 0;
-                    }).length} stocks for covered call opportunities...
+                    Scanning option chains and scoring opportunities...
                   </DialogDescription>
                 </DialogHeader>
-                <div className="flex flex-col items-center justify-center space-y-4 py-6">
-                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                  <Progress value={scanProgress} className="w-full" />
-                  <p className="text-sm font-medium text-muted-foreground animate-pulse">Scanning in progress...</p>
+                <div className="py-6">
+                  {scanStartTime && (
+                    <LiveCountdown
+                      startTime={scanStartTime}
+                      totalSymbols={selectedStocks.filter(symbol => holdings.some(h => h.symbol === symbol)).length || 1}
+                    />
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -2298,9 +2298,9 @@ export default function CCDashboard() {
           }}>
             <DialogContent className="sm:max-w-md border-2 border-orange-500/50">
               <DialogHeader>
-                <DialogTitle>Scanning Options Chains</DialogTitle>
+                <DialogTitle>Fetching Opportunities</DialogTitle>
                 <DialogDescription>
-                  Analyzing watchlist symbols for bear call spread opportunities...
+                  Scanning option chains and scoring opportunities...
                 </DialogDescription>
               </DialogHeader>
               <div className="py-6">

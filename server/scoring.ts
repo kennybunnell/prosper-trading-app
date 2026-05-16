@@ -490,6 +490,7 @@ export interface ScoredBPSOpportunity extends CSPOpportunity {
   spreadWidth?: number;
   netCredit?: number;
   capitalAtRisk?: number;
+  spreadROC?: number;   // Pre-calculated ROC on capital at risk (correct units)
   trend14d?: number;
   trendBias?: 'Bearish' | 'Neutral' | 'Bullish';
 }
@@ -512,7 +513,12 @@ export function calculateBPSScore(
   const volume      = opp.volume ?? 0;
   const netCredit   = opp.netCredit ?? 0;
   const capitalRisk = opp.capitalAtRisk ?? (opp.spreadWidth ? opp.spreadWidth * 100 : 0);
-  const rocPct      = capitalRisk > 0 ? (netCredit / capitalRisk) * 100 : 0;
+  // Use pre-calculated spreadROC (netCredit*100 / capitalAtRisk) when available.
+  // Fallback recalculates correctly: netCredit is per-share, capitalRisk is per-contract,
+  // so multiply netCredit by 100 to align units before dividing.
+  const rocPct = opp.spreadROC != null
+    ? opp.spreadROC
+    : (capitalRisk > 0 ? (netCredit * 100 / capitalRisk) * 100 : 0);
   const trend14d    = opp.trend14d ?? 0;
   const ivAnnual    = opp.iv ?? null; // mid_iv from greeks, stored as % (e.g. 35.2 for 35.2% IV)
   const otmPct      = opp.currentPrice > 0 ? Math.abs((opp.currentPrice - opp.strike) / opp.currentPrice) * 100 : 0;

@@ -9923,3 +9923,9 @@ ROC Fix Mar 18 2026
 - [x] Fix AutomationDashboard Scan All progress: replace "Finishing up…" with "Scanning in progress..."
 - [x] TypeScript: 0 errors confirmed (npx tsc --noEmit exit code 0)
 - [x] Per-row score breakdown tooltips wired into all 6 dashboards (CSP, BPS, CC, BCS, IC, PMCC)
+
+## Issues to Fix (May 16, 2026 - Session 2)
+- [x] Unify CC/BCS loading modal to match CSP/BPS rich style (orange border, "Fetching Opportunities" title, LiveCountdown component)
+- [x] Verify CC column visibility persists in localStorage across page refreshes (already working)
+- [x] Fix D3 Premium scoring bug: BPS rocPct unit mismatch (per-share / per-contract) — now uses spreadROC directly
+- [x] BPS D3 fix verified: 17% ROC spread now scores 21/25 (85%) instead of 0
