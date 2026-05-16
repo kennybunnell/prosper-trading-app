@@ -9972,3 +9972,8 @@ ROC Fix Mar 18 2026
 - [x] Diagnose: sequential batch loop (30 symbols/batch) forced each batch to wait for slowest symbol (META 80s, MSTR 70s) before starting next batch — total 3 batches × ~90s = 270s+
 - [x] Fix: removed outer for-loop, dispatched ALL 64 symbols simultaneously via Promise.allSettled — tradierRateLimiter semaphore (MAX_CONCURRENT=30) handles throttling internally
 - [x] TypeScript: EXIT:0 confirmed (stale watcher error from 11:57 AM is not a real error)
+
+## BCS/CC Scan Rate Limiter Fix (May 16, 2026 - Session 10)
+- [x] Root cause: getTechnicalIndicators (→ getHistoricalData), getExpirations, and getQuote were NOT wrapped in withRateLimit — with 64 symbols dispatched simultaneously, 64 concurrent /markets/history requests overwhelmed Tradier, causing ECONNABORTED errors and withRetry delays (1.5s, 3s, 6s per retry)
+- [x] Fix: wrapped getTechnicalIndicators, getExpirations, and getQuote in withRateLimit() in the CC/BCS scan — all API calls now go through the 30-slot semaphore
+- [x] TypeScript: EXIT:0 confirmed
