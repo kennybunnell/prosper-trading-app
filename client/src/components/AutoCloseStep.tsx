@@ -19,7 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock,
-  AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert, Settings2, Save
+  AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert, Settings2, Save,
+  CheckSquare, X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -623,6 +624,25 @@ export default function AutoCloseStep() {
             </span>
           </button>
         ))}
+        </div>
+        {/* Select All / Clear All buttons */}
+        <div className="flex items-center gap-1.5 mb-1">
+          <button
+            onClick={() => setSelectedRows(new Set(filteredPositions.map(p => `${p.accountId}::${p.optionSymbol.replace(/\s+/g, '')}`)))}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 border border-blue-500/30 transition-colors"
+          >
+            <CheckSquare className="h-3 w-3" />
+            Select All
+          </button>
+          {selectedRows.size > 0 && (
+            <button
+              onClick={() => setSelectedRows(new Set())}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-gray-700/50 text-gray-300 hover:bg-gray-700 border border-gray-600/50 transition-colors"
+            >
+              <X className="h-3 w-3" />
+              Clear All
+            </button>
+          )}
         </div>
         {/* Monitor All button */}
         {unmonitoredCount > 0 && (
