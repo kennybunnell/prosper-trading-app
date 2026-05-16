@@ -868,8 +868,8 @@ export default function CCDashboard() {
         const ccOpportunities = await utils.client.cc.scanOpportunities.mutate({
           symbols: watchlistSymbols,
           holdings: [], // No holdings needed for bear call spreads
-          minDte: 7,
-          maxDte: 45,
+          minDte,
+          maxDte,
           minDelta: 0.05,
           maxDelta: 0.99,
         });
@@ -907,8 +907,8 @@ export default function CCDashboard() {
         const rawOpportunities = await utils.client.cc.scanOpportunities.mutate({
           symbols: eligibleStocks,
           holdings: selectedHoldings,
-          minDte: 7,
-          maxDte: 45,
+          minDte,
+          maxDte,
           minDelta: 0.05,
           maxDelta: 0.99,
         });
@@ -1593,6 +1593,33 @@ export default function CCDashboard() {
             );
           })()}
 
+          {/* DTE Range Quick-Select */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="text-xs text-muted-foreground font-medium">DTE range:</span>
+            <div className="flex items-center gap-1.5">
+              {([
+                { label: 'Weekly', min: 7, max: 14 },
+                { label: 'Standard', min: 7, max: 21 },
+                { label: 'Monthly', min: 7, max: 30 },
+                { label: 'Extended', min: 7, max: 45 },
+              ] as { label: string; min: number; max: number }[]).map(preset => (
+                <button
+                  key={preset.label}
+                  onClick={() => { setMinDte(preset.min); setMaxDte(preset.max); }}
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded border transition-colors",
+                    minDte === preset.min && maxDte === preset.max
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                  )}
+                >
+                  {preset.label} ({preset.max}d)
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">Current: {minDte}–{maxDte} days</span>
+          </div>
+
           {/* Info banner */}
           <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
             <p className="text-sm text-muted-foreground">
@@ -1601,7 +1628,7 @@ export default function CCDashboard() {
               ) : (
                 isIndexMode && Object.keys(symbolWidths).length > 0
                   ? <>Bear call spreads — per-index widths: {Object.entries(symbolWidths).map(([s, w]) => `${s}: ${w}pt`).join(', ')}</>
-                  : <>Bear call spreads limit risk by buying a protective call at a higher strike ({spreadWidth} points above)</>
+                  : <>Bear call spreads limit risk by buying a protective call at a higher strike ({spreadWidth} points above)</>  
               )}
             </p>
           </div>

@@ -9989,3 +9989,8 @@ ROC Fix Mar 18 2026
 - [x] riskAssessment.ts: removed withRateLimit from calculateRiskBadges, kept Promise.allSettled (no batch loop)
 - [x] routers-cc.ts: removed withRateLimit from getQuote (BCS mode), getTechnicalIndicators, getExpirations
 - [x] TypeScript: EXIT:0 confirmed
+
+## DTE Range Control in Strategy Type Section (May 16, 2026)
+- [x] Add Min/Max DTE controls to the Strategy Type section of CCDashboard (next to spread width)
+- [x] Wire minDte/maxDte state variables to the actual scan calls (replace hardcoded maxDte:45)
+- [x] Default maxDte to 30, with quick presets: Weekly (7-14), Standard (7-21), Monthly (7-30), Extended (7-45)
