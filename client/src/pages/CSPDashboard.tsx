@@ -3124,7 +3124,11 @@ export default function CSPDashboard() {
                     ...(visibleCols.has('openInterest') ? [{ key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', pinned: false }] : []),
                     ...(visibleCols.has('volume') ? [{ key: 'volume', label: 'Vol', help: 'dialog-oi-vol', pinned: false }] : []),
                     { key: 'riskBadges', label: 'Risk', help: null, pinned: true },
-                    ...(visibleCols.has('spreadPct') ? [{ key: 'spreadPct', label: 'Spread %', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('bid') ? [{ key: 'bid', label: 'Bid', help: HELP_CONTENT.BID_ASK_MID, pinned: false }] : []),
+                    ...(visibleCols.has('ask') ? [{ key: 'ask', label: 'Ask', help: HELP_CONTENT.BID_ASK_MID, pinned: false }] : []),
+                    ...(visibleCols.has('mid') ? [{ key: 'mid', label: 'Mid', help: HELP_CONTENT.BID_ASK_MID, pinned: false }] : []),
+                    ...(visibleCols.has('distanceOtm') ? [{ key: 'distanceOtm', label: 'Dist OTM', help: HELP_CONTENT.DIST_OTM, pinned: false }] : []),
+                    ...(visibleCols.has('spreadPct') ? [{ key: 'spreadPct', label: 'Spread %', help: HELP_CONTENT.SPREAD_PCT, pinned: false }] : []),
                     ...(visibleCols.has('expiration') ? [{ key: 'expiration', label: 'Expiration', help: null, pinned: false }] : []),
                   ]).map(({ key, label, help }) => (
                     <TableHead 

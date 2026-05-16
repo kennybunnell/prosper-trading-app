@@ -9903,3 +9903,9 @@ ROC Fix Mar 18 2026
 - [x] Add HelpBadge to PMCC Score column header
 - [x] IC scoring confirmed correct (neutral RSI 40-60 = full score, appropriate for IC)
 - [x] PMCC scoring confirmed correct (bullish RSI 55-70 = full score, appropriate for PMCC)
+
+## CSP Column Header Fix (May 16, 2026)
+- [x] Add missing Bid, Ask, Mid, Dist OTM column headers to CSP (non-spread) header array
+- [x] Add HelpBadge tooltips to Bid/Ask/Mid, Dist OTM, and Spread % headers
+- [x] Add BID_ASK_MID, DIST_OTM, SPREAD_PCT help content to helpContent.tsx
+- [x] Verify CSP scoring calibration: typical row (delta 0.22, OI 4387, RSI 53, BB 0.56) scores 75

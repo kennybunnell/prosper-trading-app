@@ -881,6 +881,60 @@ export const HELP_CONTENT = {
     </div>
   ),
 
+  BID_ASK_MID: (
+    <div className="space-y-3">
+      <p className="font-semibold">Bid, Ask, and Mid prices for the option contract.</p>
+      <div className="space-y-2">
+        <p className="font-medium">Definitions:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li><strong>Bid</strong> — the highest price a buyer is willing to pay (what you receive when selling)</li>
+          <li><strong>Ask</strong> — the lowest price a seller is willing to accept (what you pay when buying)</li>
+          <li><strong>Mid</strong> — the midpoint between Bid and Ask; a common target fill price for limit orders</li>
+        </ul>
+      </div>
+      <div className="space-y-2">
+        <p className="font-medium">Tip:</p>
+        <p className="text-xs">When selling options, aim to fill at or above the Mid price. A tight Bid-Ask spread (small difference) indicates high liquidity and easier fills.</p>
+      </div>
+    </div>
+  ),
+
+  DIST_OTM: (
+    <div className="space-y-3">
+      <p className="font-semibold">Distance Out-of-the-Money (OTM) — how far the strike price is from the current stock price, expressed as a percentage.</p>
+      <div className="space-y-2">
+        <p className="font-medium">Formula:</p>
+        <p className="text-xs font-mono bg-muted px-2 py-1 rounded">(Current Price − Strike) ÷ Current Price × 100</p>
+      </div>
+      <div className="space-y-2">
+        <p className="font-medium">Interpretation:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Higher % = strike is further OTM = lower probability of assignment</li>
+          <li>Lower % = strike is closer to ATM = higher premium but higher risk</li>
+          <li>Typical CSP range: 5–15% OTM for delta 0.15–0.25</li>
+        </ul>
+      </div>
+    </div>
+  ),
+
+  SPREAD_PCT: (
+    <div className="space-y-3">
+      <p className="font-semibold">Bid-Ask Spread % — the width of the bid-ask spread as a percentage of the mid price. A key liquidity indicator.</p>
+      <div className="space-y-2">
+        <p className="font-medium">Formula:</p>
+        <p className="text-xs font-mono bg-muted px-2 py-1 rounded">(Ask − Bid) ÷ Mid × 100</p>
+      </div>
+      <div className="space-y-2">
+        <p className="font-medium">Color Guide:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>🟢 &lt; 10% — tight spread, excellent liquidity</li>
+          <li>🟡 10–25% — moderate spread, acceptable</li>
+          <li>🔴 &gt; 25% — wide spread, poor liquidity — expect slippage</li>
+        </ul>
+      </div>
+    </div>
+  ),
+
   SAFETY_RATIO: (
     <div className="space-y-3">
       <p className="font-semibold">Safety Ratio measures how far your strike is beyond the 1-sigma Expected Move — a higher ratio means a safer, more OTM strike.</p>
