@@ -130,6 +130,8 @@ export function ScoreBreakdownTooltip({ score, breakdown, children }: Props) {
   if (isD1D6(breakdown)) {
     // Detect CC breakdown by presence of basisBonus field (CC v3 uses different max scores)
     const isCCBreakdown = 'basisBonus' in breakdown;
+    // Detect BPS breakdown by isBPS marker (BPS: D3=25, D5=10, D6=20 vs CSP: D3=20, D5=20, D6=15)
+    const isBPSBreakdown = (breakdown as any).isBPS === true;
     rows = [
       {
         label: "D1 Liquidity",
@@ -146,25 +148,27 @@ export function ScoreBreakdownTooltip({ score, breakdown, children }: Props) {
       {
         label: "D3 Premium",
         score: breakdown.d3PremiumEfficiency,
-        maxScore: 20,
-        description: "Weekly return % — income relative to collateral",
+        maxScore: isBPSBreakdown ? 25 : 20,
+        description: isBPSBreakdown
+          ? "Spread ROC — return on capital at risk"
+          : "Weekly return % — income relative to collateral",
       },
       {
         label: "D4 IV Richness",
         score: breakdown.d4IVRichness,
-        maxScore: isCCBreakdown ? 10 : 15,
+        maxScore: 10,  // D4 = 10 pts for all strategies (CSP, BPS, CC)
         description: "IV Rank — selling when implied vol is elevated",
       },
       {
         label: "D5 Strike Safety",
         score: breakdown.d5StrikeSafety,
-        maxScore: isCCBreakdown ? 20 : 15,
+        maxScore: isBPSBreakdown ? 10 : 20,  // BPS D5=10, CSP/CC D5=20
         description: "OTM distance vs expected move — cushion to expiry",
       },
       {
         label: "D6 Technical",
         score: breakdown.d6Technical,
-        maxScore: isCCBreakdown ? 10 : 15,
+        maxScore: isBPSBreakdown ? 20 : (isCCBreakdown ? 10 : 15),  // BPS D6=20, CC D6=10, CSP D6=15
         description: "RSI + BB %B — momentum and mean-reversion setup",
       },
     ];

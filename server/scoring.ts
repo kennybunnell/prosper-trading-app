@@ -143,19 +143,20 @@ function scoreD3PremiumCSP(weeklyPct: number, isIndex: boolean, maxPts = 20): nu
   return Math.max(0, Math.min(maxPts, s));
 }
 
-// ─── D4: IV Richness (0–15 pts) ──────────────────────────────────────────────
-
-function scoreD4IVRichness(ivRank: number | null | undefined, maxPts = 15): number {
-  // Recalibrated: IV Rank 30+ is already a good selling environment;
-  // most stocks spend time in the 20-50 range, so reward that meaningfully.
-  if (ivRank === null || ivRank === undefined) return maxPts * 0.50; // neutral
-  if (ivRank >= 70)      return maxPts;           // very elevated IV
-  if (ivRank >= 50)      return maxPts * 0.85;    // elevated — good for selling
-  if (ivRank >= 35)      return maxPts * 0.70;    // moderate-high
-  if (ivRank >= 25)      return maxPts * 0.55;    // moderate
-  if (ivRank >= 15)      return maxPts * 0.35;    // below average
-  if (ivRank >= 8)       return maxPts * 0.20;    // low
-  return maxPts * 0.12;                           // very low IV — floor (still participates)
+// ─── D4: IV Richness (0–10 pts) ──────────────────────────────────────────────
+// Weight reduced 15 → 10 pts: IV context is useful but secondary to delta/premium/strike.
+// ivRank = 0 is treated as null (no data) — many newer or thinly-traded stocks return 0
+// when the broker lacks sufficient historical IV data. Penalizing 0 as "IV at 52-week low"
+// incorrectly drags down otherwise strong setups.
+function scoreD4IVRichness(ivRank: number | null | undefined, maxPts = 10): number {
+  // Treat missing or zero as neutral (data gap, not genuinely low IV)
+  if (ivRank === null || ivRank === undefined || ivRank === 0) return maxPts * 0.55; // neutral
+  if (ivRank >= 70)      return maxPts;           // very elevated IV — ideal for selling
+  if (ivRank >= 50)      return maxPts * 0.90;    // elevated — good for selling
+  if (ivRank >= 35)      return maxPts * 0.78;    // moderate-high — acceptable
+  if (ivRank >= 20)      return maxPts * 0.65;    // moderate — still reasonable
+  if (ivRank >= 10)      return maxPts * 0.45;    // below average — caution
+  return maxPts * 0.30;                           // genuinely low IV — floor
 }
 
 // ─── D5: Strike Safety (0–15 pts) ────────────────────────────────────────────
@@ -303,6 +304,7 @@ export interface D6Breakdown {
   d6Technical: number;
   total: number;
   safetyRatio?: number | null; // D5: strike distance / expected move (>1 = beyond EM)
+  isBPS?: true;                // present only on BPS breakdowns — used by ScoreBreakdownTooltip
   // Legacy fields for backward compat
   technical?: number;
   greeks?: number;
@@ -332,7 +334,8 @@ export interface ScoredOpportunity extends CSPOpportunity {
 /**
  * Calculate CSP Composite Score v2 (0–100)
  *
- * Weights: D1 15% | D2 20% | D3 20% | D4 15% | D5 15% | D6 15%
+ * Weights: D1 15% | D2 20% | D3 20% | D4 10% | D5 15% | D6 15% = 95 base
+ * (D4 reduced from 15 to 10; remaining 5 pts redistributed to D5 for strike safety)
  */
 export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdown: ScoreBreakdown } {
   const isIndex = INDEX_SYMBOLS.has((opp.symbol || '').toUpperCase());
@@ -351,8 +354,8 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   const d1 = scoreD1Liquidity(bid, ask, oi, volume, 15);
   const d2 = scoreD2ProbabilityCSP(delta, dte, isIndex, 20);
   const d3 = scoreD3PremiumCSP(weekly, isIndex, 20);
-  const d4 = scoreD4IVRichness(opp.ivRank, 15);
-  const { score: d5, safetyRatio } = scoreD5StrikeSafety(otmPct, opp.currentPrice || 0, ivAnnual, dte, 15);
+  const d4 = scoreD4IVRichness(opp.ivRank, 10);  // D4 reduced to 10 pts
+  const { score: d5, safetyRatio } = scoreD5StrikeSafety(otmPct, opp.currentPrice || 0, ivAnnual, dte, 20);  // D5 boosted to 20 pts
   const d6 = scoreD6TechnicalCSP(opp.rsi, opp.bbPctB, isIndex, 15);
 
   const total = Math.round(Math.min(100, d1 + d2 + d3 + d4 + d5 + d6));
@@ -579,6 +582,7 @@ export function calculateBPSScore(
       d5StrikeSafety:      Math.round(d5),
       d6Technical:         Math.round(d6),
       safetyRatio,
+      isBPS:             true as const,   // marker so ScoreBreakdownTooltip uses BPS-specific max scores
       // Legacy fields
       direction:         Math.round(d6 + d2 * 0.3),
       spreadEfficiency:  Math.round(d3),

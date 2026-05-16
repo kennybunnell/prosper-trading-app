@@ -9945,3 +9945,17 @@ ROC Fix Mar 18 2026
 - [x] New weights: D1=15, D2=25 (delta sweet spot 0.15-0.25), D3=20, D4=10, D5=20, D6=10
 - [x] Basis recovery bonus: >=95%=+5pts, >=90%=+4pts, >=80%=+2pts (capped at 100)
 - [x] Updated ScoreBreakdownTooltip to show CC-specific max scores and basis bonus row
+
+## CSP D4 IV Richness Recalibration (May 16, 2026 - Session 6)
+- [ ] Reduce CSP D4 weight from 15 to 10 pts
+- [ ] Recalibrate IVR curve: IVR 30-50 scores partially (not near-zero), IVR>=50 full score
+- [ ] Update ScoreBreakdownTooltip D4 max score for CSP to 10
+
+## Scoring Tooltip BPS Fix (May 16, 2026 - Session 7)
+- [x] Reduce CSP D4 weight from 15 to 10 pts — ivRank=0 treated as neutral (data gap), not penalized
+- [x] Boost CSP D5 from 15 to 20 pts — strike safety is more important than IV richness
+- [x] Update ScoreBreakdownTooltip D4 maxScore=10 for all strategies
+- [x] Update ScoreBreakdownTooltip D5 maxScore=20 for CSP/CC
+- [x] Add isBPS:true marker to BPS breakdown object in scoring.ts (D6Breakdown interface + calculateBPSScore return)
+- [x] Update ScoreBreakdownTooltip to detect isBPS and use BPS-specific max scores: D3=25, D5=10, D6=20
+- [x] TypeScript: 0 errors confirmed (npx tsc --noEmit exit code 0)
