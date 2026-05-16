@@ -212,6 +212,7 @@ import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
 import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection, getOccRoot } from "@shared/orderUtils";
 import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
+import { ScoreBreakdownTooltip } from "@/components/ScoreBreakdownTooltip";
 
 // BPS column definitions (unified schema)
 const BPS_COLUMNS: ColumnDef[] = [
@@ -3176,118 +3177,18 @@ export default function CSPDashboard() {
                         {strategyType === 'spread' ? (
                           <>
                             <TableCell>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge 
-                                      className={cn(
-                                        "font-bold cursor-help",
-                                        opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
-                                        opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
-                                        opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
-                                      )}
-                                    >
-                                      {opp.score}
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" className="bg-gray-900 border-orange-500/50 p-3 max-w-xs">
-                                    <div className="space-y-1.5 text-sm">
-                                      <div className="font-semibold text-orange-400 border-b border-orange-500/30 pb-1 mb-2">
-                                        Score Breakdown ({opp.score}/100)
-                                      </div>
-                                      {(opp as any).scoreBreakdown && (
-                                        <>
-                                          {(opp as any).scoreBreakdown.spreadEfficiency !== undefined ? (
-                                            <>
-                                              {(opp as any).scoreBreakdown.direction !== undefined && (
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-400">Direction (14d):</span>
-                                                  <span className={`font-medium ${
-                                                    (opp as any).scoreBreakdown.direction >= 28 ? 'text-green-400' :
-                                                    (opp as any).scoreBreakdown.direction >= 15 ? 'text-yellow-400' :
-                                                    'text-red-400'
-                                                  }`}>{(opp as any).scoreBreakdown.direction}/35</span>
-                                                </div>
-                                              )}
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-400">Spread Efficiency:</span>
-                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.spreadEfficiency}/35</span>
-                                              </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-400">Greeks (Δ+DTE):</span>
-                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
-                                              </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-400">Technical (RSI+BB):</span>
-                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/20</span>
-                                              </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-400">Premium Quality:</span>
-                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/15</span>
-                                              </div>
-                                            </>
-                                          ) : (
-                                            <>
-                                              {(opp as any).scoreBreakdown.d1Liquidity !== undefined ? (
-                                                <>
-                                                  {[
-                                                    { label: 'D1 Liquidity (Spread/OI/Vol)', key: 'd1Liquidity', max: 15 },
-                                                    { label: 'D2 Probability (Δ+DTE+POP)', key: 'd2ProbabilityFit', max: 20 },
-                                                    { label: 'D3 Premium Efficiency', key: 'd3PremiumEfficiency', max: 20 },
-                                                    { label: 'D4 IV Richness (IV Rank)', key: 'd4IVRichness', max: 15 },
-                                                    { label: 'D5 Strike Safety (OTM vs EM)', key: 'd5StrikeSafety', max: 15 },
-                                                    { label: 'D6 Technical (RSI+BB+Trend)', key: 'd6Technical', max: 15 },
-                                                  ].map(({ label, key, max }) => {
-                                                    const val = (opp as any).scoreBreakdown[key] ?? 0;
-                                                    const pct = val / max;
-                                                    return (
-                                                      <div key={key} className="flex justify-between">
-                                                        <span className="text-gray-400">{label}:</span>
-                                                        <span className={`font-medium ${ pct >= 0.8 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-400' : 'text-red-400' }`}>{val}/{max}</span>
-                                                      </div>
-                                                    );
-                                                  })}
-                                                  {(opp as any).scoreBreakdown.safetyRatio != null && (
-                                                    <div className="flex justify-between border-t border-gray-700 pt-1 mt-1">
-                                                      <span className="text-gray-400">Safety Ratio (Strike/EM):</span>
-                                                      <span className={`font-medium ${
-                                                        (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
-                                                        (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
-                                                      }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
-                                                    </div>
-                                                  )}
-                                                </>
-                                              ) : (
-                                                <>
-                                                  <div className="flex justify-between">
-                                                    <span className="text-gray-400">Technical (RSI+BB):</span>
-                                                    <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
-                                                  </div>
-                                                  <div className="flex justify-between">
-                                                    <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
-                                                    <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
-                                                  </div>
-                                                  <div className="flex justify-between">
-                                                    <span className="text-gray-400">Premium (Return+Spread):</span>
-                                                    <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
-                                                  </div>
-                                                  <div className="flex justify-between">
-                                                    <span className="text-gray-400">Quality (Mag7+Cap):</span>
-                                                    <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
-                                                  </div>
-                                                </>
-                                              )}
-                                            </>
-                                          )}
-                                        </>
-                                      )}
-                                      {!(opp as any).scoreBreakdown && (
-                                        <div className="text-gray-400 text-xs">Breakdown not available</div>
-                                      )}
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <ScoreBreakdownTooltip score={opp.score} breakdown={(opp as any).scoreBreakdown}>
+                                <Badge
+                                  className={cn(
+                                    "font-bold cursor-help",
+                                    opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                                    opp.score >= 55 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                                    opp.score < 55 && "bg-red-500/20 text-red-500 border-red-500/50"
+                                  )}
+                                >
+                                  {opp.score}
+                                </Badge>
+                              </ScoreBreakdownTooltip>
                             </TableCell>
                             {/* Trend 14d cell for BPS - only if visible */}
                             {visibleCols.has('trend14d') && (() => {
@@ -3458,16 +3359,18 @@ export default function CSPDashboard() {
                           <>
                             {/* Score */}
                             <TableCell>
-                              <Badge 
-                                className={cn(
-                                  "font-bold",
-                                  opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
-                                  opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
-                                  opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
-                                )}
-                              >
-                                {opp.score}
-                              </Badge>
+                              <ScoreBreakdownTooltip score={opp.score} breakdown={(opp as any).scoreBreakdown}>
+                                <Badge
+                                  className={cn(
+                                    "font-bold cursor-help",
+                                    opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                                    opp.score >= 55 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                                    opp.score < 55 && "bg-red-500/20 text-red-500 border-red-500/50"
+                                  )}
+                                >
+                                  {opp.score}
+                                </Badge>
+                              </ScoreBreakdownTooltip>
                             </TableCell>
                             {/* Symbol */}
                             <TableCell className="font-medium">

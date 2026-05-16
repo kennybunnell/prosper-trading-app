@@ -29,6 +29,7 @@ import { cn, exportToCSV } from "@/lib/utils";
 import { Streamdown } from "streamdown";
 import { PositionCardsSkeleton } from "@/components/PositionTableSkeleton";
 import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
+import { ScoreBreakdownTooltip } from "@/components/ScoreBreakdownTooltip";
 
 // PMCC column definitions
 const PMCC_COLUMNS: ColumnDef[] = [
@@ -1154,62 +1155,15 @@ export default function PMCCDashboard() {
                                 ) : '—'}
                               </td>}
                               {visibleCols.has('score') && <td className="p-2 text-right">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold cursor-help ${
-                                        leap.score >= 80 ? 'bg-green-900/50 text-green-400' :
-                                        leap.score >= 60 ? 'bg-amber-900/50 text-amber-400' :
-                                        'bg-red-900/50 text-red-400'
-                                      }`}>
-                                        {Math.round(leap.score)}
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="right" className="bg-gray-900 border-purple-500/50 p-3 max-w-xs">
-                                      <div className="space-y-1.5 text-sm">
-                                        <div className="font-semibold text-purple-400 border-b border-purple-500/30 pb-1 mb-2">
-                                          Score Breakdown ({Math.round(leap.score)}/100)
-                                        </div>
-                                        {(leap as any).scoreBreakdown ? (
-                                          <>
-                                            {[
-                                              { label: 'Stock Quality (RSI+BB+Trend)', key: 'stockQuality', max: 35 },
-                                              { label: 'LEAP Structure (Δ+DTE+Strike)', key: 'leapStructure', max: 30 },
-                                              { label: 'Cost & Liquidity (OI+Vol+Sprd)', key: 'costLiquidity', max: 25 },
-                                              { label: 'Risk Management (IV+Theta)', key: 'riskManagement', max: 10 },
-                                            ].map(({ label, key, max }) => {
-                                              const val = (leap as any).scoreBreakdown[key] ?? 0;
-                                              const pct = val / max;
-                                              return (
-                                                <div key={key} className="flex justify-between">
-                                                  <span className="text-gray-400">{label}:</span>
-                                                  <span className={`font-medium ${ pct >= 0.8 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-400' : 'text-red-400' }`}>{val}/{max}</span>
-                                                </div>
-                                              );
-                                            })}
-                                            {(leap as any).scoreBreakdown.earningsPenalty < 0 && (
-                                              <div className="flex justify-between text-red-400">
-                                                <span>Earnings Penalty:</span>
-                                                <span>{(leap as any).scoreBreakdown.earningsPenalty}</span>
-                                              </div>
-                                            )}
-                                            {(leap as any).scoreBreakdown.safetyRatio != null && (
-                                              <div className="flex justify-between border-t border-gray-700 pt-1 mt-1">
-                                                <span className="text-gray-400">Safety Ratio (LEAP/EM):</span>
-                                                <span className={`font-medium ${
-                                                  (leap as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
-                                                  (leap as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
-                                                }`}>{((leap as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
-                                              </div>
-                                            )}
-                                          </>
-                                        ) : (
-                                          <div className="text-gray-400 text-xs">Breakdown not available</div>
-                                        )}
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                                <ScoreBreakdownTooltip score={leap.score} breakdown={(leap as any).scoreBreakdown}>
+                                  <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold cursor-help ${
+                                    leap.score >= 80 ? 'bg-green-900/50 text-green-400' :
+                                    leap.score >= 60 ? 'bg-amber-900/50 text-amber-400' :
+                                    'bg-red-900/50 text-red-400'
+                                  }`}>
+                                    {Math.round(leap.score)}
+                                  </span>
+                                </ScoreBreakdownTooltip>
                               </td>}
                               {visibleCols.has('ai') && <td className="p-2 text-center">
                                 <AIRowIcon

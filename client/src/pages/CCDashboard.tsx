@@ -72,6 +72,7 @@ import { SafeguardWarningModal, SafeguardWarning } from "@/components/SafeguardW
 import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection } from "@shared/orderUtils";
 import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
 import { PositionTableSkeleton } from '@/components/PositionTableSkeleton';
+import { ScoreBreakdownTooltip } from "@/components/ScoreBreakdownTooltip";
 
 // BCS column definitions (unified schema)
 const BCS_COLUMNS: ColumnDef[] = [
@@ -3537,91 +3538,11 @@ export default function CCDashboard() {
                         {/* 2. Score */}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="secondary" className={getScoreBadgeClass(opp.score)}>
-                                    {opp.score}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="bg-gray-900 border-amber-500/50 p-3 max-w-xs">
-                                  <div className="space-y-1.5 text-sm">
-                                    <div className="font-semibold text-amber-400 border-b border-amber-500/30 pb-1 mb-2">
-                                      Score Breakdown ({opp.score}/100)
-                                    </div>
-                                    {(opp as any).scoreBreakdown?.d1Liquidity !== undefined ? (
-                                      <>
-                                        {[
-                                          { label: 'D1 Liquidity (Spread/OI/Vol)', key: 'd1Liquidity', max: 15 },
-                                          { label: 'D2 Probability (Δ+DTE+POP)', key: 'd2ProbabilityFit', max: 20 },
-                                          { label: 'D3 Premium Efficiency', key: 'd3PremiumEfficiency', max: 20 },
-                                          { label: 'D4 IV Richness (IV Rank)', key: 'd4IVRichness', max: 15 },
-                                          { label: 'D5 Strike Safety (OTM vs EM)', key: 'd5StrikeSafety', max: 15 },
-                                          { label: 'D6 Technical (RSI+BB+Trend)', key: 'd6Technical', max: 15 },
-                                        ].map(({ label, key, max }) => {
-                                          const val = (opp as any).scoreBreakdown[key] ?? 0;
-                                          const pct = val / max;
-                                          return (
-                                            <div key={key} className="flex justify-between">
-                                              <span className="text-gray-400">{label}:</span>
-                                              <span className={`font-medium ${ pct >= 0.8 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-400' : 'text-red-400' }`}>{val}/{max}</span>
-                                            </div>
-                                          );
-                                        })}
-                                        {(opp as any).scoreBreakdown.safetyRatio != null && (
-                                          <div className="flex justify-between border-t border-gray-700 pt-1 mt-1">
-                                            <span className="text-gray-400">Safety Ratio (Strike/EM):</span>
-                                            <span className={`font-medium ${
-                                              (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
-                                              (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
-                                            }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
-                                          </div>
-                                        )}
-                                      </>
-                                    ) : (opp as any).scoreBreakdown?.direction !== undefined ? (
-                                      <>
-                                        {[
-                                          { label: 'Direction (Trend Align)', key: 'direction', max: 35 },
-                                          { label: 'Greeks & Spread Eff.', key: 'greeks', max: 25 },
-                                          { label: 'Technical (RSI+BB)', key: 'technical', max: 20 },
-                                          { label: 'Premium Quality', key: 'premium', max: 15 },
-                                          { label: 'Overall Quality', key: 'quality', max: 5 },
-                                        ].map(({ label, key, max }) => {
-                                          const val = (opp as any).scoreBreakdown[key] ?? 0;
-                                          const pct = val / max;
-                                          return (
-                                            <div key={key} className="flex justify-between">
-                                              <span className="text-gray-400">{label}:</span>
-                                              <span className={`font-medium ${ pct >= 0.8 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-400' : 'text-red-400' }`}>{val}/{max}</span>
-                                            </div>
-                                          );
-                                        })}
-                                        {(opp as any).scoreBreakdown.safetyRatio != null && (
-                                          <div className="flex flex-col gap-0.5 border-t border-gray-700 pt-1 mt-1">
-                                            <div className="flex justify-between">
-                                              <span className="text-gray-400">Short Call / Exp Move:</span>
-                                              <span className={`font-medium ${
-                                                (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
-                                                (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
-                                              }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
-                                            </div>
-                                            <div className="text-gray-500 text-[10px] leading-tight">
-                                              {(opp as any).scoreBreakdown.safetyRatio >= 1.5
-                                                ? 'Strike well above expected upside — strong bearish buffer'
-                                                : (opp as any).scoreBreakdown.safetyRatio >= 1.0
-                                                ? 'Strike near expected upside — moderate conviction needed'
-                                                : 'Strike inside expected upside — high bearish conviction required'}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <div className="text-gray-400 text-xs">Breakdown not available</div>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <ScoreBreakdownTooltip score={opp.score} breakdown={(opp as any).scoreBreakdown}>
+                              <Badge variant="secondary" className={cn(getScoreBadgeClass(opp.score), "cursor-help")}>
+                                {opp.score}
+                              </Badge>
+                            </ScoreBreakdownTooltip>
                             <AIRowIcon
                               isLoading={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}
                               onClick={() => {

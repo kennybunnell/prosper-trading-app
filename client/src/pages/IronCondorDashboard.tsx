@@ -89,6 +89,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ScoreBreakdownTooltip } from "@/components/ScoreBreakdownTooltip";
 
 // Color-coding helper functions
 function getROCColor(roc: number): string {
@@ -1606,9 +1607,8 @@ export default function IronCondorDashboard() {
                             
                             {/* 2. Score + breakdown tooltip */}
                             <TableCell>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge className={`cursor-help ${
+                              <ScoreBreakdownTooltip score={opp.score || 0} breakdown={(opp as any).scoreBreakdown}>
+                                <Badge className={`cursor-help ${
                                     (opp.score || 0) >= 70 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
                                     (opp.score || 0) >= 55 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
                                     'bg-red-500/20 text-red-500 border-red-500/50'
@@ -1618,58 +1618,7 @@ export default function IronCondorDashboard() {
                                       <span className="ml-1 text-[9px] text-amber-400">IDX</span>
                                     )}
                                   </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="p-3 max-w-xs">
-                                  {(opp as any).scoreBreakdown ? (
-                                    <div className="space-y-1 text-xs">
-                                      <p className="font-semibold text-sm mb-2">
-                                        {(opp as any).scoreBreakdown.isIndex ? '📊 Index (SPXW) Score' : '📈 Equity Score'} — {(opp.score || 0).toFixed(1)}/100
-                                      </p>
-                                      {(opp as any).scoreBreakdown.isIndex ? (
-                                        <>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">ROC</span><span className="font-mono">{(opp as any).scoreBreakdown.roc}/20</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Credit/Width</span><span className="font-mono">{(opp as any).scoreBreakdown.creditWidth}/15</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Profit Zone</span><span className="font-mono">{(opp as any).scoreBreakdown.profitZone}/15</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">IV Rank (idx)</span><span className="font-mono">{(opp as any).scoreBreakdown.ivRank}/15</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">DTE</span><span className="font-mono">{(opp as any).scoreBreakdown.dte}/20</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Balance</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaBalance}/20</span></div>
-                                          {(opp as any).scoreBreakdown.safetyRatio != null && (
-                                            <div className="flex justify-between gap-4 border-t border-gray-700 pt-1 mt-1">
-                                              <span className="text-muted-foreground">Safety Ratio (Zone/EM)</span>
-                                              <span className={`font-mono ${
-                                                (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
-                                                (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
-                                              }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
-                                            </div>
-                                          )}
-                                        </>
-                                      ) : (
-                                        <>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">ROC</span><span className="font-mono">{(opp as any).scoreBreakdown.roc}/20</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Risk/Reward</span><span className="font-mono">{(opp as any).scoreBreakdown.riskReward}/15</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">POP</span><span className="font-mono">{(opp as any).scoreBreakdown.pop}/20</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">IV Rank</span><span className="font-mono">{(opp as any).scoreBreakdown.ivRank}/10</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">DTE</span><span className="font-mono">{(opp as any).scoreBreakdown.dte}/15</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">RSI</span><span className="font-mono">{(opp as any).scoreBreakdown.rsi}/10</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">BB %B</span><span className="font-mono">{(opp as any).scoreBreakdown.bb}/10</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Balance</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaBalance}/10</span></div>
-                                          {(opp as any).scoreBreakdown.safetyRatio != null && (
-                                            <div className="flex justify-between gap-4 border-t border-gray-700 pt-1 mt-1">
-                                              <span className="text-muted-foreground">Safety Ratio (POP/EM)</span>
-                                              <span className={`font-mono ${
-                                                (opp as any).scoreBreakdown.safetyRatio >= 1.5 ? 'text-green-400' :
-                                                (opp as any).scoreBreakdown.safetyRatio >= 1.0 ? 'text-yellow-400' : 'text-red-400'
-                                              }`}>{((opp as any).scoreBreakdown.safetyRatio as number).toFixed(2)}×</span>
-                                            </div>
-                                          )}
-                                        </>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">Score breakdown not available</p>
-                                  )}
-                                </TooltipContent>
-                              </Tooltip>
+                              </ScoreBreakdownTooltip>
                             </TableCell>
                             
                             {/* 2b. SPXW Score cell — conditional on both spxwInWatchlist and visibility */}
