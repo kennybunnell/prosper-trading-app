@@ -511,17 +511,23 @@ export const autoCloseRouter = router({
     }),
 
   /**
-   * Bulk apply a single field to ALL existing monitored positions.
+   * Bulk apply one or more bracket fields to monitored positions.
+   * - If rowKeys is provided: update only those specific positions ("accountId::optionSymbol")
+   * - If rowKeys is omitted: update ALL monitored positions for the user
    * Each field is optional — only the provided fields are updated.
-   * Used by the per-field ⚡ Apply to All buttons (Stop Loss, DTE Floor).
-   * Profit Target is intentionally excluded from bulk apply.
+   * Used by:
+   *   - Per-field ⚡ Apply to All buttons (Stop Loss, DTE Floor) — no rowKeys
+   *   - Apply to Selected button (Profit Target) — with rowKeys
    */
   bulkApplyDefaults: protectedProcedure
     .input(z.object({
+      profitTargetPct: z.number().int().min(25).max(90).optional(),
       stopLossPct: z.number().int().min(100).max(1000).nullable().optional(),
       dteFloor: z.number().int().min(0).max(60).nullable().optional(),
+      // Optional: limit update to specific rows (format: "accountId::optionSymbol")
+      rowKeys: z.array(z.string()).optional(),
     }).refine(
-      (d) => d.stopLossPct !== undefined || d.dteFloor !== undefined,
+      (d) => d.stopLossPct !== undefined || d.dteFloor !== undefined || d.profitTargetPct !== undefined,
       { message: 'At least one field must be provided' }
     ))
     .mutation(async ({ ctx, input }) => {
@@ -530,24 +536,48 @@ export const autoCloseRouter = router({
 
       // Build the partial update — only include fields that were explicitly passed
       const updateFields: Record<string, unknown> = {};
+      if (input.profitTargetPct !== undefined) updateFields.profitTargetPct = input.profitTargetPct;
       if (input.stopLossPct !== undefined) updateFields.stopLossPct = input.stopLossPct;
       if (input.dteFloor !== undefined) updateFields.dteFloor = input.dteFloor;
 
-      const result = await db
-        .update(positionTargets)
-        .set(updateFields as any)
-        .where(eq(positionTargets.userId, ctx.user.id));
-
-      const count = (result as any)?.[0]?.affectedRows ?? 0;
+      let count = 0;
+      if (input.rowKeys && input.rowKeys.length > 0) {
+        // Targeted update: update each row individually by accountId + optionSymbol
+        for (const rowKey of input.rowKeys) {
+          const sepIdx = rowKey.indexOf('::');
+          const accountId = sepIdx >= 0 ? rowKey.substring(0, sepIdx) : rowKey;
+          const optionSymbol = sepIdx >= 0 ? rowKey.substring(sepIdx + 2) : '';
+          const result = await db
+            .update(positionTargets)
+            .set(updateFields as any)
+            .where(
+              and(
+                eq(positionTargets.userId, ctx.user.id),
+                eq(positionTargets.accountId, accountId),
+                eq(positionTargets.optionSymbol, optionSymbol)
+              )
+            );
+          count += (result as any)?.[0]?.affectedRows ?? 0;
+        }
+      } else {
+        // Apply to ALL monitored positions
+        const result = await db
+          .update(positionTargets)
+          .set(updateFields as any)
+          .where(eq(positionTargets.userId, ctx.user.id));
+        count = (result as any)?.[0]?.affectedRows ?? 0;
+      }
 
       // Telegram summary
       try {
         const parts: string[] = [];
+        if (input.profitTargetPct !== undefined) parts.push(`Profit: ${input.profitTargetPct}%`);
         if (input.stopLossPct !== undefined)
           parts.push(input.stopLossPct === null ? 'Stop: Off' : `Stop: ${input.stopLossPct}%`);
         if (input.dteFloor !== undefined)
           parts.push(input.dteFloor === null ? 'DTE Floor: Off' : `DTE ≤ ${input.dteFloor}`);
-        await sendTelegramMessage(`⚡ Auto-Close: Field Applied to All\n\nUpdated ${count} position${count !== 1 ? 's' : ''} with: ${parts.join(' | ')}`);
+        const scope = input.rowKeys ? `${input.rowKeys.length} selected` : 'all positions';
+        await sendTelegramMessage(`⚡ Auto-Close: Bulk Update\n\nApplied to ${scope}: ${parts.join(' | ')} (${count} updated)`);
       } catch (err) {
         console.error('[AutoClose] Bulk apply Telegram notify failed:', err);
       }

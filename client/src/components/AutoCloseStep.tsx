@@ -80,6 +80,9 @@ export default function AutoCloseStep() {
   // Per-row pending mutation state
   const [pendingRows, setPendingRows] = useState<Set<string>>(new Set());
 
+  // Row selection state for bulk Apply to Selected
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [applySelectedProfitPct, setApplySelectedProfitPct] = useState<ProfitTargetPct>(50);
   // Global defaults panel state
   const [showDefaults, setShowDefaults] = useState(false);
   const [defaultProfitPct, setDefaultProfitPct] = useState<ProfitTargetPct>(50);
@@ -162,6 +165,17 @@ export default function AutoCloseStep() {
     onError: (err) => toast({ title: 'Error applying defaults', description: err.message, variant: 'destructive' }),
   });
 
+  const bulkApplySelectedMut = trpc.autoClose.bulkApplyDefaults.useMutation({
+    onSuccess: (result) => {
+      refetch();
+      setSelectedRows(new Set());
+      toast({
+        title: `Profit target updated on ${result.count} position${result.count !== 1 ? 's' : ''}`,
+        description: `Set to ${applySelectedProfitPct}%`,
+      });
+    },
+    onError: (err) => toast({ title: 'Error applying to selected', description: err.message, variant: 'destructive' }),
+  });
   const notifyOptInMut = trpc.autoClose.notifyOptIn.useMutation();
   const [bulkPending, setBulkPending] = useState(false);
   const bulkSetTargetsMut = trpc.autoClose.bulkSetTargets.useMutation({
@@ -647,10 +661,69 @@ export default function AutoCloseStep() {
           </p>
         </div>
       ) : (
+        <div className="space-y-2">
+        {/* -- Apply to Selected action bar -- */}
+        {selectedRows.size > 0 && (
+          <div className="flex items-center gap-3 px-4 py-2.5 mb-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
+            <span className="text-xs text-orange-300 font-medium">{selectedRows.size} selected</span>
+            <span className="text-gray-600">·</span>
+            <span className="text-xs text-gray-400">Set Profit Target:</span>
+            <Select
+              value={String(applySelectedProfitPct)}
+              onValueChange={(v) => setApplySelectedProfitPct(parseInt(v) as ProfitTargetPct)}
+            >
+              <SelectTrigger className="w-[80px] h-7 text-xs bg-gray-800 border-orange-500/40 text-orange-300">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-700">
+                <SelectItem value="25">25%</SelectItem>
+                <SelectItem value="50">50%</SelectItem>
+                <SelectItem value="75">75%</SelectItem>
+                <SelectItem value="90">90%</SelectItem>
+              </SelectContent>
+            </Select>
+            <button
+              onClick={() => {
+                bulkApplySelectedMut.mutate({
+                  profitTargetPct: applySelectedProfitPct,
+                  rowKeys: Array.from(selectedRows),
+                });
+              }}
+              disabled={bulkApplySelectedMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 border border-orange-500/40 transition-colors disabled:opacity-50"
+            >
+              Apply to Selected
+            </button>
+            <button
+              onClick={() => setSelectedRows(new Set())}
+              className="ml-auto text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Clear Selection
+            </button>
+          </div>
+        )}
         <div className="overflow-x-auto rounded-lg border border-gray-800">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800 bg-gray-900/50">
+                {/* Select All checkbox */}
+                <th className="px-3 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-600 bg-gray-800 accent-orange-500 cursor-pointer"
+                    checked={filteredPositions.length > 0 && filteredPositions.every(p => {
+                      const k = `${p.accountId}::${p.optionSymbol.replace(/\s+/g, '')}`;
+                      return selectedRows.has(k);
+                    })}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedRows(new Set(filteredPositions.map(p => `${p.accountId}::${p.optionSymbol.replace(/\s+/g, '')}`)));
+                      } else {
+                        setSelectedRows(new Set());
+                      }
+                    }}
+                  />
+                </th>
                 <th className="text-left px-3 py-3 text-gray-400 font-medium">Symbol</th>
                 <th className="text-left px-3 py-3 text-gray-400 font-medium">Strike / Exp</th>
                 <th className="text-left px-3 py-3 text-gray-400 font-medium">Acct</th>
@@ -686,6 +759,21 @@ export default function AutoCloseStep() {
                       isEnabled ? 'bg-green-950/10 border-l-2 border-l-green-500/40' : ''
                     }`}
                   >
+                    {/* Row checkbox */}
+                    <td className="px-3 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-600 bg-gray-800 accent-orange-500 cursor-pointer"
+                        checked={selectedRows.has(rowKey)}
+                        onChange={(e) => {
+                          setSelectedRows(prev => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(rowKey); else next.delete(rowKey);
+                            return next;
+                          });
+                        }}
+                      />
+                    </td>
                     {/* Symbol */}
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-2">
@@ -758,7 +846,7 @@ export default function AutoCloseStep() {
                         }
                         disabled={isPending}
                       >
-                        <SelectTrigger className="w-[68px] h-7 text-xs bg-gray-800 border-orange-500/30 text-orange-300 mx-auto">
+                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-orange-500/30 text-orange-300 mx-auto">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-gray-900 border-gray-700">
@@ -779,7 +867,7 @@ export default function AutoCloseStep() {
                         }
                         disabled={isPending}
                       >
-                        <SelectTrigger className="w-[68px] h-7 text-xs bg-gray-800 border-red-500/30 text-red-300 mx-auto">
+                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-red-500/30 text-red-300 mx-auto">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-gray-900 border-gray-700">
@@ -801,7 +889,7 @@ export default function AutoCloseStep() {
                         }
                         disabled={isPending}
                       >
-                        <SelectTrigger className="w-[68px] h-7 text-xs bg-gray-800 border-yellow-500/30 text-yellow-300 mx-auto">
+                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-yellow-500/30 text-yellow-300 mx-auto">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-gray-900 border-gray-700">
@@ -868,6 +956,7 @@ export default function AutoCloseStep() {
               })}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 
@@ -937,8 +1026,7 @@ export default function AutoCloseStep() {
           </div>
         </div>
       </div>
-    </>
-      }
+    </>}
     </div>
   );
 }
