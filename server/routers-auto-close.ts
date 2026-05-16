@@ -509,6 +509,46 @@ export const autoCloseRouter = router({
       }
       return { count };
     }),
+
+  /**
+   * Bulk apply defaults to ALL existing monitored positions.
+   * Unlike bulkSetTargets (which skips already-monitored positions), this
+   * overwrites every row — used by the "Apply to All" button in Global
+   * Bracket Defaults.
+   */
+  bulkApplyDefaults: protectedProcedure
+    .input(z.object({
+      profitTargetPct: z.number().int().min(10).max(100),
+      stopLossPct: z.number().int().min(100).max(1000).nullable().optional(),
+      dteFloor: z.number().int().min(0).max(60).nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+
+      // Update every monitored position for this user
+      const result = await db
+        .update(positionTargets)
+        .set({
+          profitTargetPct: input.profitTargetPct,
+          stopLossPct: input.stopLossPct ?? null,
+          dteFloor: input.dteFloor ?? null,
+        })
+        .where(eq(positionTargets.userId, ctx.user.id));
+
+      const count = (result as any)?.[0]?.affectedRows ?? 0;
+
+      // Telegram summary
+      try {
+        const stopPart = input.stopLossPct != null ? ` | Stop: ${input.stopLossPct}%` : '';
+        const dtePart = input.dteFloor != null ? ` | DTE \u2264 ${input.dteFloor}` : '';
+        await sendTelegramMessage(`\ud83d\udd04 Auto-Close: Defaults Applied to All\n\nUpdated ${count} monitored position${count !== 1 ? 's' : ''} with:\n\u2705 Profit: ${input.profitTargetPct}%${stopPart}${dtePart}`);
+      } catch (err) {
+        console.error('[AutoClose] Bulk apply Telegram notify failed:', err);
+      }
+
+      return { count };
+    }),
 });
 
 // ─── core scan engine (also called by cron) ───────────────────────────────────

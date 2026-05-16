@@ -10027,3 +10027,10 @@ ROC Fix Mar 18 2026
 - [x] Add DB warmup ping at server startup so pool is hot before first user request
 - [x] Use splitLink to route watchlist.get and watchlist.getSelections through non-batching httpLink (prevents 6s wait for slow procedures in the same batch)
 - [x] Remove misleading "10-30 seconds" loading text from watchlist component
+
+## Apply to All Defaults Feature (May 16, 2026)
+- [x] Add bulkApplyDefaults tRPC procedure to update ALL monitored positions with bracket values
+- [x] Add "Apply to All" button next to "Save Defaults" in Global Bracket Defaults panel
+- [x] Confirmation dialog warns user that custom per-position settings will be overwritten
+- [x] Success toast shows count of positions updated and the applied values
+- [x] Telegram notification sent on bulk apply

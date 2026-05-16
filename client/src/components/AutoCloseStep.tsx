@@ -151,6 +151,17 @@ export default function AutoCloseStep() {
     onError: (err) => toast({ title: 'Error saving defaults', description: err.message, variant: 'destructive' }),
   });
 
+  const bulkApplyDefaultsMut = trpc.autoClose.bulkApplyDefaults.useMutation({
+    onSuccess: (result) => {
+      refetch();
+      toast({
+        title: `Applied to all ${result.count} monitored position${result.count !== 1 ? 's' : ''}`,
+        description: `Profit: ${defaultProfitPct}%${defaultStopLoss ? ` | Stop: ${defaultStopLoss}%` : ''}${defaultDteFloor ? ` | DTE ≤ ${defaultDteFloor}` : ''}`,
+      });
+    },
+    onError: (err) => toast({ title: 'Error applying defaults', description: err.message, variant: 'destructive' }),
+  });
+
   const notifyOptInMut = trpc.autoClose.notifyOptIn.useMutation();
   const [bulkPending, setBulkPending] = useState(false);
   const bulkSetTargetsMut = trpc.autoClose.bulkSetTargets.useMutation({
@@ -457,6 +468,29 @@ export default function AutoCloseStep() {
                   : <Save className="h-3.5 w-3.5 mr-1.5" />
                 }
                 Save Defaults
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (!window.confirm(
+                    `Apply Profit: ${defaultProfitPct}%${defaultStopLoss ? `, Stop: ${defaultStopLoss}%` : ''}${defaultDteFloor ? `, DTE ≤ ${defaultDteFloor}` : ''} to ALL monitored positions? This will overwrite any custom settings on individual positions.`
+                  )) return;
+                  bulkApplyDefaultsMut.mutate({
+                    profitTargetPct: defaultProfitPct,
+                    stopLossPct: defaultStopLoss,
+                    dteFloor: defaultDteFloor,
+                  });
+                }}
+                disabled={bulkApplyDefaultsMut.isPending}
+                className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 h-8 text-xs"
+              >
+                {bulkApplyDefaultsMut.isPending
+                  ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  : <span className="mr-1.5 text-sm">⚡</span>
+                }
+                Apply to All
               </Button>
             </div>
           </div>
