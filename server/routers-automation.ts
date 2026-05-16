@@ -84,6 +84,13 @@ export const automationRouter = router({
             quantity: z.number(),
             account: z.string(),
             optionSymbol: z.string(),
+            // Pre-computed D1-D6 score fields (optional — sent when scan has already scored)
+            aiScore: z.number().optional(),
+            scoreBreakdown: z.record(z.string(), z.union([z.number(), z.null()])).optional(),
+            rsi: z.number().nullable().optional(),
+            bbPctB: z.number().nullable().optional(),
+            ivRank: z.number().nullable().optional(),
+            distanceOtm: z.number().nullable().optional(),
           })
         ),
       })
@@ -95,23 +102,54 @@ export const automationRouter = router({
       if (opps.length === 0) return { scores: [] };
 
       // Build a compact JSON representation for the LLM
-      const oppList = opps.map((o, i) => ({
-        id: i,
-        symbol: o.symbol,
-        currentPrice: o.currentPrice,
-        strike: o.strike,
-        otmPct: ((o.strike - o.currentPrice) / o.currentPrice * 100).toFixed(1),
-        dte: o.dte,
-        delta: o.delta.toFixed(3),
-        mid: o.mid,
-        bid: o.bid,
-        ask: o.ask,
-        bidAskSpreadPct: o.mid > 0 ? ((o.ask - o.bid) / o.mid * 100).toFixed(1) : '0',
-        weeklyReturnPct: o.weeklyReturn.toFixed(2),
-        quantity: o.quantity,
-      }));
+      // When a pre-computed D1-D6 score is available, pass it so the LLM explains it
+      // rather than computing its own score from scratch.
+      const oppList = opps.map((o, i) => {
+        const base: Record<string, unknown> = {
+          id: i,
+          symbol: o.symbol,
+          currentPrice: o.currentPrice,
+          strike: o.strike,
+          otmPct: ((o.strike - o.currentPrice) / o.currentPrice * 100).toFixed(1),
+          dte: o.dte,
+          delta: o.delta.toFixed(3),
+          mid: o.mid,
+          bid: o.bid,
+          ask: o.ask,
+          bidAskSpreadPct: o.mid > 0 ? ((o.ask - o.bid) / o.mid * 100).toFixed(1) : '0',
+          weeklyReturnPct: o.weeklyReturn.toFixed(2),
+          quantity: o.quantity,
+        };
+        if (o.aiScore !== undefined) {
+          base.precomputedScore = o.aiScore;
+          if (o.scoreBreakdown) base.scoreBreakdown = o.scoreBreakdown;
+          if (o.rsi != null) base.rsi = o.rsi.toFixed(1);
+          if (o.bbPctB != null) base.bbPctB = o.bbPctB.toFixed(2);
+          if (o.ivRank != null) base.ivRank = o.ivRank.toFixed(0);
+          if (o.distanceOtm != null) base.distanceOtmPct = o.distanceOtm.toFixed(1);
+        }
+        return base;
+      });
 
-      const systemPrompt = `You are an expert options trading analyst specializing in covered call strategies.
+      const hasPrecomputedScores = opps.some(o => o.aiScore !== undefined);
+
+      const systemPrompt = hasPrecomputedScores
+        ? `You are an expert options trading analyst specializing in covered call strategies.
+Each opportunity has a pre-computed multi-factor score (0-100) based on six criteria:
+  D1 Liquidity (15 pts): bid/ask spread, open interest, volume
+  D2 Probability Fit (25 pts): delta sweet spot (0.15-0.25 ideal) + DTE (7-14 ideal)
+  D3 Premium Efficiency (20 pts): weekly return % (>1%/week = excellent)
+  D4 IV Richness (10 pts): IV Rank (>50 = elevated, good for selling)
+  D5 Strike Safety (20 pts): OTM distance vs 1-sigma expected move
+  D6 Technical Context (10 pts): RSI + BB %B (overbought preferred for CC)
+
+Your job is to:
+1. Use the precomputedScore as the authoritative score — DO NOT change it.
+2. Write a concise rationale (max 130 chars) explaining the top 1-2 factors driving the score.
+3. Suggest recommendedDte if extending DTE would meaningfully improve premium quality.
+
+Be specific: mention actual numbers (e.g., "0.98%/week, delta 0.25, RSI 72"). Do not be generic.`
+        : `You are an expert options trading analyst specializing in covered call strategies.
 You evaluate covered call opportunities using four criteria:
 1. PREMIUM QUALITY: Is the weekly yield attractive? (>1%/week = excellent, 0.5-1% = good, <0.3% = weak)
 2. STRIKE PLACEMENT: Is the strike placed to capture premium without excessive assignment risk? (delta 0.20-0.30 = ideal, >0.35 = risky, <0.15 = too far OTM)
@@ -126,7 +164,9 @@ For each opportunity, output a JSON object with:
 
 Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "delta 0.27"). Do not be generic.`;
 
-      const userPrompt = `Score these ${opps.length} covered call opportunities:\n${JSON.stringify(oppList, null, 2)}`;
+      const userPrompt = hasPrecomputedScores
+        ? `Explain the pre-computed scores for these ${opps.length} covered call opportunities:\n${JSON.stringify(oppList, null, 2)}`
+        : `Score these ${opps.length} covered call opportunities:\n${JSON.stringify(oppList, null, 2)}`;
 
       const response = await invokeLLM({
         messages: [
@@ -169,8 +209,18 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
 
       const parsed = JSON.parse(content) as { scores: Array<{ id: number; score: number; rationale: string; recommendedDte: number | null }> };
 
+      // When pre-computed scores were provided, override the LLM's score with the deterministic one
+      // to guarantee the authoritative D1-D6 number is always used.
+      const finalScores = parsed.scores.map(s => {
+        const original = opps[s.id];
+        if (original?.aiScore !== undefined) {
+          return { ...s, score: original.aiScore };
+        }
+        return s;
+      });
+
       // Map back by id so order doesn't matter
-      return { scores: parsed.scores };
+      return { scores: finalScores };
     }),
 
   /**
@@ -378,6 +428,17 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           weeklyReturn: number;
           currentPrice: number;
           action: 'WOULD_SELL_CC';
+          // D1-D6 enrichment fields (populated by multi-factor scorer)
+          openInterest?: number | null;
+          volume?: number | null;
+          iv?: number | null;
+          distanceOtm?: number | null;
+          rsi?: number | null;
+          bbPctB?: number | null;
+          ivRank?: number | null;
+          aiScore?: number;
+          aiRationale?: string;
+          scoreBreakdown?: Record<string, number | null>;
         }> = [];
         // Excluded CC stocks — symbols with shares but filtered out (maxContracts=0, flagged, etc.)
         const ccExcludedStocks: Array<{
@@ -1131,7 +1192,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                             const dte = Math.ceil((new Date(expiration).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
                             const returnPct = (mid / stock.currentPrice) * 100;
                             const weeklyReturn = dte > 0 ? (returnPct / dte) * 7 : 0;
-                            const opp = { symbol: stock.symbol, strike, expiration, dte, delta, bid, ask, mid, returnPct, weeklyReturn, maxContracts: stock.maxContracts, currentPrice: stock.currentPrice };
+                            const openInterest = option.open_interest ?? null;
+                            const volume = option.volume ?? null;
+                            const iv = option.greeks?.mid_iv ?? null;
+                            const opp = { symbol: stock.symbol, strike, expiration, dte, delta, bid, ask, mid, returnPct, weeklyReturn, maxContracts: stock.maxContracts, currentPrice: stock.currentPrice, openInterest, volume, iv };
                             if (!bestOpp || weeklyReturn > bestOpp.weeklyReturn) bestOpp = opp;
                           }
                         }
@@ -1147,6 +1211,25 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                       const results = await Promise.all(batch.map(scanOneStock));
                       allCCOpps.push(...results);
                     }
+                    // ── Fetch technical indicators (RSI, BB%B, IV Rank) for all found opps in parallel ──
+                    const validOpps = allCCOpps.filter(Boolean);
+                    const techMap = new Map<string, { rsi: number | null; bbPctB: number | null; ivRank: number | null }>();
+                    await Promise.allSettled(
+                      validOpps.map(async (opp: any) => {
+                        try {
+                          const indicators = await tradierApi.getTechnicalIndicators(opp.symbol);
+                          techMap.set(opp.symbol, {
+                            rsi: indicators.rsi ?? null,
+                            bbPctB: indicators.bollingerBands?.percentB ?? null,
+                            ivRank: indicators.ivRank ?? null,
+                          });
+                        } catch {
+                          techMap.set(opp.symbol, { rsi: null, bbPctB: null, ivRank: null });
+                        }
+                      })
+                    );
+                    // ── Apply shared D1-D6 multi-factor CC scorer ──
+                    const { calculateCCScore } = await import('./cc-scoring');
                     for (const bestOpp of allCCOpps) {
                       if (!bestOpp) continue;
                       // Build OCC option symbol: SYMBOL + YYMMDD + C/P + strike*1000 padded to 8 digits
@@ -1154,6 +1237,24 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                       const optSymDate = expParts[0].slice(2) + expParts[1] + expParts[2];
                       const optionSymbol = `${bestOpp.symbol}${optSymDate}C${String(Math.round(bestOpp.strike * 1000)).padStart(8, '0')}`;
                       const totalPremium = bestOpp.mid * bestOpp.maxContracts * 100;
+                      const tech = techMap.get(bestOpp.symbol) ?? { rsi: null, bbPctB: null, ivRank: null };
+                      const distanceOtm = bestOpp.currentPrice > 0 ? ((bestOpp.strike - bestOpp.currentPrice) / bestOpp.currentPrice) * 100 : null;
+                      const { score: aiScore, breakdown: scoreBreakdown } = calculateCCScore({
+                        bid: bestOpp.bid,
+                        ask: bestOpp.ask,
+                        delta: bestOpp.delta,
+                        dte: bestOpp.dte,
+                        weeklyReturn: bestOpp.weeklyReturn,
+                        currentPrice: bestOpp.currentPrice,
+                        strike: bestOpp.strike,
+                        openInterest: bestOpp.openInterest,
+                        volume: bestOpp.volume,
+                        iv: bestOpp.iv,
+                        distanceOtm,
+                        rsi: tech.rsi,
+                        bbPctB: tech.bbPctB,
+                        ivRank: tech.ivRank,
+                      });
                       ccScanResults.push({
                         account: account.accountNumber,
                         symbol: bestOpp.symbol,
@@ -1172,9 +1273,18 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                         weeklyReturn: bestOpp.weeklyReturn,
                         currentPrice: bestOpp.currentPrice,
                         action: 'WOULD_SELL_CC' as const,
+                        openInterest: bestOpp.openInterest,
+                        volume: bestOpp.volume,
+                        iv: bestOpp.iv,
+                        distanceOtm,
+                        rsi: tech.rsi,
+                        bbPctB: tech.bbPctB,
+                        ivRank: tech.ivRank,
+                        aiScore,
+                        scoreBreakdown,
                       });
                       totalPremiumCollected += totalPremium;
-                      console.log(`[Automation CC] ${bestOpp.symbol}: Best CC = $${bestOpp.strike} exp ${bestOpp.expiration} (DTE ${bestOpp.dte}, delta ${bestOpp.delta.toFixed(2)}, mid $${bestOpp.mid.toFixed(2)})`);
+                      console.log(`[Automation CC] ${bestOpp.symbol}: Best CC = $${bestOpp.strike} exp ${bestOpp.expiration} (DTE ${bestOpp.dte}, delta ${bestOpp.delta.toFixed(2)}, mid $${bestOpp.mid.toFixed(2)}, D1-D6 score=${aiScore})`);
                     }
                   }
                 }

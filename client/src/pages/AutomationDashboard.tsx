@@ -150,6 +150,15 @@ type CCScanResult = {
   weeklyReturn: number;
   currentPrice: number;
   action: 'WOULD_SELL_CC';
+  // D1-D6 enrichment fields (populated by server-side multi-factor scorer)
+  openInterest?: number | null;
+  volume?: number | null;
+  iv?: number | null;
+  distanceOtm?: number | null;
+  rsi?: number | null;
+  bbPctB?: number | null;
+  ivRank?: number | null;
+  scoreBreakdown?: Record<string, number | null>;
   // AI Tier 1 scoring fields (optional — only populated when AI scoring is enabled)
   aiScore?: number;           // 0-100 confidence score
   aiRationale?: string;       // One-sentence explanation
@@ -1471,6 +1480,13 @@ export default function AutomationDashboard() {
         quantity: r.quantity,
         account: r.account,
         optionSymbol: r.optionSymbol,
+        // Pass pre-computed D1-D6 score so the LLM explains it rather than recomputing
+        ...(r.aiScore !== undefined ? { aiScore: r.aiScore } : {}),
+        ...(r.scoreBreakdown ? { scoreBreakdown: r.scoreBreakdown } : {}),
+        ...(r.rsi != null ? { rsi: r.rsi } : {}),
+        ...(r.bbPctB != null ? { bbPctB: r.bbPctB } : {}),
+        ...(r.ivRank != null ? { ivRank: r.ivRank } : {}),
+        ...(r.distanceOtm != null ? { distanceOtm: r.distanceOtm } : {}),
       }));
       const result = await scoreCCOpportunities.mutateAsync({ opportunities });
       // Merge scores back by index
