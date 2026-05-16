@@ -2107,19 +2107,36 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         const systemTradierKey = process.env.TRADIER_API_KEY;
         const techApi = systemTradierKey ? createTradierAPI(systemTradierKey, false, ctx.user.id) : api;
         // Start technical indicators fetch in parallel with the main scan
+        // Use a local semaphore (TECH_CONCURRENCY=10) to prevent overwhelming Tradier
+        // with 64 simultaneous /markets/history requests — the global withRateLimit is
+        // reserved for option chains only.
+        const TECH_CONCURRENCY = 10;
+        let techActive = 0;
+        const techQueue: Array<() => void> = [];
+        const techRelease = () => {
+          techActive--;
+          if (techQueue.length > 0) { techActive++; techQueue.shift()!(); }
+        };
+        const withTechLimit = <T>(fn: () => Promise<T>): Promise<T> =>
+          new Promise<T>((resolve, reject) => {
+            const run = () => fn().then(resolve, reject).finally(techRelease);
+            if (techActive < TECH_CONCURRENCY) { techActive++; run(); }
+            else { techQueue.push(run); }
+          });
         const techIndicatorsPromise = Promise.allSettled(
           symbols.map(async (sym) => {
             // Skip technical indicators for index products — not meaningful signals
             if (INDEX_SYMBOLS.has(sym.toUpperCase())) return { sym, rsi: null, bbPctB: null };
             try {
               const techSym = TECH_ROOT_MAP[sym.toUpperCase()] || sym;
-              const indicators = await techApi.getTechnicalIndicators(techSym);
+              const indicators = await withTechLimit(() => techApi.getTechnicalIndicators(techSym));
               return {
                 sym,
                 rsi: indicators.rsi,
                 bbPctB: indicators.bollingerBands ? Math.round(indicators.bollingerBands.percentB * 100) / 100 : null,
               };
-            } catch {
+            } catch (techErr: any) {
+              console.warn(`[CSP Router] getTechnicalIndicators failed for ${sym}: ${techErr?.message || techErr}`);
               return { sym, rsi: null, bbPctB: null };
             }
           })

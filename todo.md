@@ -10011,3 +10011,6 @@ ROC Fix Mar 18 2026
 
 ## CSP/BPS Table Color Pills (May 16, 2026)
 - [x] Apply color pills to Bid, Ask, Mid, Dist OTM, Spread %, DTE, and Expiration columns in CSP/BPS dashboard table (both CSP and BPS rows)
+## Bug Fixes (May 16, 2026 — Color Pills & RSI/BB%B)
+- [x] Fix color pills not rendering in CSP/BPS table: changed defaultVisible to true for bid/ask/mid/distanceOtm/spreadPct/expiration columns in both BPS_COLUMNS and CSP_COLUMNS; bumped localStorage keys to v2 to clear stale hidden state
+- [x] Fix RSI/BB%B showing N/A for all CSP rows: added TECH_CONCURRENCY=10 local semaphore to prevent 64 simultaneous getTechnicalIndicators calls from overwhelming Tradier; added error logging to catch block

@@ -270,12 +270,12 @@ const BPS_COLUMNS: ColumnDef[] = [
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
   { key: 'volume',     label: 'Vol',          group: 'Liquidity',               defaultVisible: false },
-  { key: 'bid',        label: 'Bid',          group: 'Quote',                   defaultVisible: false },
-  { key: 'ask',        label: 'Ask',          group: 'Quote',                   defaultVisible: false },
-  { key: 'mid',        label: 'Mid',          group: 'Quote',                   defaultVisible: false },
-  { key: 'distanceOtm', label: 'Dist OTM',   group: 'Position',                defaultVisible: false },
-  { key: 'spreadPct',  label: 'Spread %',     group: 'Quote',                   defaultVisible: false },
-  { key: 'expiration', label: 'Expiration',   group: 'Position',                defaultVisible: false },
+  { key: 'bid',        label: 'Bid',          group: 'Quote',                   defaultVisible: true  },
+  { key: 'ask',        label: 'Ask',          group: 'Quote',                   defaultVisible: true  },
+  { key: 'mid',        label: 'Mid',          group: 'Quote',                   defaultVisible: true  },
+  { key: 'distanceOtm', label: 'Dist OTM',   group: 'Position',                defaultVisible: true  },
+  { key: 'spreadPct',  label: 'Spread %',     group: 'Quote',                   defaultVisible: true  },
+  { key: 'expiration', label: 'Expiration',   group: 'Position',                defaultVisible: true  },
   { key: 'riskBadges', label: 'Risk',         group: 'Core',                    defaultVisible: true  },
 ];
 
@@ -298,12 +298,12 @@ const CSP_COLUMNS: ColumnDef[] = [
   { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
   { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
   { key: 'volume',     label: 'Vol',          group: 'Liquidity',               defaultVisible: false },
-  { key: 'bid',        label: 'Bid',          group: 'Quote',                   defaultVisible: false },
-  { key: 'ask',        label: 'Ask',          group: 'Quote',                   defaultVisible: false },
-  { key: 'mid',        label: 'Mid',          group: 'Quote',                   defaultVisible: false },
-  { key: 'distanceOtm', label: 'Dist OTM',   group: 'Position',                defaultVisible: false },
-  { key: 'spreadPct',  label: 'Spread %',     group: 'Quote',                   defaultVisible: false },
-  { key: 'expiration', label: 'Expiration',   group: 'Position',                defaultVisible: false },
+  { key: 'bid',        label: 'Bid',          group: 'Quote',                   defaultVisible: true  },
+  { key: 'ask',        label: 'Ask',          group: 'Quote',                   defaultVisible: true  },
+  { key: 'mid',        label: 'Mid',          group: 'Quote',                   defaultVisible: true  },
+  { key: 'distanceOtm', label: 'Dist OTM',   group: 'Position',                defaultVisible: true  },
+  { key: 'spreadPct',  label: 'Spread %',     group: 'Quote',                   defaultVisible: true  },
+  { key: 'expiration', label: 'Expiration',   group: 'Position',                defaultVisible: true  },
   { key: 'riskBadges', label: 'Risk',         group: 'Core',                    defaultVisible: true  },
 ];
 
@@ -509,8 +509,8 @@ export default function CSPDashboard() {
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; score: number; explanation: string | any[] } | null>(null);
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
   // Column visibility (BPS vs CSP mode)
-  const [bpsVisibleCols, setBpsColVisible, , resetBpsCols] = useColumnVisibility(BPS_COLUMNS, 'prosper_col_vis_bps');
-  const [cspVisibleCols, setCspColVisible, , resetCspCols] = useColumnVisibility(CSP_COLUMNS, 'prosper_col_vis_csp');
+  const [bpsVisibleCols, setBpsColVisible, , resetBpsCols] = useColumnVisibility(BPS_COLUMNS, 'prosper_col_vis_bps_v2');
+  const [cspVisibleCols, setCspColVisible, , resetCspCols] = useColumnVisibility(CSP_COLUMNS, 'prosper_col_vis_csp_v2');
   const visibleCols = strategyType === 'spread' ? bpsVisibleCols : cspVisibleCols;
   const setColVisible = strategyType === 'spread' ? setBpsColVisible : setCspColVisible;
   const resetCols = strategyType === 'spread' ? resetBpsCols : resetCspCols;
