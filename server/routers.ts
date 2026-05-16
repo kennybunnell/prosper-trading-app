@@ -3812,6 +3812,35 @@ Summary: [One sentence overall assessment]`;
               }
             );
             updateScanJobProgress(jobId, { symbolsDone: symbols.length, opportunitiesFound: cspOpportunities.length });
+            // Fetch technical indicators (RSI/BB) for BPS — same pattern as CSP scan
+            const BPS_INDEX_SYMBOLS = new Set(['SPXW', 'SPXPM', 'NDXP', 'MRUT', 'VIXW', 'SPX', 'NDX', 'RUT', 'VIX']);
+            const BPS_TECH_ROOT_MAP: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+            const bpsTechApi = process.env.TRADIER_API_KEY ? createTradierAPI(process.env.TRADIER_API_KEY, false, capturedCtxUser.id) : api;
+            const bpsTechResults = await Promise.allSettled(
+              symbols.map(async (sym) => {
+                if (BPS_INDEX_SYMBOLS.has(sym.toUpperCase())) return { sym, rsi: null, bbPctB: null };
+                try {
+                  const techSym = BPS_TECH_ROOT_MAP[sym.toUpperCase()] || sym;
+                  const indicators = await bpsTechApi.getTechnicalIndicators(techSym);
+                  return {
+                    sym,
+                    rsi: indicators.rsi,
+                    bbPctB: indicators.bollingerBands ? Math.round(indicators.bollingerBands.percentB * 100) / 100 : null,
+                  };
+                } catch {
+                  return { sym, rsi: null as null, bbPctB: null as null };
+                }
+              })
+            );
+            const bpsTechMap = new Map<string, { rsi: number | null; bbPctB: number | null }>();
+            for (const result of bpsTechResults) {
+              if (result.status === 'fulfilled') bpsTechMap.set(result.value.sym, { rsi: result.value.rsi, bbPctB: result.value.bbPctB });
+            }
+            // Propagate RSI/BB into cspOpportunities so they carry through to spread objects
+            for (const opp of cspOpportunities) {
+              const tech = bpsTechMap.get(opp.symbol);
+              if (tech) { opp.rsi = tech.rsi; opp.bbPctB = tech.bbPctB; }
+            }
             // Pre-fetch unique option chains
             const chainCache2 = new Map<string, any[]>();
             const uniqueChains2 = new Map<string, { symbol: string; expiration: string }>();

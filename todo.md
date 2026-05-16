@@ -9870,3 +9870,9 @@ ROC Fix Mar 18 2026
 - [x] Add safetyRatio column to PMCC_COLUMNS in PMCCDashboard.tsx
 - [x] Hoist safetyRatio to top level in PMCC scan results (routers-pmcc.ts)
 - [x] Add safetyRatio table header and body cell to PMCC table
+
+## Column Alignment & RSI/BB Fixes (May 15, 2026)
+- [x] Fix BPS table column misalignment - remove bid/ask/mid/distanceOtm from BPS header (CSP-only columns)
+- [x] Add RSI/BB technical indicator fetch to BPS scan (was skipTechnicals=true, now fetches in parallel)
+- [x] Propagate RSI/BB from cspOpp into spreadOpp2 via ...cspOpp spread in calculateBullPutSpread
+- [x] Audit CC/BCS, IC, PMCC tables for column misalignment - all confirmed aligned
