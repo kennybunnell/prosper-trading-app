@@ -162,16 +162,16 @@ function LiveCountdown({ startTime, totalSymbols, liveProgress }: {
   const displayBatchCurrent = hasLiveProgress ? (liveProgress?.batchCurrent ?? 0) : 0;
   const displayBatchTotal = (hasLiveProgress && liveProgress?.batchTotal) ? liveProgress.batchTotal : defaultBatchTotal;
 
-  // For blocking scans (no live progress), use a slow-moving time-based bar that never exceeds 90%
-  // For async scans with live progress, use actual symbol completion percentage
-  const estimatedTotalSeconds = Math.max(totalSymbols * 2.0, 30);
+  // For blocking scans (no live progress), use a slow-moving time-based bar that never exceeds 88%
+  // BCS two-phase scan (CC scan + spread calc) takes ~6s/symbol on average for a 60-symbol watchlist
+  const estimatedTotalSeconds = Math.max(totalSymbols * 6.0, 60);
   let progressPercent = 0;
   if (hasLiveProgress) {
     progressPercent = symbolsTotal > 0 ? Math.min(95, (symbolsDone / symbolsTotal) * 100) : 0;
   } else {
-    // Slow logarithmic growth: fast at start, slows down, never reaches 90% until done
-    const ratio = elapsedSeconds / estimatedTotalSeconds;
-    progressPercent = Math.min(88, ratio * 100 * (1 - ratio * 0.3));
+    // Logarithmic growth clamped to [0, 88] — ratio is capped at 1.5x so it NEVER goes negative
+    const ratio = Math.min(elapsedSeconds / estimatedTotalSeconds, 1.5);
+    progressPercent = Math.max(0, Math.min(88, ratio * 100 * (1 - ratio * 0.3)));
   }
 
   const statusLine = hasLiveProgress

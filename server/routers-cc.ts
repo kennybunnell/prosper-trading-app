@@ -599,8 +599,8 @@ export const ccRouter = router({
       const isBearCallSpreadMode = input.holdings.length === 0;
       console.log(`[CC Scanner] Mode: ${isBearCallSpreadMode ? 'Bear Call Spread (no holdings required)' : 'Covered Call (requires holdings)'}`);
 
-      // Process symbols in parallel with concurrency limit of 20 (aligned with BPS scan)
-      const CONCURRENCY = 20;
+      // Process symbols in parallel with concurrency limit of 30 (aligned with tradierRateLimiter MAX_CONCURRENT)
+      const CONCURRENCY = 30;
       const API_TIMEOUT_MS = 90000; // 90 second timeout per symbol (allows semaphore queue to drain)
       console.log(`[CC Scanner] Processing ${input.symbols.length} symbols with ${CONCURRENCY} concurrent workers...`);
       
@@ -1069,7 +1069,7 @@ export const ccRouter = router({
       };
 
       // Process each group (fetch option chain once, process all strikes)
-      const CONCURRENCY_LIMIT = 20; // Process 20 groups at a time (aligned with BPS scan)
+      const CONCURRENCY_LIMIT = 30; // Process 30 groups at a time (aligned with tradierRateLimiter MAX_CONCURRENT)
       const API_TIMEOUT_MS = 90000; // 90 second timeout per group (allows semaphore queue to drain)
       
       // Helper function to add timeout to promises
@@ -1094,9 +1094,12 @@ export const ccRouter = router({
             const tradierRoot = BCS_OPTION_ROOT_MAP[symbol.toUpperCase()] || symbol;
 
             // Fetch option chain ONCE for this symbol+expiration (use tradierRoot for indexes)
-            const options = await withTimeout(
-              api.getOptionChain(tradierRoot, expiration, true),
-              API_TIMEOUT_MS
+            // withRateLimit ensures BCS phase-2 respects the global semaphore (MAX_CONCURRENT=30)
+            const options = await withRateLimit(() =>
+              withTimeout(
+                api.getOptionChain(tradierRoot, expiration, true),
+                API_TIMEOUT_MS
+              )
             ).catch(() => []);
             
             // Process all opportunities for this expiration

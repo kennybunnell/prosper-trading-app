@@ -9959,3 +9959,11 @@ ROC Fix Mar 18 2026
 - [x] Add isBPS:true marker to BPS breakdown object in scoring.ts (D6Breakdown interface + calculateBPSScore return)
 - [x] Update ScoreBreakdownTooltip to detect isBPS and use BPS-specific max scores: D3=25, D5=10, D6=20
 - [x] TypeScript: 0 errors confirmed (npx tsc --noEmit exit code 0)
+
+## BCS Scan Performance & Progress Bug (May 16, 2026 - Session 8)
+- [x] Fix progress bar going negative: clamp progressPercent to Math.max(0, ...) in CCDashboard LiveCountdown
+- [x] Fix BCS phase-2 option chain fetch: add withRateLimit() wrapper (previously fired unthrottled)
+- [x] Increase MAX_CONCURRENT in tradierRateLimiter.ts from 20 → 30 for faster throughput
+- [x] Increase CONCURRENCY in CC scan from 20 → 30 to match rate limiter
+- [x] Increase CONCURRENCY_LIMIT in BCS phase-2 from 20 → 30 to match
+- [x] Increase estimated scan time in LiveCountdown from 2.0s/symbol to 6.0s/symbol (more realistic for BCS two-phase scan)
