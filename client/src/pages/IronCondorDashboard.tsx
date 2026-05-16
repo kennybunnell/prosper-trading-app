@@ -1436,7 +1436,10 @@ export default function IronCondorDashboard() {
                       
                       {/* Score — always shown */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'score' && prev.direction === 'desc' ? { key: 'score', direction: 'asc' } : { key: 'score', direction: 'desc' })}>
-                        Score {sortConfig?.key === 'score' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        <div className="flex items-center gap-1">
+                          Score {sortConfig?.key === 'score' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          <HelpBadge content={HELP_CONTENT.SCORE_CALCULATION_DIALOG} />
+                        </div>
                       </TableHead>
                       {/* SPXW Score — only if visible and SPXW in watchlist */}
                       {spxwInWatchlist && icVisibleCols.has('spxwScore') && (

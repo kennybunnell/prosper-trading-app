@@ -1107,7 +1107,7 @@ export default function PMCCDashboard() {
                           {visibleCols.has('earnings') && <th className="p-2 text-center">Earnings</th>}
                           {visibleCols.has('extrinsic') && <th className="p-2 text-right">Extrinsic%</th>}
                           {visibleCols.has('monthsRecover') && <th className="p-2 text-right">Mos. Recover</th>}
-                          {visibleCols.has('score') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('score')}><div className="flex items-center justify-end gap-1">Score{sortColumn === 'score' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}</div></th>}
+                          {visibleCols.has('score') && <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('score')}><div className="flex items-center justify-end gap-1">Score{sortColumn === 'score' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}<HelpBadge content={HELP_CONTENT.SCORE_CALCULATION_DIALOG} /></div></th>}
                           {visibleCols.has('ai') && <th className="p-2 text-center">AI</th>}
                         </tr>
                       </thead>

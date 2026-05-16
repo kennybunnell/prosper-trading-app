@@ -9892,3 +9892,14 @@ ROC Fix Mar 18 2026
 - [x] Help badge tooltip dialogs show black block — fixed by overriding TooltipContent to bg-popover/text-popover-foreground for rich JSX content
 - [x] Safety ratio help badge dialog shows black block — fixed by removing DialogDescription wrapper from HelpDialog (was forcing text-muted-foreground on all children)
 - [x] Scoring recalibrated — D5 safety ratio thresholds adjusted for delta-0.20 zone (0.55x = 62%), D6 neutral RSI/BB now scores 50% instead of 20-25%; typical rows now score 55-65, good setups 70-80
+
+## Scoring Audit (May 16, 2026)
+- [x] Audit all 6 strategy scoring paths for D5/D6 calibration consistency
+- [x] Fix CC inline D4 IV Richness thresholds (routers-cc.ts) to match shared scoreD4IVRichness
+- [x] Fix CC inline D5 Strike Safety thresholds (routers-cc.ts) to match shared scoreD5StrikeSafety
+- [x] Fix CC inline D6 Technical thresholds (routers-cc.ts) - neutral RSI 40-60 now scores 50%
+- [x] Fix BCS D5 safety ratio thresholds (bcs-scoring.ts) - typical 0.55x zone now scores 62%
+- [x] Add HelpBadge to IC Score column header
+- [x] Add HelpBadge to PMCC Score column header
+- [x] IC scoring confirmed correct (neutral RSI 40-60 = full score, appropriate for IC)
+- [x] PMCC scoring confirmed correct (bullish RSI 55-70 = full score, appropriate for PMCC)

@@ -238,10 +238,15 @@ export function calculateBCSScore(
     const emPct = (ivForSafety / 100) * Math.sqrt(dte / 365) * 100; // EM as % of price
     bcsSafetyRatio = emPct > 0 ? distanceOtm / emPct : null;
     const ratio = bcsSafetyRatio ?? 0;
-    if (ratio >= 1.5)       greeksScore += 3; // well beyond EM — very safe
-    else if (ratio >= 1.0)  greeksScore += 2; // at or beyond EM boundary
-    else if (ratio >= 0.75) greeksScore += 1; // close to EM
-    // < 0.75 = 0 (inside EM — risky)
+    // Recalibrated to match shared scoreD5StrikeSafety thresholds:
+    // BCS short calls at delta 0.20–0.30 typically have safety ratio 0.55–0.85×
+    if (ratio >= 1.5)       greeksScore += 3;           // well beyond EM — very safe
+    else if (ratio >= 1.0)  greeksScore += 3 * 0.85;    // at or beyond EM
+    else if (ratio >= 0.75) greeksScore += 3 * 0.75;    // 75% of EM — good
+    else if (ratio >= 0.55) greeksScore += 3 * 0.62;    // typical delta-0.20 zone
+    else if (ratio >= 0.40) greeksScore += 3 * 0.48;    // delta-0.25 zone
+    else if (ratio >= 0.25) greeksScore += 3 * 0.30;    // close to ATM
+    else                    greeksScore += 3 * 0.12;    // very close to ATM — risky
   } else if (ivRank !== null && ivRank !== undefined) {
     // Fallback: IV Rank as premium environment proxy
     if (ivRank > 70)      greeksScore += 3;

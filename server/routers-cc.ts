@@ -1954,53 +1954,69 @@ function calculateCCScore(opp: any): { score: number; breakdown: Record<string, 
   d3 = Math.max(0, Math.min(20, d3));
 
   // D4: IV Richness (15 pts) — IV Rank
+  // Recalibrated to match shared scoreD4IVRichness: IV Rank 35+ is already a good selling environment
   let d4 = 0;
   const ivRank = opp.ivRank;
   if (ivRank !== null && ivRank !== undefined) {
-    if (ivRank >= 80)      d4 = 15;   else if (ivRank >= 60) d4 = 12.75;
-    else if (ivRank >= 50) d4 = 11.25; else if (ivRank >= 40) d4 = 9;
-    else if (ivRank >= 30) d4 = 6.75;  else if (ivRank >= 20) d4 = 4.5;
-    else if (ivRank >= 10) d4 = 2.25;  else                   d4 = 0.75;
-  } else { d4 = 6; }
+    if (ivRank >= 70)      d4 = 15;           // very elevated IV
+    else if (ivRank >= 50) d4 = 15 * 0.85;    // elevated — good for selling
+    else if (ivRank >= 35) d4 = 15 * 0.70;    // moderate-high
+    else if (ivRank >= 25) d4 = 15 * 0.55;    // moderate
+    else if (ivRank >= 15) d4 = 15 * 0.35;    // below average
+    else if (ivRank >= 8)  d4 = 15 * 0.18;    // low
+    else                   d4 = 15 * 0.05;    // very low
+  } else { d4 = 15 * 0.50; } // neutral when unknown
 
   // D5: Strike Safety (15 pts) — OTM distance vs 1-sigma expected move
   let d5 = 0;
   let ccSafetyRatio: number | null = null;
   const distPct = opp.distanceOtm || 0;
   const ivForD5 = opp.iv ?? null;
+  // D5 recalibrated to match shared scoreD5StrikeSafety thresholds:
+  // CC strikes at delta 0.20–0.30 typically have safety ratio 0.55–0.85×
   if (ivForD5 && ivForD5 > 0 && opp.currentPrice > 0) {
     const em = opp.currentPrice * (ivForD5 / 100) * Math.sqrt(dte / 365);
     const emPct = (em / opp.currentPrice) * 100;
     ccSafetyRatio = emPct > 0 ? distPct / emPct : null;
     const ratio = ccSafetyRatio ?? 0;
-    if (ratio >= 2.0)     d5 = 15;
-    else if (ratio >= 1.5) d5 = 12.75;
-    else if (ratio >= 1.2) d5 = 10.5;
-    else if (ratio >= 1.0) d5 = 8.25;
-    else if (ratio >= 0.75) d5 = 5.25;
-    else if (ratio >= 0.50) d5 = 2.25;
-    else d5 = 0.75;
+    if (ratio >= 1.5)       d5 = 15;           // well beyond EM — very safe
+    else if (ratio >= 1.0)  d5 = 15 * 0.85;    // at or beyond EM
+    else if (ratio >= 0.75) d5 = 15 * 0.75;    // 75% of EM — good
+    else if (ratio >= 0.55) d5 = 15 * 0.62;    // typical delta-0.20 zone
+    else if (ratio >= 0.40) d5 = 15 * 0.48;    // delta-0.25 zone
+    else if (ratio >= 0.25) d5 = 15 * 0.30;    // close to ATM
+    else                    d5 = 15 * 0.12;    // very close to ATM — risky
   } else {
-    if (distPct >= 15)      d5 = 15;  else if (distPct >= 10) d5 = 12;
-    else if (distPct >= 7)  d5 = 9;   else if (distPct >= 5)  d5 = 6.75;
-    else if (distPct >= 3)  d5 = 3.75; else if (distPct >= 1)  d5 = 1.5;
+    if (distPct >= 12)      d5 = 15;  else if (distPct >= 8)  d5 = 15 * 0.80;
+    else if (distPct >= 5)  d5 = 15 * 0.65; else if (distPct >= 3) d5 = 15 * 0.45;
+    else if (distPct >= 1.5) d5 = 15 * 0.25; else d5 = 15 * 0.10;
   }
   d5 = Math.max(0, Math.min(15, d5));
 
   // D6: Technical Context (15 pts) — RSI + BB %B (overbought preferred for CC)
+  // Recalibrated: neutral RSI 40–60 now scores 50% (was 30–40%), matching the
+  // philosophy that neutral is acceptable, not penalised.
   let d6 = 0;
   const rsi = opp.rsi;
   const bb  = opp.bbPctB;
+  const rsiMax = 7.5;
+  const bbMax  = 7.5;
   if (rsi !== null && rsi !== undefined) {
-    if (rsi > 70) d6 += 7.5; else if (rsi > 60) d6 += 6;
-    else if (rsi > 50) d6 += 4.5; else if (rsi > 40) d6 += 3;
-    else if (rsi > 30) d6 += 1.5;
-  } else { d6 += 3.75; }
+    if (rsi > 70)       d6 += rsiMax;           // overbought — ideal for CC
+    else if (rsi > 60)  d6 += rsiMax * 0.85;
+    else if (rsi > 50)  d6 += rsiMax * 0.65;    // neutral-high (was 0.60)
+    else if (rsi > 40)  d6 += rsiMax * 0.50;    // neutral (was 0.40)
+    else if (rsi > 30)  d6 += rsiMax * 0.25;    // mildly oversold — poor for CC
+    // ≤30 = 0 (oversold — avoid CC)
+  } else { d6 += rsiMax * 0.55; }
   if (bb !== null && bb !== undefined) {
-    if (bb > 0.8) d6 += 7.5; else if (bb > 0.7) d6 += 6;
-    else if (bb > 0.5) d6 += 4.5; else if (bb > 0.3) d6 += 3;
-    else if (bb > 0.2) d6 += 1.5;
-  } else { d6 += 3.75; }
+    if (bb > 0.85)      d6 += bbMax;            // near upper band — ideal for CC
+    else if (bb > 0.70) d6 += bbMax * 0.85;
+    else if (bb > 0.50) d6 += bbMax * 0.65;     // upper half (was 0.60)
+    else if (bb > 0.30) d6 += bbMax * 0.50;     // mid-range (was 0.40)
+    else if (bb > 0.15) d6 += bbMax * 0.25;     // lower half — poor for CC
+    // ≤0.15 = 0 (near lower band — avoid CC)
+  } else { d6 += bbMax * 0.55; }
   d6 = Math.max(0, Math.min(15, d6));
 
   const total = Math.round(Math.min(100, d1 + d2 + d3 + d4 + d5 + d6));
