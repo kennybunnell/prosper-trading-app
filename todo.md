@@ -9929,3 +9929,7 @@ ROC Fix Mar 18 2026
 - [x] Verify CC column visibility persists in localStorage across page refreshes (already working)
 - [x] Fix D3 Premium scoring bug: BPS rocPct unit mismatch (per-share / per-contract) — now uses spreadROC directly
 - [x] BPS D3 fix verified: 17% ROC spread now scores 21/25 (85%) instead of 0
+
+## UI Polish (May 16, 2026 - Session 3)
+- [x] Fix BPS loading modal: remove mid-scan green dot to match CC/CSP/IC/PMCC style (no live count during scan)
+- [x] Add visible border to all HelpBadge tooltips so dark tooltip doesn't get lost on dark background

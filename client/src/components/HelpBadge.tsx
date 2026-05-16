@@ -37,7 +37,7 @@ export function HelpBadge({ content, className = "" }: HelpBadgeProps) {
           className={
             isRichContent
               ? "max-w-sm p-4 text-sm leading-relaxed bg-popover text-popover-foreground border border-border shadow-xl"
-              : "max-w-sm p-3 text-sm leading-relaxed"
+              : "max-w-sm p-3 text-sm leading-relaxed bg-popover text-popover-foreground border border-border shadow-xl"
           }
         >
           {typeof content === 'string' ? (

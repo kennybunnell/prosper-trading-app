@@ -173,13 +173,7 @@ function LiveCountdown({ startTime, totalSymbols, strategyType, liveProgress }: 
           />
         </div>
       </div>
-      {oppsFound > 0 ? (
-        <p className="text-lg font-bold text-green-500">
-          🟢 {oppsFound} opportunities found
-        </p>
-      ) : (
-        <p className="text-sm font-medium text-muted-foreground animate-pulse">Scanning in progress...</p>
-      )}
+      <p className="text-sm font-medium text-muted-foreground animate-pulse">Scanning in progress...</p>
       <p className="text-xs text-muted-foreground">{subLine}</p>
       <p className="text-xs text-muted-foreground opacity-60">{elapsedSeconds}s elapsed</p>
     </div>
