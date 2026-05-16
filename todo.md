@@ -10017,3 +10017,7 @@ ROC Fix Mar 18 2026
 ## CSP/BPS DTE Range Controls (May 16, 2026)
 - [x] Add DTE range quick-select presets (Weekly/Standard/Monthly/Extended) to Strategy Type card in CSP/BPS dashboard, matching CC/BCS pattern
 - [x] Show DTE range badge in collapsed Strategy Type card header
+
+## Bug Fixes (May 16, 2026 — Scoring Display)
+- [x] Fix BCS score tooltip missing Direction row (35 pts) — tooltip showed max 65 instead of 100
+- [x] Fix BCS table title to show "Bear Call Spread Opportunities" when in spread mode

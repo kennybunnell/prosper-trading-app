@@ -34,6 +34,7 @@ export interface D1D6Breakdown {
 }
 
 export interface BCSBreakdown {
+  direction?: number;  // 14-day trend alignment (35 points) — PRIMARY
   technical: number;
   greeks: number;
   premium: number;
@@ -183,6 +184,12 @@ export function ScoreBreakdownTooltip({ score, breakdown, children }: Props) {
     }
   } else if (isBCS(breakdown)) {
     rows = [
+      {
+        label: "Direction",
+        score: breakdown.direction ?? 0,
+        maxScore: 35,
+        description: "14-day trend alignment — bearish = max score for BCS",
+      },
       {
         label: "Technical",
         score: breakdown.technical,

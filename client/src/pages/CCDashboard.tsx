@@ -3186,7 +3186,7 @@ export default function CCDashboard() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl">Covered Call Opportunities</CardTitle>
+                  <CardTitle className="text-2xl">{strategyType === 'spread' ? 'Bear Call Spread Opportunities' : 'Covered Call Opportunities'}</CardTitle>
                   <CardDescription>
                     {filteredOpportunities.length} of {opportunities.length} opportunities • Sorted by composite score
                   </CardDescription>
