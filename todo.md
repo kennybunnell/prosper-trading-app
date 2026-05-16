@@ -9936,3 +9936,12 @@ ROC Fix Mar 18 2026
 
 ## Tooltip Border Color (May 16, 2026 - Session 4)
 - [x] Change HelpBadge tooltip border from invisible border-border to amber-500 gold border across all dashboards
+
+## CC Scoring Audit (May 16, 2026 - Session 5)
+- [x] Audit CC D1-D6 weights against CC philosophy (expire worthless, low delta, basis recovery)
+- [x] Recalibrate D6 Technical (RSI/BB) weight - reduced from 15 to 10 pts (secondary to delta/strike)
+- [x] Add basis-recovery awareness to CC scoring (query cachedTransactions for net CC premium per symbol)
+- [x] Ensure top CC setups can reach 80-90+ composite score after recalibration
+- [x] New weights: D1=15, D2=25 (delta sweet spot 0.15-0.25), D3=20, D4=10, D5=20, D6=10
+- [x] Basis recovery bonus: >=95%=+5pts, >=90%=+4pts, >=80%=+2pts (capped at 100)
+- [x] Updated ScoreBreakdownTooltip to show CC-specific max scores and basis bonus row

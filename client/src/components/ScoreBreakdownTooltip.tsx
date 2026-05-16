@@ -28,6 +28,7 @@ export interface D1D6Breakdown {
   d4IVRichness: number;
   d5StrikeSafety: number;
   d6Technical: number;
+  basisBonus?: number | null;  // CC only: basis recovery bonus
   safetyRatio?: number | null;
   [key: string]: unknown;
 }
@@ -127,6 +128,8 @@ export function ScoreBreakdownTooltip({ score, breakdown, children }: Props) {
   let rows: RowProps[] = [];
 
   if (isD1D6(breakdown)) {
+    // Detect CC breakdown by presence of basisBonus field (CC v3 uses different max scores)
+    const isCCBreakdown = 'basisBonus' in breakdown;
     rows = [
       {
         label: "D1 Liquidity",
@@ -137,7 +140,7 @@ export function ScoreBreakdownTooltip({ score, breakdown, children }: Props) {
       {
         label: "D2 Probability",
         score: breakdown.d2ProbabilityFit,
-        maxScore: 20,
+        maxScore: isCCBreakdown ? 25 : 20,
         description: "Delta + DTE — probability of expiring OTM",
       },
       {
@@ -149,22 +152,31 @@ export function ScoreBreakdownTooltip({ score, breakdown, children }: Props) {
       {
         label: "D4 IV Richness",
         score: breakdown.d4IVRichness,
-        maxScore: 15,
+        maxScore: isCCBreakdown ? 10 : 15,
         description: "IV Rank — selling when implied vol is elevated",
       },
       {
         label: "D5 Strike Safety",
         score: breakdown.d5StrikeSafety,
-        maxScore: 15,
+        maxScore: isCCBreakdown ? 20 : 15,
         description: "OTM distance vs expected move — cushion to expiry",
       },
       {
         label: "D6 Technical",
         score: breakdown.d6Technical,
-        maxScore: 15,
+        maxScore: isCCBreakdown ? 10 : 15,
         description: "RSI + BB %B — momentum and mean-reversion setup",
       },
     ];
+    // Add basis recovery bonus row for CC if present and non-zero
+    if (isCCBreakdown && breakdown.basisBonus != null && (breakdown.basisBonus as number) > 0) {
+      rows.push({
+        label: "Basis Bonus",
+        score: breakdown.basisBonus as number,
+        maxScore: 5,
+        description: "Premium collected vs cost basis — being called away is acceptable",
+      });
+    }
   } else if (isBCS(breakdown)) {
     rows = [
       {

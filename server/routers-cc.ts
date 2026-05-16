@@ -335,7 +335,7 @@ export const ccRouter = router({
       // Merged maps across all accounts
       const shortCallsAll: Record<string, { contracts: number; details: any[] }> = {};
       const workingShortCallsAll: Record<string, { contracts: number; details: any[] }> = {};
-      const stockMap: Record<string, { quantity: number; currentPrice: number; accounts: string[] }> = {};
+      const stockMap: Record<string, { quantity: number; currentPrice: number; averageOpenPrice: number; accounts: string[] }> = {};
       // Per-account tracking for correct order routing
       // perAccountStock[acct][symbol] = qty
       const perAccountStock: Record<string, Record<string, number>> = {};
@@ -435,11 +435,13 @@ export const ccRouter = router({
           const qty = parseFloat(String(p.quantity));
           const pAny = p as any;
           const price = parseFloat(p['close-price'] ?? pAny['mark'] ?? pAny['last'] ?? '0') || 0;
+          const avgOpenPrice = parseFloat(pAny['average-open-price'] ?? '0') || 0;
           if (!stockMap[sym]) {
-            stockMap[sym] = { quantity: 0, currentPrice: 0, accounts: [] };
+            stockMap[sym] = { quantity: 0, currentPrice: 0, averageOpenPrice: 0, accounts: [] };
           }
           stockMap[sym].quantity += qty;
           if (price > 0 && stockMap[sym].currentPrice === 0) stockMap[sym].currentPrice = price;
+          if (avgOpenPrice > 0 && stockMap[sym].averageOpenPrice === 0) stockMap[sym].averageOpenPrice = avgOpenPrice;
           if (!stockMap[sym].accounts.includes(acctNum)) stockMap[sym].accounts.push(acctNum);
           // Track per-account stock quantity for correct order routing
           if (!perAccountStock[acctNum]) perAccountStock[acctNum] = {};
@@ -478,6 +480,7 @@ export const ccRouter = router({
           symbol,
           quantity,
           currentPrice,
+          averageOpenPrice: data.averageOpenPrice,
           marketValue: quantity * currentPrice,
           existingContracts,
           workingContracts,
@@ -548,6 +551,7 @@ export const ccRouter = router({
             quantity: z.number(),
             currentPrice: z.number(),
             maxContracts: z.number(),
+            averageOpenPrice: z.number().optional(),
           })
         ),
         minDte: z.number().default(7),
@@ -840,10 +844,62 @@ export const ccRouter = router({
         console.log(`[CC Scanner] Removed ${duplicateCount} duplicate CC opportunities (kept best spread for each unique option)`);
       }
 
+      // ── BASIS RECOVERY: Query cached transactions for net CC premium per symbol ──────────────────
+      // For each unique underlying symbol, sum net credit from CC 'Sell to Open' and 'Buy to Close' call transactions.
+      // This lets calculateCCScore apply a tiered bonus when the stock's cost basis is substantially recovered.
+      const basisRecoveryMap = new Map<string, number>(); // symbol → recovery % (0-100+)
+      try {
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (db) {
+          const { cachedTransactions } = await import('../drizzle/schema');
+          const { and, inArray, sql: drizzleSql } = await import('drizzle-orm');
+          const uniqueSymbolsForBasis = Array.from(new Set(deduplicatedOpportunities.map((o: any) => o.symbol as string)));
+          if (uniqueSymbolsForBasis.length > 0) {
+            // Sum netValue for all call option transactions (STO = credit, BTC = debit)
+            const txRows = await db
+              .select({
+                underlyingSymbol: cachedTransactions.underlyingSymbol,
+                totalNet: drizzleSql<string>`SUM(CAST(${cachedTransactions.netValue} AS DECIMAL(12,4)))`,
+              })
+              .from(cachedTransactions)
+              .where(
+                and(
+                  eq(cachedTransactions.userId, ctx.user.id),
+                  inArray(cachedTransactions.underlyingSymbol, uniqueSymbolsForBasis),
+                  eq(cachedTransactions.optionType, 'C'),
+                )
+              )
+              .groupBy(cachedTransactions.underlyingSymbol);
+            // Map symbol → total net premium collected (positive = net credit)
+            for (const row of txRows) {
+              const sym = row.underlyingSymbol;
+              if (!sym) continue;
+              const netPremium = parseFloat(String(row.totalNet)) || 0;
+              // Find the holding to get cost basis
+              const holding = holdingsMap.get(sym);
+              const avgCost = holding?.averageOpenPrice ?? 0;
+              const qty = holding?.quantity ?? 0;
+              if (avgCost > 0 && qty > 0) {
+                const totalCostBasis = avgCost * qty;
+                // netPremium from DB is per-contract (×100) total; convert to per-share basis
+                const netPremiumPerShare = netPremium / qty;
+                const recoveryPct = (netPremiumPerShare / avgCost) * 100;
+                basisRecoveryMap.set(sym, Math.max(0, recoveryPct));
+                console.log(`[CC Basis] ${sym}: avgCost=$${avgCost}, qty=${qty}, netPremium=$${netPremium.toFixed(2)}, recovery=${recoveryPct.toFixed(1)}%`);
+              }
+            }
+          }
+        }
+      } catch (basisErr: any) {
+        console.warn('[CC Basis] Could not load basis recovery data:', basisErr.message);
+      }
+
       // Calculate composite scores for all opportunities
-      const scoredOpportunities = deduplicatedOpportunities.map(opp => {
-        const { score, breakdown } = calculateCCScore(opp);
-        return { ...opp, score, scoreBreakdown: breakdown, safetyRatio: (breakdown as any).safetyRatio ?? null };
+      const scoredOpportunities = deduplicatedOpportunities.map((opp: any) => {
+        const basisRecoveryPct = basisRecoveryMap.get(opp.symbol) ?? null;
+        const { score, breakdown } = calculateCCScore({ ...opp, basisRecoveryPct });
+        return { ...opp, score, scoreBreakdown: breakdown, safetyRatio: (breakdown as any).safetyRatio ?? null, basisRecoveryPct };
       });
 
       // Sort by score descending
@@ -1905,10 +1961,16 @@ Summary: [One sentence overall assessment]`;
 });
 
 /**
- * Calculate CC Composite Score v2 (0-100)
+ * Calculate CC Composite Score v3 (0-100)
  *
- * Weights: D1 Liquidity 15% | D2 Probability Fit 20% | D3 Premium Efficiency 20%
- *          D4 IV Richness 15% | D5 Strike Safety 15% | D6 Technical Context 15%
+ * Weights: D1 Liquidity 15 | D2 Probability Fit 25 | D3 Premium Efficiency 20
+ *          D4 IV Richness 10 | D5 Strike Safety 20 | D6 Technical Context 10
+ *
+ * Philosophy: CC goal is expire-worthless income. Delta selection (D2) and
+ * strike safety (D5) are the most critical dimensions. Technical context (D6)
+ * and IV richness (D4) are useful but secondary.
+ *
+ * Bonus: +2/+4/+5 pts for basis recovery ≥80%/90%/95% (capped at 100 total).
  */
 function calculateCCScore(opp: any): { score: number; breakdown: Record<string, number | null> } {
   // D1: Liquidity (15 pts)
@@ -1930,22 +1992,26 @@ function calculateCCScore(opp: any): { score: number; breakdown: Record<string, 
   else if (vol >= 50)  d1 += 1.2;  else if (vol >= 10)  d1 += 0.45;
   d1 = Math.max(0, Math.min(15, d1));
 
-  // D2: Probability Fit (20 pts) — delta + DTE
+  // D2: Probability Fit (25 pts) — delta + DTE
+  // Peak reward at delta 0.15–0.25 (expire-worthless sweet spot for CC)
+  // Delta > 0.35 is penalised more aggressively than before
   let d2 = 0;
   const delta = Math.abs(opp.delta || 0);
   const dte   = opp.dte || 0;
-  if (delta >= 0.20 && delta <= 0.35)       d2 += 10;
-  else if (delta >= 0.15 && delta < 0.20)   d2 += 8;
-  else if (delta > 0.35 && delta <= 0.40)   d2 += 8;
-  else if (delta >= 0.10 && delta < 0.15)   d2 += 5;
-  else if (delta > 0.40 && delta <= 0.50)   d2 += 5;
-  else                                       d2 += 2;
-  if (dte >= 7 && dte <= 14)       d2 += 10; else if (dte >= 15 && dte <= 21) d2 += 7.5;
-  else if (dte >= 22 && dte <= 30) d2 += 5;  else if (dte >= 31 && dte <= 45) d2 += 3;
+  if (delta >= 0.15 && delta <= 0.25)       d2 += 13;  // sweet spot — expire worthless
+  else if (delta > 0.25 && delta <= 0.30)   d2 += 11;  // slightly aggressive but ok
+  else if (delta >= 0.10 && delta < 0.15)   d2 += 9;   // conservative — low premium risk
+  else if (delta > 0.30 && delta <= 0.35)   d2 += 8;   // borderline aggressive
+  else if (delta > 0.35 && delta <= 0.40)   d2 += 5;   // too aggressive for expire-worthless
+  else if (delta >= 0.05 && delta < 0.10)   d2 += 4;   // too far OTM — poor premium
+  else if (delta > 0.40 && delta <= 0.50)   d2 += 3;   // high assignment risk
+  else                                       d2 += 1;
+  if (dte >= 7 && dte <= 14)       d2 += 12; else if (dte >= 15 && dte <= 21) d2 += 9;
+  else if (dte >= 22 && dte <= 30) d2 += 6;  else if (dte >= 31 && dte <= 45) d2 += 3;
   else                             d2 += 0.5;
-  d2 = Math.max(0, Math.min(20, d2));
+  d2 = Math.max(0, Math.min(25, d2));
 
-  // D3: Premium Efficiency (20 pts) — weekly return %
+  // D3: Premium Efficiency (20 pts) — weekly return % on stock value
   let d3 = 0;
   const weekly = opp.weeklyReturn || 0;
   if (weekly >= 1.5)       d3 = 20;  else if (weekly >= 1.0)  d3 = 16;
@@ -1953,79 +2019,89 @@ function calculateCCScore(opp: any): { score: number; breakdown: Record<string, 
   else if (weekly >= 0.30) d3 = 4;
   d3 = Math.max(0, Math.min(20, d3));
 
-  // D4: IV Richness (15 pts) — IV Rank
-  // Recalibrated to match shared scoreD4IVRichness: IV Rank 35+ is already a good selling environment
+  // D4: IV Richness (10 pts) — IV Rank (reduced from 15; secondary to delta/strike)
   let d4 = 0;
   const ivRank = opp.ivRank;
   if (ivRank !== null && ivRank !== undefined) {
-    if (ivRank >= 70)      d4 = 15;           // very elevated IV
-    else if (ivRank >= 50) d4 = 15 * 0.85;    // elevated — good for selling
-    else if (ivRank >= 35) d4 = 15 * 0.70;    // moderate-high
-    else if (ivRank >= 25) d4 = 15 * 0.55;    // moderate
-    else if (ivRank >= 15) d4 = 15 * 0.35;    // below average
-    else if (ivRank >= 8)  d4 = 15 * 0.18;    // low
-    else                   d4 = 15 * 0.05;    // very low
-  } else { d4 = 15 * 0.50; } // neutral when unknown
+    if (ivRank >= 70)      d4 = 10;           // very elevated IV
+    else if (ivRank >= 50) d4 = 10 * 0.85;    // elevated — good for selling
+    else if (ivRank >= 35) d4 = 10 * 0.70;    // moderate-high
+    else if (ivRank >= 25) d4 = 10 * 0.55;    // moderate
+    else if (ivRank >= 15) d4 = 10 * 0.35;    // below average
+    else if (ivRank >= 8)  d4 = 10 * 0.18;    // low
+    else                   d4 = 10 * 0.05;    // very low
+  } else { d4 = 10 * 0.50; } // neutral when unknown
 
-  // D5: Strike Safety (15 pts) — OTM distance vs 1-sigma expected move
+  // D5: Strike Safety (20 pts) — OTM distance vs 1-sigma expected move
+  // Increased from 15 to 20: strike placement is critical for expire-worthless goal
   let d5 = 0;
   let ccSafetyRatio: number | null = null;
   const distPct = opp.distanceOtm || 0;
   const ivForD5 = opp.iv ?? null;
-  // D5 recalibrated to match shared scoreD5StrikeSafety thresholds:
-  // CC strikes at delta 0.20–0.30 typically have safety ratio 0.55–0.85×
   if (ivForD5 && ivForD5 > 0 && opp.currentPrice > 0) {
     const em = opp.currentPrice * (ivForD5 / 100) * Math.sqrt(dte / 365);
     const emPct = (em / opp.currentPrice) * 100;
     ccSafetyRatio = emPct > 0 ? distPct / emPct : null;
     const ratio = ccSafetyRatio ?? 0;
-    if (ratio >= 1.5)       d5 = 15;           // well beyond EM — very safe
-    else if (ratio >= 1.0)  d5 = 15 * 0.85;    // at or beyond EM
-    else if (ratio >= 0.75) d5 = 15 * 0.75;    // 75% of EM — good
-    else if (ratio >= 0.55) d5 = 15 * 0.62;    // typical delta-0.20 zone
-    else if (ratio >= 0.40) d5 = 15 * 0.48;    // delta-0.25 zone
-    else if (ratio >= 0.25) d5 = 15 * 0.30;    // close to ATM
-    else                    d5 = 15 * 0.12;    // very close to ATM — risky
+    if (ratio >= 1.5)       d5 = 20;           // well beyond EM — very safe
+    else if (ratio >= 1.0)  d5 = 20 * 0.85;    // at or beyond EM
+    else if (ratio >= 0.75) d5 = 20 * 0.75;    // 75% of EM — good
+    else if (ratio >= 0.55) d5 = 20 * 0.62;    // typical delta-0.20 zone
+    else if (ratio >= 0.40) d5 = 20 * 0.48;    // delta-0.25 zone
+    else if (ratio >= 0.25) d5 = 20 * 0.30;    // close to ATM
+    else                    d5 = 20 * 0.12;    // very close to ATM — risky
   } else {
-    if (distPct >= 12)      d5 = 15;  else if (distPct >= 8)  d5 = 15 * 0.80;
-    else if (distPct >= 5)  d5 = 15 * 0.65; else if (distPct >= 3) d5 = 15 * 0.45;
-    else if (distPct >= 1.5) d5 = 15 * 0.25; else d5 = 15 * 0.10;
+    if (distPct >= 12)       d5 = 20;  else if (distPct >= 8)  d5 = 20 * 0.80;
+    else if (distPct >= 5)   d5 = 20 * 0.65; else if (distPct >= 3) d5 = 20 * 0.45;
+    else if (distPct >= 1.5) d5 = 20 * 0.25; else d5 = 20 * 0.10;
   }
-  d5 = Math.max(0, Math.min(15, d5));
+  d5 = Math.max(0, Math.min(20, d5));
 
-  // D6: Technical Context (15 pts) — RSI + BB %B (overbought preferred for CC)
-  // Recalibrated: neutral RSI 40–60 now scores 50% (was 30–40%), matching the
-  // philosophy that neutral is acceptable, not penalised.
+  // D6: Technical Context (10 pts) — RSI + BB %B (overbought preferred for CC)
+  // Reduced from 15 to 10: technical context is useful but secondary to delta/strike
   let d6 = 0;
   const rsi = opp.rsi;
   const bb  = opp.bbPctB;
-  const rsiMax = 7.5;
-  const bbMax  = 7.5;
+  const rsiMax = 5;   // was 7.5
+  const bbMax  = 5;   // was 7.5
   if (rsi !== null && rsi !== undefined) {
     if (rsi > 70)       d6 += rsiMax;           // overbought — ideal for CC
     else if (rsi > 60)  d6 += rsiMax * 0.85;
-    else if (rsi > 50)  d6 += rsiMax * 0.65;    // neutral-high (was 0.60)
-    else if (rsi > 40)  d6 += rsiMax * 0.50;    // neutral (was 0.40)
+    else if (rsi > 50)  d6 += rsiMax * 0.65;    // neutral-high
+    else if (rsi > 40)  d6 += rsiMax * 0.50;    // neutral
     else if (rsi > 30)  d6 += rsiMax * 0.25;    // mildly oversold — poor for CC
     // ≤30 = 0 (oversold — avoid CC)
   } else { d6 += rsiMax * 0.55; }
   if (bb !== null && bb !== undefined) {
     if (bb > 0.85)      d6 += bbMax;            // near upper band — ideal for CC
     else if (bb > 0.70) d6 += bbMax * 0.85;
-    else if (bb > 0.50) d6 += bbMax * 0.65;     // upper half (was 0.60)
-    else if (bb > 0.30) d6 += bbMax * 0.50;     // mid-range (was 0.40)
+    else if (bb > 0.50) d6 += bbMax * 0.65;     // upper half
+    else if (bb > 0.30) d6 += bbMax * 0.50;     // mid-range
     else if (bb > 0.15) d6 += bbMax * 0.25;     // lower half — poor for CC
     // ≤0.15 = 0 (near lower band — avoid CC)
   } else { d6 += bbMax * 0.55; }
-  d6 = Math.max(0, Math.min(15, d6));
+  d6 = Math.max(0, Math.min(10, d6));
 
-  const total = Math.round(Math.min(100, d1 + d2 + d3 + d4 + d5 + d6));
+  // Basis Recovery Bonus (0, +2, +4, or +5 pts)
+  // Rewards positions where substantial premium has already been collected,
+  // making being called away acceptable or even desirable.
+  let basisBonus = 0;
+  const basisRecoveryPct = opp.basisRecoveryPct ?? null;
+  if (basisRecoveryPct !== null) {
+    if (basisRecoveryPct >= 95)      basisBonus = 5;  // called away = full win
+    else if (basisRecoveryPct >= 90) basisBonus = 4;  // called away = strong win
+    else if (basisRecoveryPct >= 80) basisBonus = 2;  // called away = acceptable
+  }
+
+  const rawTotal = d1 + d2 + d3 + d4 + d5 + d6 + basisBonus;
+  const total = Math.round(Math.min(100, rawTotal));
   return {
     score: total,
     breakdown: {
       d1Liquidity: Math.round(d1), d2ProbabilityFit: Math.round(d2),
       d3PremiumEfficiency: Math.round(d3), d4IVRichness: Math.round(d4),
       d5StrikeSafety: Math.round(d5), d6Technical: Math.round(d6),
+      basisBonus: Math.round(basisBonus),
       safetyRatio: ccSafetyRatio,
       total,
     },
