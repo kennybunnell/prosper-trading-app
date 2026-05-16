@@ -19,8 +19,17 @@ import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
   Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download, Timer, ExternalLink, Activity, Mail,
-  Sparkles, ListOrdered, ChevronsDownUp, ChevronsUpDown, Info, ShieldCheck, Star, X
+  Sparkles, ListOrdered, ChevronsDownUp, ChevronsUpDown, Info, ShieldCheck, Star, X,
+  ArrowLeftRight, Search, PlusCircle
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterPill } from '@/components/FilterPill';
 import {
@@ -247,6 +256,27 @@ type CCExcludedStock = {
   existingContracts: number;
   workingContracts: number;
   reason: string;
+  currentPrice?: number;
+  maxContracts?: number;
+};
+type ExcludedScanResult = {
+  symbol: string;
+  account: string;
+  strike: number;
+  expiration: string;
+  dte: number;
+  delta: number;
+  mid: number;
+  weeklyReturn: number;
+  totalPremium: number;
+  optionSymbol: string;
+  aiScore: number;
+  scoreBreakdown: Record<string, number | null>;
+  openInterest: number | null;
+  volume: number | null;
+  iv: number | null;
+  currentPrice: number;
+  quantity: number;
 };
 
 type RunResult = {
@@ -265,6 +295,9 @@ export default function AutomationDashboard() {
   const [selectedCCPositions, setSelectedCCPositions] = useState<Set<string>>(new Set());
   const [autoCcVisibleCols, setAutoCcColVisible, , resetAutoCcCols] = useColumnVisibility(AUTO_CC_COLUMNS, 'prosper_col_vis_auto_cc');
   const [isAiScoring, setIsAiScoring] = useState(false);
+  const [excludedScanResults, setExcludedScanResults] = useState<ExcludedScanResult[]>([]);
+  const [isExcludedScanning, setIsExcludedScanning] = useState(false);
+  const [swapConfirmItem, setSwapConfirmItem] = useState<ExcludedScanResult | null>(null);
   const [showScanResults, setShowScanResults] = useState(true);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
@@ -1454,6 +1487,40 @@ export default function AutomationDashboard() {
     },
   });
 
+  // Excluded CC scan mutation
+  const scanExcludedCCMutation = trpc.automation.scanExcludedCC.useMutation({
+    onError: (err) => {
+      setIsExcludedScanning(false);
+      toast.error(`Excluded scan failed: ${err.message}`);
+    },
+  });
+  const runExcludedScan = useCallback(async (excludedStocks: CCExcludedStock[]) => {
+    const scannable = excludedStocks.filter(s =>
+      s.currentPrice && s.currentPrice > 0 &&
+      s.maxContracts !== undefined &&
+      !s.reason.includes('No price data') &&
+      !s.reason.includes('Flagged for exit')
+    );
+    if (scannable.length === 0) {
+      toast.info('No scannable excluded stocks (hard exclusions only)');
+      return;
+    }
+    setIsExcludedScanning(true);
+    try {
+      const result = await scanExcludedCCMutation.mutateAsync({
+        stocks: scannable.map(s => ({
+          symbol: s.symbol,
+          currentPrice: s.currentPrice!,
+          maxContracts: s.maxContracts ?? 1,
+          account: s.account,
+        })),
+      });
+      setExcludedScanResults(result.results as ExcludedScanResult[]);
+      toast.success(`Found best contracts for ${result.results.length} of ${scannable.length} excluded stocks`);
+    } finally {
+      setIsExcludedScanning(false);
+    }
+  }, [scanExcludedCCMutation]);
   // AI scoring mutation
   const scoreCCOpportunities = trpc.automation.scoreCCOpportunities.useMutation({
     onError: (err) => {
@@ -4550,6 +4617,11 @@ export default function AutomationDashboard() {
               return acc;
             }, {});
             const deduped = Object.values(bySymbol);
+            const scannableCount = deduped.filter(s =>
+              s.currentPrice && s.currentPrice > 0 &&
+              !s.reason.includes('No price data') &&
+              !s.reason.includes('Flagged for exit')
+            ).length;
             return (
               <Collapsible className="mt-4">
                 <CollapsibleTrigger asChild>
@@ -4570,13 +4642,39 @@ export default function AutomationDashboard() {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="mt-2 rounded-md border border-muted-foreground/20 bg-muted/10 overflow-hidden">
+                    {/* Header with scan button */}
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-muted-foreground/20 bg-muted/20">
+                      <span className="text-xs text-muted-foreground">
+                        {scannableCount > 0
+                          ? `${scannableCount} stock${scannableCount !== 1 ? 's' : ''} can be scanned for best available contract`
+                          : 'All exclusions are hard blocks (no scan available)'}
+                      </span>
+                      {scannableCount > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 gap-1 border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
+                          onClick={(e) => { e.stopPropagation(); runExcludedScan(lastRunResult.ccExcludedStocks); }}
+                          disabled={isExcludedScanning}
+                        >
+                          {isExcludedScanning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                          {isExcludedScanning ? 'Scanning...' : 'Scan for Best Contracts'}
+                        </Button>
+                      )}
+                    </div>
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-muted-foreground/20 bg-muted/20">
+                        <tr className="border-b border-muted-foreground/20">
                           <th className="text-left px-3 py-2 font-medium text-muted-foreground">Symbol</th>
                           <th className="text-right px-3 py-2 font-medium text-muted-foreground">Shares</th>
                           <th className="text-right px-3 py-2 font-medium text-muted-foreground">Coverage</th>
                           <th className="text-left px-3 py-2 font-medium text-muted-foreground">Reason Excluded</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">Best Strike</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">DTE</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">Mid</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">Wkly%</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">Score</th>
+                          <th className="text-center px-3 py-2 font-medium text-muted-foreground">Override</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -4585,6 +4683,8 @@ export default function AutomationDashboard() {
                           const usedContracts = s.existingContracts + s.workingContracts;
                           const isPending = s.workingContracts > 0;
                           const isFullyCovered = s.existingContracts > 0 && s.existingContracts >= totalContracts;
+                          const isHardBlock = s.reason.includes('No price data') || s.reason.includes('Flagged for exit');
+                          const scanResult = excludedScanResults.find(r => r.symbol === s.symbol);
                           return (
                             <tr key={s.symbol} className="border-b border-muted-foreground/10 last:border-0 hover:bg-muted/10">
                               <td className="px-3 py-2 font-semibold text-foreground/80">{s.symbol}</td>
@@ -4601,9 +4701,9 @@ export default function AutomationDashboard() {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className={`cursor-help inline-flex items-center gap-1 ${
-                                        isPending ? 'text-yellow-400/80' : isFullyCovered ? 'text-orange-400/80' : 'text-muted-foreground'
+                                        isHardBlock ? 'text-red-400/80' : isPending ? 'text-yellow-400/80' : isFullyCovered ? 'text-orange-400/80' : 'text-muted-foreground'
                                       }`}>
-                                        {isPending ? <Clock className="h-3 w-3" /> : isFullyCovered ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                                        {isHardBlock ? <XCircle className="h-3 w-3" /> : isPending ? <Clock className="h-3 w-3" /> : isFullyCovered ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
                                         {s.reason}
                                       </span>
                                     </TooltipTrigger>
@@ -4616,6 +4716,76 @@ export default function AutomationDashboard() {
                                   </Tooltip>
                                 </TooltipProvider>
                               </td>
+                              {/* Best available contract columns */}
+                              {scanResult ? (
+                                <>
+                                  <td className="px-3 py-2 text-right font-mono text-emerald-400">${scanResult.strike}</td>
+                                  <td className="px-3 py-2 text-right text-muted-foreground">{scanResult.dte}d</td>
+                                  <td className="px-3 py-2 text-right text-emerald-400">${scanResult.mid.toFixed(2)}</td>
+                                  <td className="px-3 py-2 text-right text-emerald-400">{scanResult.weeklyReturn.toFixed(2)}%</td>
+                                  <td className="px-3 py-2 text-right">
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className={`font-bold cursor-help border-b border-dotted border-current ${
+                                            scanResult.aiScore >= 75 ? 'text-emerald-400' :
+                                            scanResult.aiScore >= 55 ? 'text-yellow-400' : 'text-red-400'
+                                          }`}>{scanResult.aiScore}</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left" className="w-52 text-xs p-3">
+                                          <p className="font-semibold mb-2">D1-D6 Score Breakdown</p>
+                                          {([
+                                            { key: 'd1Liquidity', label: 'D1 Liquidity', max: 15 },
+                                            { key: 'd2ProbabilityFit', label: 'D2 Probability Fit', max: 25 },
+                                            { key: 'd3PremiumEfficiency', label: 'D3 Premium', max: 20 },
+                                            { key: 'd4IvRichness', label: 'D4 IV Richness', max: 10 },
+                                            { key: 'd5StrikeSafety', label: 'D5 Strike Safety', max: 20 },
+                                            { key: 'd6TechnicalContext', label: 'D6 Technical', max: 10 },
+                                          ] as const).map(({ key, label, max }) => {
+                                            const val = scanResult.scoreBreakdown?.[key] ?? null;
+                                            const pct = val != null ? (val / max) * 100 : 0;
+                                            return (
+                                              <div key={key} className="mb-1.5">
+                                                <div className="flex justify-between mb-0.5">
+                                                  <span className="text-muted-foreground">{label}</span>
+                                                  <span className="font-mono">{val ?? '—'}/{max}</span>
+                                                </div>
+                                                <div className="h-1 bg-muted rounded-full overflow-hidden">
+                                                  <div className={`h-full rounded-full ${
+                                                    pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                                  }`} style={{ width: `${pct}%` }} />
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                          <div className="mt-2 pt-2 border-t border-muted-foreground/20 flex justify-between font-semibold">
+                                            <span>Total</span>
+                                            <span>{scanResult.aiScore}/100</span>
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-[10px] px-2 gap-1 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                                      onClick={() => setSwapConfirmItem(scanResult)}
+                                    >
+                                      <PlusCircle className="h-3 w-3" />
+                                      Override & Add
+                                    </Button>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td colSpan={5} className="px-3 py-2 text-center text-muted-foreground/50 italic">
+                                    {isHardBlock ? 'Hard block — no scan' : isExcludedScanning ? 'Scanning...' : 'Click "Scan for Best Contracts" above'}
+                                  </td>
+                                  <td />
+                                </>
+                              )}
                             </tr>
                           );
                         })}
@@ -4909,15 +5079,88 @@ export default function AutomationDashboard() {
               <p className="text-sm mt-1">Click "Run Now" to start your first automation</p>
             </div>
           )}
-        </CardContent>
+          </CardContent>
       </Card>
 
-
+      {/* Override & Add Confirmation Dialog */}
+      <Dialog open={!!swapConfirmItem} onOpenChange={(open) => { if (!open) setSwapConfirmItem(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowLeftRight className="h-4 w-4 text-amber-400" />
+              Override & Add — {swapConfirmItem?.symbol}
+            </DialogTitle>
+            <DialogDescription>
+              This stock was excluded from the scan. You are manually overriding the exclusion and adding this contract to the selected list. The exclusion reason was:
+            </DialogDescription>
+          </DialogHeader>
+          {swapConfirmItem && (() => {
+            const excluded = lastRunResult?.ccExcludedStocks.find(s => s.symbol === swapConfirmItem.symbol);
+            return (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-amber-300 text-xs flex items-start gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>{excluded?.reason ?? 'Unknown exclusion reason'}</span>
+                </div>
+                <div className="rounded-md border border-muted-foreground/20 bg-muted/10 p-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Contract</span><span className="font-mono">{swapConfirmItem.optionSymbol}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Strike</span><span className="font-mono">${swapConfirmItem.strike}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Expiration</span><span>{swapConfirmItem.expiration}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">DTE</span><span>{swapConfirmItem.dte}d</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Mid</span><span className="text-emerald-400">${swapConfirmItem.mid.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Wkly%</span><span className="text-emerald-400">{swapConfirmItem.weeklyReturn.toFixed(2)}%</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">AI Score</span><span className={swapConfirmItem.aiScore >= 75 ? 'text-emerald-400' : swapConfirmItem.aiScore >= 55 ? 'text-yellow-400' : 'text-red-400'}>{swapConfirmItem.aiScore}/100</span></div>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSwapConfirmItem(null)}>Cancel</Button>
+            <Button
+              size="sm"
+              className="bg-amber-500 hover:bg-amber-600 text-black"
+              onClick={() => {
+                if (!swapConfirmItem) return;
+                const newEntry: CCScanResult = {
+                  account: swapConfirmItem.account,
+                  symbol: swapConfirmItem.symbol,
+                  optionSymbol: swapConfirmItem.optionSymbol,
+                  strike: swapConfirmItem.strike,
+                  expiration: swapConfirmItem.expiration,
+                  dte: swapConfirmItem.dte,
+                  delta: swapConfirmItem.delta,
+                  bid: swapConfirmItem.mid * 0.95,
+                  ask: swapConfirmItem.mid * 1.05,
+                  mid: swapConfirmItem.mid,
+                  quantity: swapConfirmItem.quantity,
+                  premiumPerContract: swapConfirmItem.mid,
+                  totalPremium: swapConfirmItem.totalPremium,
+                  returnPct: swapConfirmItem.weeklyReturn * 4,
+                  weeklyReturn: swapConfirmItem.weeklyReturn,
+                  currentPrice: swapConfirmItem.currentPrice,
+                  action: 'WOULD_SELL_CC',
+                  aiScore: swapConfirmItem.aiScore,
+                  scoreBreakdown: swapConfirmItem.scoreBreakdown,
+                  openInterest: swapConfirmItem.openInterest,
+                  volume: swapConfirmItem.volume,
+                  iv: swapConfirmItem.iv,
+                };
+                setLastRunResult(prev => prev ? { ...prev, ccScanResults: [...prev.ccScanResults, newEntry] } : prev);
+                setSelectedCCPositions(prev => new Set(Array.from(prev).concat(`${newEntry.optionSymbol}|${newEntry.account}`)));
+                setSwapConfirmItem(null);
+                toast.success(`${swapConfirmItem.symbol} override added to selected contracts`);
+              }}
+            >
+              <PlusCircle className="h-3.5 w-3.5 mr-1" />
+              Confirm Override & Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-// ─── Best Fit Optimizer (client-side, no extra API calls) ───────────────────
+// ─── Best Fit Optimizer (client-side, no extra API calls) ────────────────────
 type BestFitResult = {
   candidate: RollCandidate;
   bestFitScore: number;

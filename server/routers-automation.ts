@@ -448,6 +448,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           existingContracts: number;
           workingContracts: number;
           reason: string;
+          currentPrice: number;
+          maxContracts: number;
         }> = [];
         // Detailed scan results for dry-run visibility
         const scanResults: Array<{
@@ -1116,13 +1118,13 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 // Track excluded stocks with reasons for UI visibility
                 for (const s of allCandidateStocks) {
                   if (s.currentPrice <= 0) {
-                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: 'No price data available' });
+                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: 'No price data available', currentPrice: s.currentPrice, maxContracts: s.maxContracts });
                   } else if (flaggedSymbolsSet.has(s.symbol.toUpperCase())) {
-                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: 'Flagged for exit — no new CCs' });
+                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: 'Flagged for exit — no new CCs', currentPrice: s.currentPrice, maxContracts: s.maxContracts });
                   } else if (s.workingContracts > 0 && s.maxContracts <= 0) {
-                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: `Pending working order (${s.workingContracts} contract${s.workingContracts !== 1 ? 's' : ''})` });
+                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: `Pending working order (${s.workingContracts} contract${s.workingContracts !== 1 ? 's' : ''})`, currentPrice: s.currentPrice, maxContracts: s.maxContracts });
                   } else if (s.maxContracts <= 0) {
-                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: `Fully covered (${s.existingContracts} contract${s.existingContracts !== 1 ? 's' : ''} vs ${Math.floor(s.quantity / 100)} available)` });
+                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: `Fully covered (${s.existingContracts} contract${s.existingContracts !== 1 ? 's' : ''} vs ${Math.floor(s.quantity / 100)} available)`, currentPrice: s.currentPrice, maxContracts: s.maxContracts });
                   }
                 }
                 const eligibleStocks = allCandidateStocks
@@ -4087,5 +4089,145 @@ One actionable takeaway in bold.`;
           ? rawContent.map((c: any) => c.text || '').join('')
           : 'Unable to generate response.';
       return { reply };
+    }),
+
+  /**
+   * Scan excluded CC stocks to find their best available contract.
+   * Used by the "excluded symbols" panel to show what each excluded stock
+   * *would* offer if it were eligible, enabling informed override decisions.
+   */
+  scanExcludedCC: protectedProcedure
+    .input(z.object({
+      stocks: z.array(z.object({
+        symbol: z.string(),
+        currentPrice: z.number(),
+        maxContracts: z.number(),
+        account: z.string(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const settings = await getAutomationSettings(ctx.user.id);
+      const { createTradierAPI } = await import('./tradier');
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      const storedKey = credentials?.tradierApiKey;
+      const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
+      if (!tradierApiKey) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured' });
+      const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
+      const { calculateCCScore } = await import('./cc-scoring');
+      const today = new Date();
+      const dteMin = settings.ccDteMin ?? 7;
+      const dteMax = settings.ccDteMax ?? 14;
+      const minDelta = parseFloat(settings.ccDeltaMin ?? '0.15');
+      const maxDelta = parseFloat(settings.ccDeltaMax ?? '0.35');
+
+      const results: Array<{
+        symbol: string;
+        account: string;
+        strike: number;
+        expiration: string;
+        dte: number;
+        delta: number;
+        mid: number;
+        weeklyReturn: number;
+        totalPremium: number;
+        optionSymbol: string;
+        aiScore: number;
+        scoreBreakdown: Record<string, number | null>;
+        openInterest: number | null;
+        volume: number | null;
+        iv: number | null;
+        currentPrice: number;
+        quantity: number;
+      }> = [];
+
+      await Promise.allSettled(input.stocks.map(async (stock) => {
+        try {
+          const expirations = await tradierApi.getExpirations(stock.symbol);
+          const validExpirations = expirations.filter((exp: string) => {
+            const dte = Math.ceil((new Date(exp).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            return dte >= dteMin && dte <= dteMax;
+          });
+          if (validExpirations.length === 0) return;
+
+          const chainResults = await Promise.all(
+            validExpirations.map(async (expiration: string) => {
+              const options = await tradierApi.getOptionChain(stock.symbol, expiration, true);
+              return { expiration, options };
+            })
+          );
+
+          let bestOpp: any = null;
+          for (const { expiration, options } of chainResults) {
+            const calls = options.filter((opt: any) => opt.option_type === 'call');
+            for (const option of calls) {
+              const strike = option.strike || 0;
+              const delta = Math.abs(option.greeks?.delta || 0);
+              const bid = option.bid || 0;
+              const ask = option.ask || 0;
+              const mid = (bid + ask) / 2;
+              if (strike <= stock.currentPrice) continue;
+              if (delta < minDelta || delta > maxDelta) continue;
+              if (bid <= 0) continue;
+              const dte = Math.ceil((new Date(expiration).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+              const returnPct = (mid / stock.currentPrice) * 100;
+              const weeklyReturn = dte > 0 ? (returnPct / dte) * 7 : 0;
+              const openInterest = option.open_interest ?? null;
+              const volume = option.volume ?? null;
+              const iv = option.greeks?.mid_iv ?? null;
+              const opp = { symbol: stock.symbol, strike, expiration, dte, delta, bid, ask, mid, returnPct, weeklyReturn, maxContracts: stock.maxContracts, currentPrice: stock.currentPrice, openInterest, volume, iv };
+              if (!bestOpp || weeklyReturn > bestOpp.weeklyReturn) bestOpp = opp;
+            }
+          }
+
+          if (!bestOpp) return;
+
+          let tech = { rsi: null as number | null, bbPctB: null as number | null, ivRank: null as number | null };
+          try {
+            const indicators = await tradierApi.getTechnicalIndicators(stock.symbol);
+            tech = {
+              rsi: indicators.rsi ?? null,
+              bbPctB: indicators.bollingerBands?.percentB ?? null,
+              ivRank: indicators.ivRank ?? null,
+            };
+          } catch { /* use nulls */ }
+
+          const distanceOtm = bestOpp.currentPrice > 0 ? ((bestOpp.strike - bestOpp.currentPrice) / bestOpp.currentPrice) * 100 : null;
+          const { score: aiScore, breakdown: scoreBreakdown } = calculateCCScore({
+            bid: bestOpp.bid, ask: bestOpp.ask, delta: bestOpp.delta, dte: bestOpp.dte,
+            weeklyReturn: bestOpp.weeklyReturn, currentPrice: bestOpp.currentPrice,
+            strike: bestOpp.strike, openInterest: bestOpp.openInterest, volume: bestOpp.volume,
+            iv: bestOpp.iv, distanceOtm, rsi: tech.rsi, bbPctB: tech.bbPctB, ivRank: tech.ivRank,
+          });
+
+          const expParts = bestOpp.expiration.split('-');
+          const optSymDate = expParts[0].slice(2) + expParts[1] + expParts[2];
+          const optionSymbol = `${bestOpp.symbol}${optSymDate}C${String(Math.round(bestOpp.strike * 1000)).padStart(8, '0')}`;
+
+          results.push({
+            symbol: stock.symbol,
+            account: stock.account,
+            strike: bestOpp.strike,
+            expiration: bestOpp.expiration,
+            dte: bestOpp.dte,
+            delta: bestOpp.delta,
+            mid: bestOpp.mid,
+            weeklyReturn: bestOpp.weeklyReturn,
+            totalPremium: bestOpp.mid * stock.maxContracts * 100,
+            optionSymbol,
+            aiScore,
+            scoreBreakdown,
+            openInterest: bestOpp.openInterest,
+            volume: bestOpp.volume,
+            iv: bestOpp.iv,
+            currentPrice: stock.currentPrice,
+            quantity: stock.maxContracts,
+          });
+        } catch (err: any) {
+          console.error(`[scanExcludedCC] Error scanning ${stock.symbol}:`, err.message);
+        }
+      }));
+
+      return { results };
     }),
 });
