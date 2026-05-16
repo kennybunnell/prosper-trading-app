@@ -4390,7 +4390,12 @@ export default function AutomationDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {lastRunResult.ccScanResults.map((r, idx) => {
+                        {[...lastRunResult.ccScanResults].sort((a, b) => {
+                          // Default sort: AI Score descending (scored rows first, then unscored)
+                          const sa = a.aiScore ?? -1;
+                          const sb = b.aiScore ?? -1;
+                          return sb - sa;
+                        }).map((r, idx) => {
                           const key = `${r.optionSymbol}|${r.account}`;
                           const isSelected = selectedCCPositions.has(key);
                           const isAmber = !!r.aiRecommendedDte;
@@ -4422,7 +4427,57 @@ export default function AutomationDashboard() {
                                 <td className="py-2 pl-3" style={{minWidth:'220px'}}>
                                   {r.aiScore !== undefined ? (
                                     <div className="flex items-start gap-2">
-                                      <span className={`font-mono font-bold text-base shrink-0 w-7 text-right ${scoreColor}`}>{r.aiScore}</span>
+                                      {/* Score number with D1-D6 breakdown tooltip */}
+                                      <TooltipProvider delayDuration={150}>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span className={`font-mono font-bold text-base shrink-0 w-7 text-right cursor-help underline decoration-dotted decoration-1 underline-offset-2 ${scoreColor}`}>{r.aiScore}</span>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="right" className="p-0 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl" style={{minWidth: '200px'}}>
+                                            {r.scoreBreakdown ? (
+                                              <div className="p-3">
+                                                <div className="text-xs font-semibold text-zinc-300 mb-2 pb-1.5 border-b border-zinc-700">Score Breakdown</div>
+                                                <div className="space-y-1.5">
+                                                  {([
+                                                    { key: 'd1Liquidity',         label: 'D1 Liquidity',         max: 15 },
+                                                    { key: 'd2ProbabilityFit',    label: 'D2 Probability Fit',   max: 25 },
+                                                    { key: 'd3PremiumEfficiency', label: 'D3 Premium Efficiency',max: 20 },
+                                                    { key: 'd4IVRichness',        label: 'D4 IV Richness',       max: 10 },
+                                                    { key: 'd5StrikeSafety',      label: 'D5 Strike Safety',     max: 20 },
+                                                    { key: 'd6Technical',         label: 'D6 Technical',         max: 10 },
+                                                  ] as const).map(({ key, label, max }) => {
+                                                    const val = r.scoreBreakdown![key] ?? 0;
+                                                    const pct = Math.round((val / max) * 100);
+                                                    const barColor = pct >= 80 ? 'bg-green-500' : pct >= 55 ? 'bg-blue-500' : pct >= 35 ? 'bg-amber-500' : 'bg-red-500';
+                                                    return (
+                                                      <div key={key} className="flex items-center gap-2">
+                                                        <span className="text-[10px] text-zinc-400 w-36 shrink-0">{label}</span>
+                                                        <div className="flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+                                                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                        <span className="text-[10px] font-mono text-zinc-300 w-8 text-right shrink-0">{val}/{max}</span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                  {(r.scoreBreakdown.basisBonus ?? 0) > 0 && (
+                                                    <div className="flex items-center gap-2 pt-1 border-t border-zinc-700/60">
+                                                      <span className="text-[10px] text-zinc-400 w-36 shrink-0">Basis Bonus</span>
+                                                      <div className="flex-1" />
+                                                      <span className="text-[10px] font-mono text-green-400 w-8 text-right shrink-0">+{r.scoreBreakdown.basisBonus}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <div className="mt-2 pt-1.5 border-t border-zinc-700 flex justify-between items-center">
+                                                  <span className="text-[10px] text-zinc-400">Total</span>
+                                                  <span className={`text-xs font-bold font-mono ${scoreColor}`}>{r.aiScore}/100</span>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div className="p-3 text-xs text-zinc-400">Score breakdown not available</div>
+                                            )}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
                                       {r.aiRationale && <span className="text-[10px] text-muted-foreground leading-snug cursor-help line-clamp-2" title={r.aiRationale} style={{maxWidth:'170px'}}>{r.aiRationale}</span>}
                                     </div>
                                   ) : <span className="text-muted-foreground text-xs">—</span>}
