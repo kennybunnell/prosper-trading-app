@@ -130,12 +130,15 @@ function scoreD3PremiumCSP(weeklyPct: number, isIndex: boolean, maxPts = 20): nu
     else if (weeklyPct >= 0.12) s = maxPts * 0.35;
     else if (weeklyPct >= 0.07) s = maxPts * 0.15;
   } else {
-    if (weeklyPct >= 1.0)       s = maxPts;           // top-tier equity premium
-    else if (weeklyPct >= 0.70) s = maxPts * 0.85;
-    else if (weeklyPct >= 0.50) s = maxPts * 0.70;
-    else if (weeklyPct >= 0.35) s = maxPts * 0.55;
-    else if (weeklyPct >= 0.20) s = maxPts * 0.35;
-    else if (weeklyPct >= 0.10) s = maxPts * 0.15;
+    // Recalibrated: 0.20%/wk on a 14-DTE CSP is ~10% annualised ROC — that's a solid trade.
+    // Thresholds adjusted so typical real-world premiums score in the 50–85% range.
+    if (weeklyPct >= 0.80)      s = maxPts;           // top-tier equity premium
+    else if (weeklyPct >= 0.60) s = maxPts * 0.85;
+    else if (weeklyPct >= 0.40) s = maxPts * 0.70;
+    else if (weeklyPct >= 0.25) s = maxPts * 0.55;
+    else if (weeklyPct >= 0.15) s = maxPts * 0.40;
+    else if (weeklyPct >= 0.08) s = maxPts * 0.22;
+    else                        s = maxPts * 0.10;
   }
   return Math.max(0, Math.min(maxPts, s));
 }
@@ -151,8 +154,8 @@ function scoreD4IVRichness(ivRank: number | null | undefined, maxPts = 15): numb
   if (ivRank >= 35)      return maxPts * 0.70;    // moderate-high
   if (ivRank >= 25)      return maxPts * 0.55;    // moderate
   if (ivRank >= 15)      return maxPts * 0.35;    // below average
-  if (ivRank >= 8)       return maxPts * 0.18;    // low
-  return maxPts * 0.05;                           // very low IV — avoid
+  if (ivRank >= 8)       return maxPts * 0.20;    // low
+  return maxPts * 0.12;                           // very low IV — floor (still participates)
 }
 
 // ─── D5: Strike Safety (0–15 pts) ────────────────────────────────────────────

@@ -1261,25 +1261,42 @@ export default function PMCCDashboard() {
             toast.info('Scan cancelled');
           }
         }}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md border-2 border-orange-500/50">
             <DialogHeader>
-              <DialogTitle>Scanning for LEAPs</DialogTitle>
+              <DialogTitle>Fetching Opportunities</DialogTitle>
               <DialogDescription>
-                Analyzing {selectedSymbols.length} symbols for LEAP call options (9-15 months out, deep ITM)...
+                Scanning option chains and scoring opportunities...
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center justify-center space-y-4 py-6">
               <Loader2 className="w-12 h-12 animate-spin text-primary" />
-              <Progress value={scanProgress} className="w-full" />
-              <p className="text-sm text-muted-foreground">
-                {scanProgress < 100 ? (
-                  <>
-                    {Math.floor((100 - scanProgress) * selectedSymbols.length * 2.0 / 100)}s remaining
-                  </>
-                ) : (
-                  <>Finishing up...</>
-                )}
-              </p>
+              <div className="w-full space-y-2">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Batch 1/1 — 0/{selectedSymbols.length} symbols</span>
+                  <span>{Math.round(scanProgress)}%</span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300 ease-linear"
+                    style={{ width: `${scanProgress}%` }}
+                  />
+                </div>
+              </div>
+              {scanProgress >= 95 ? (
+                <p className="text-lg font-bold text-green-500">
+                  🟢 Opportunities found
+                </p>
+              ) : (
+                <p className="text-lg font-semibold text-primary animate-pulse">
+                  Finishing up...
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">Fetching LEAP option chains...</p>
+              {scanStartTime && (
+                <p className="text-xs text-muted-foreground opacity-60">
+                  {Math.floor((Date.now() - scanStartTime) / 1000)}s elapsed
+                </p>
+              )}
             </div>
           </DialogContent>
         </Dialog>

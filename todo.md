@@ -9909,3 +9909,6 @@ ROC Fix Mar 18 2026
 - [x] Add HelpBadge tooltips to Bid/Ask/Mid, Dist OTM, and Spread % headers
 - [x] Add BID_ASK_MID, DIST_OTM, SPREAD_PCT help content to helpContent.tsx
 - [x] Verify CSP scoring calibration: typical row (delta 0.22, OI 4387, RSI 53, BB 0.56) scores 75
+- [x] Unify loading modal UI across CSP, CC, IC, PMCC to match BPS batch-style design
+- [x] Final D3/D4 scoring recalibration: D3 equity thresholds lowered (0.15%/wk = 40%), D4 floor added (IV Rank 0-8 = 12% not 5%)
+- [x] Scoring simulation verified: typical rows 60-65, good setups 80-85, poor setups 38

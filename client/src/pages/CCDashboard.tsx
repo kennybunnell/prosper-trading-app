@@ -139,38 +139,67 @@ type SpreadWidth = 2 | 5 | 10 | 25 | 50 | 100;
 const ENABLE_BEAR_CALL_SPREADS = true;
 
 // Live countdown component for progress dialog
-function LiveCountdown({ startTime, totalSymbols }: { startTime: number; totalSymbols: number }) {
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
-  
+function LiveCountdown({ startTime, totalSymbols, liveProgress }: {
+  startTime: number;
+  totalSymbols: number;
+  liveProgress?: { batchCurrent: number; batchTotal: number; symbolsDone: number; symbolsTotal: number; opportunitiesFound: number } | null;
+}) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   useEffect(() => {
-    // Use actual performance: 1.32 seconds per symbol (based on 66s for 50 symbols)
-    const estimatedTotalSeconds = totalSymbols * 1.32;
-    
     const interval = setInterval(() => {
-      const elapsed = (Date.now() - startTime) / 1000;
-      const remaining = Math.max(0, estimatedTotalSeconds - elapsed);
-      setRemainingSeconds(remaining);
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
-    
     return () => clearInterval(interval);
-  }, [startTime, totalSymbols]);
-  
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = Math.floor(remainingSeconds % 60);
-  
+  }, [startTime]);
+
+  const symbolsTotal = liveProgress?.symbolsTotal || totalSymbols;
+  const symbolsDone = liveProgress?.symbolsDone ?? 0;
+  const oppsFound = liveProgress?.opportunitiesFound ?? 0;
+  const hasLiveProgress = liveProgress && (liveProgress.batchTotal > 0 || liveProgress.symbolsDone > 0);
+  const defaultBatchTotal = Math.ceil(totalSymbols / 20) || 1;
+  const displayBatchCurrent = hasLiveProgress ? (liveProgress?.batchCurrent ?? 0) : 0;
+  const displayBatchTotal = (hasLiveProgress && liveProgress?.batchTotal) ? liveProgress.batchTotal : defaultBatchTotal;
+
+  const estimatedTotalSeconds = totalSymbols * 1.32;
+  let progressPercent = 0;
+  if (hasLiveProgress) {
+    progressPercent = symbolsTotal > 0 ? Math.min(95, (symbolsDone / symbolsTotal) * 100) : 0;
+  } else {
+    progressPercent = estimatedTotalSeconds > 0 ? Math.min(30, (elapsedSeconds / estimatedTotalSeconds) * 100) : 5;
+  }
+
+  const statusLine = `Batch ${displayBatchCurrent}/${displayBatchTotal} — ${symbolsDone}/${symbolsTotal} symbols`;
+  const subLine = oppsFound > 0
+    ? `${oppsFound} opportunities found so far`
+    : 'Fetching option chains...';
+
   return (
     <div className="flex flex-col items-center justify-center space-y-4">
       <Loader2 className="w-12 h-12 animate-spin text-primary" />
-      <p className="text-sm text-muted-foreground">
-        Processing {totalSymbols} symbols...
-      </p>
-      <p className="text-lg font-semibold text-primary">
-        {remainingSeconds > 0 ? (
-          <>{minutes}:{seconds.toString().padStart(2, '0')} remaining</>
-        ) : (
-          <>Finishing up...</>
-        )}
-      </p>
+      <div className="w-full space-y-2">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>{statusLine}</span>
+          <span>{Math.round(progressPercent)}%</span>
+        </div>
+        <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+          <div
+            className="h-full bg-primary transition-all duration-1000 ease-linear"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+      {oppsFound > 0 ? (
+        <p className="text-lg font-bold text-green-500">
+          🟢 {oppsFound} opportunities found
+        </p>
+      ) : (
+        <p className="text-lg font-semibold text-primary animate-pulse">
+          Finishing up...
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">{subLine}</p>
+      <p className="text-xs text-muted-foreground opacity-60">{elapsedSeconds}s elapsed</p>
     </div>
   );
 }

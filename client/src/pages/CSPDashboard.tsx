@@ -128,37 +128,32 @@ function LiveCountdown({ startTime, totalSymbols, strategyType, liveProgress }: 
     return () => clearInterval(interval);
   }, [startTime]);
   
-  // Use real server progress if available, else fall back to time estimate
+  // Derive display values — always show batch-style UI regardless of whether live progress has arrived
+  const symbolsTotal = liveProgress?.symbolsTotal || totalSymbols;
+  const symbolsDone = liveProgress?.symbolsDone ?? 0;
+  const oppsFound = liveProgress?.opportunitiesFound ?? 0;
+  const batchCurrent = liveProgress?.batchCurrent ?? 0;
   const hasLiveProgress = liveProgress && (liveProgress.batchTotal > 0 || liveProgress.symbolsDone > 0);
+  const defaultBatchTotal = Math.ceil(totalSymbols / 20) || 1;
+  const batchTotal = (hasLiveProgress && liveProgress?.batchTotal) ? liveProgress.batchTotal : defaultBatchTotal;
+
+  // Progress: use server data when available, else estimate from elapsed time
   const secondsPerSymbol = strategyType === 'spread' ? 4.8 : 1.32;
   const estimatedTotalSeconds = totalSymbols * secondsPerSymbol;
-  
   let progressPercent = 0;
-  let statusLine = '';
-  let subLine = '';
-  
-  if (hasLiveProgress && liveProgress) {
-    // Real progress from server
-    const symbolsDone = liveProgress.symbolsDone;
-    const symbolsTotal = liveProgress.symbolsTotal || totalSymbols;
+  if (hasLiveProgress) {
     progressPercent = symbolsTotal > 0 ? Math.min(95, (symbolsDone / symbolsTotal) * 100) : 0;
-    const batchLabel = liveProgress.batchTotal > 0
-      ? `Batch ${liveProgress.batchCurrent}/${liveProgress.batchTotal}`
-      : 'Scanning...';
-    statusLine = `${batchLabel} — ${symbolsDone}/${symbolsTotal} symbols`;
-    subLine = liveProgress.opportunitiesFound > 0
-      ? `${liveProgress.opportunitiesFound} opportunities found so far`
-      : strategyType === 'spread' ? 'Fetching spread chains...' : 'Fetching option chains...';
   } else {
-    // Time-estimate fallback (before first batch completes)
     progressPercent = estimatedTotalSeconds > 0 ? Math.min(30, (elapsedSeconds / estimatedTotalSeconds) * 100) : 5;
-    statusLine = `Scanning ${totalSymbols} symbols...`;
-    subLine = strategyType === 'spread' ? 'Fetching spread chains...' : 'Fetching option chains...';
   }
 
-  const remainingSeconds = Math.max(0, estimatedTotalSeconds - elapsedSeconds);
-  const minutes = Math.floor(remainingSeconds / 60);
-  const secs = Math.floor(remainingSeconds % 60);
+  // Always show "Batch X/Y — A/B symbols" format
+  const displayBatchCurrent = hasLiveProgress ? batchCurrent : 0;
+  const displayBatchTotal = batchTotal;
+  const statusLine = `Batch ${displayBatchCurrent}/${displayBatchTotal} — ${symbolsDone}/${symbolsTotal} symbols`;
+  const subLine = oppsFound > 0
+    ? `${oppsFound} opportunities found so far`
+    : strategyType === 'spread' ? 'Fetching spread chains...' : 'Fetching option chains...';
   
   return (
     <div className="flex flex-col items-center justify-center space-y-4">
@@ -175,17 +170,13 @@ function LiveCountdown({ startTime, totalSymbols, strategyType, liveProgress }: 
           />
         </div>
       </div>
-      {hasLiveProgress && liveProgress && liveProgress.opportunitiesFound > 0 ? (
-        <p className="text-lg font-semibold text-green-500">
-          🟢 {liveProgress.opportunitiesFound} opportunities found
+      {oppsFound > 0 ? (
+        <p className="text-lg font-bold text-green-500">
+          🟢 {oppsFound} opportunities found
         </p>
       ) : (
-        <p className="text-lg font-semibold text-primary">
-          {remainingSeconds > 0 ? (
-            <>{minutes}:{secs.toString().padStart(2, '0')} remaining</>
-          ) : (
-            <>Finishing up...</>
-          )}
+        <p className="text-lg font-semibold text-primary animate-pulse">
+          Finishing up...
         </p>
       )}
       <p className="text-xs text-muted-foreground">{subLine}</p>
