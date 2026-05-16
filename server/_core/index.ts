@@ -15,6 +15,7 @@ import { handleTelegramCallback } from "../telegram-callbacks";
 import { handleTelegramCommand } from "../telegram-commands";
 import { initializeTelegramBriefingScheduler } from "../telegram-briefing";
 import { sdk } from "./sdk";
+import { warmupDb } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -201,6 +202,11 @@ async function startServer() {
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
+
+  // Warm up the DB connection pool before accepting requests.
+  // This fires a SELECT 1 ping so the first real user request (e.g., watchlist)
+  // never pays the 3-4s TCP+SSL cold-start cost to TiDB Cloud.
+  warmupDb().catch(console.error);
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

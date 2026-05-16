@@ -10021,3 +10021,9 @@ ROC Fix Mar 18 2026
 ## Bug Fixes (May 16, 2026 — Scoring Display)
 - [x] Fix BCS score tooltip missing Direction row (35 pts) — tooltip showed max 65 instead of 100
 - [x] Fix BCS table title to show "Bear Call Spread Opportunities" when in spread mode
+
+## Watchlist Performance Fix (May 16, 2026)
+- [x] Replace raw DB connection string with mysql2 connection pool (eliminates 3-4s TCP cold-start)
+- [x] Add DB warmup ping at server startup so pool is hot before first user request
+- [x] Use splitLink to route watchlist.get and watchlist.getSelections through non-batching httpLink (prevents 6s wait for slow procedures in the same batch)
+- [x] Remove misleading "10-30 seconds" loading text from watchlist component

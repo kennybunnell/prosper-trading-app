@@ -103,7 +103,7 @@ function WatchlistPills({
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" />
-        Loading watchlist... (this may take 10-30 seconds)
+        Loading watchlist...
       </div>
     );
   }
@@ -186,8 +186,8 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
     undefined,
     {
       staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-      retry: 3, // Retry 3 times on failure
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+      retry: 2, // Retry 2 times on failure
+      retryDelay: 1000, // Fixed 1s retry delay (pool warmup means fast retries are fine)
     }
   );
   
@@ -196,8 +196,8 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
     undefined,
     {
       staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-      retry: 3, // Retry 3 times on failure
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+      retry: 2, // Retry 2 times on failure
+      retryDelay: 1000, // Fixed 1s retry delay
     }
   );
   

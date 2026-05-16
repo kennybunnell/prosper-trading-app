@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -112,28 +112,46 @@ queryClient.getMutationCache().subscribe(_event => {
   // Mutation errors are handled at the component level.
 });
 
+// Shared fetch function that injects auth headers.
+function authFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const storedToken = getStoredToken();
+  const headers: Record<string, string> = {};
+  if (storedToken) {
+    headers['Authorization'] = `Bearer ${storedToken}`;
+  }
+  return globalThis.fetch(input, {
+    ...(init ?? {}),
+    credentials: "include",
+    headers: {
+      ...(init?.headers ?? {}),
+      ...headers,
+    },
+  });
+}
+
+// Fast procedures that should NOT be batched with slow procedures.
+// These are simple DB reads that should return in <100ms.
+const FAST_PROCEDURES = new Set([
+  'watchlist.get',
+  'watchlist.getSelections',
+]);
+
 const trpcClient = trpc.createClient({
   links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      transformer: superjson,
-      fetch(input, init) {
-        const storedToken = getStoredToken();
-        const headers: Record<string, string> = {};
-        if (storedToken) {
-          // Send the localStorage token as Authorization header.
-          // The server accepts this as a fallback when cookies are blocked.
-          headers['Authorization'] = `Bearer ${storedToken}`;
-        }
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-          headers: {
-            ...(init?.headers ?? {}),
-            ...headers,
-          },
-        });
-      },
+    // Route fast DB-only queries through a non-batching link so they return
+    // immediately without waiting for slow external-API calls in the same batch.
+    splitLink({
+      condition: (op) => FAST_PROCEDURES.has(op.path),
+      true: httpLink({
+        url: "/api/trpc",
+        transformer: superjson,
+        fetch: authFetch,
+      }),
+      false: httpBatchLink({
+        url: "/api/trpc",
+        transformer: superjson,
+        fetch: authFetch,
+      }),
     }),
   ],
 });

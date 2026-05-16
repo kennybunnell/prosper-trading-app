@@ -6,17 +6,58 @@ import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
+// Lazily create the drizzle instance backed by a connection pool.
+// Using a pool instead of a raw connection string ensures TCP connections
+// are kept alive and reused, eliminating the 3-4s cold-start penalty on
+// every first request after the server boots or after a period of inactivity.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Parse the connection URI into individual options so we can pass pool
+      // configuration (connectionLimit, keepAlive, etc.) directly to drizzle.
+      // This avoids any ESM/CJS import issues with mysql2 and lets drizzle
+      // call createPool internally with our desired settings.
+      const dbUrl = new URL(process.env.DATABASE_URL);
+      _db = drizzle({
+        connection: {
+          host: dbUrl.hostname,
+          port: parseInt(dbUrl.port || '3306', 10),
+          user: decodeURIComponent(dbUrl.username),
+          password: decodeURIComponent(dbUrl.password),
+          database: dbUrl.pathname.slice(1),
+          waitForConnections: true,
+          connectionLimit: 10,       // max 10 concurrent connections
+          queueLimit: 0,
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 10000, // send keepalive after 10s idle
+          connectTimeout: 15000,
+          ssl: { rejectUnauthorized: false }, // TiDB Cloud requires SSL
+        },
+      });
+      console.log('[Database] Connection pool initialized');
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+/**
+ * Eagerly warm up the DB connection pool at server startup.
+ * Fires a lightweight ping so the first real user request never pays the
+ * cold-start TCP handshake + SSL negotiation cost (~3-4s to TiDB Cloud).
+ */
+export async function warmupDb(): Promise<void> {
+  try {
+    const db = await getDb();
+    if (db) {
+      await db.execute(sql`SELECT 1`);
+      console.log('[Database] Warmup ping successful — pool is hot');
+    }
+  } catch (e: any) {
+    console.warn('[Database] Warmup ping failed (non-fatal):', e?.message);
+  }
 }
 
 /**
