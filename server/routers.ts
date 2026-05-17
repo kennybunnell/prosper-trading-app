@@ -324,12 +324,14 @@ export const appRouter = router({
           const { getApiCredentials } = await import('./db');
           const { authenticateTastytrade } = await import('./tastytrade');
           const credentials = await getApiCredentials(ctx.user.id);
-          if (!credentials?.tastytradeRefreshToken) {
-            return { monthlyData: [], error: 'Tastytrade credentials not configured. Please add them in Settings.' };
+          const hasOAuth = !!(credentials?.tastytradeRefreshToken && credentials?.tastytradeClientSecret);
+          const hasPassword = !!(credentials?.tastytradeUsername && credentials?.tastytradePassword);
+          if (!hasOAuth && !hasPassword) {
+            return { monthlyData: [], error: 'no_credentials' };
           }
-          const tt = await authenticateTastytrade(credentials, ctx.user.id);
+          const tt = await authenticateTastytrade(credentials!, ctx.user.id);
           if (!tt) {
-            return { monthlyData: [], error: 'Failed to authenticate with Tastytrade.' };
+            return { monthlyData: [], error: 'auth_failed' };
           }
 
           // Get all accounts

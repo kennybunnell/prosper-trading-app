@@ -74,7 +74,15 @@ function MonthlyPremiumChartSection() {
         <div className="flex items-center justify-center py-10 text-muted-foreground">
           <div className="text-center space-y-2">
             <DollarSign className="w-10 h-10 mx-auto opacity-30" />
-            <p className="text-base">{data?.error ? "Configure Tastytrade credentials in Settings to view earnings" : "No trading activity found for the selected period"}</p>
+            <p className="text-base">
+              {data?.error === 'no_credentials'
+                ? 'Configure Tastytrade credentials in Settings to view earnings'
+                : data?.error === 'auth_failed'
+                ? 'Tastytrade authentication failed — try refreshing your token in Settings'
+                : data?.error
+                ? 'Unable to load earnings data — please try again'
+                : 'No trading activity found for the selected period'}
+            </p>
           </div>
         </div>
       </div>

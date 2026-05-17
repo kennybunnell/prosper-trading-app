@@ -661,21 +661,33 @@ export async function getStrictLivePositions(
   await Promise.all(
     targetAccounts.map(async (acc: any) => {
       const accNum: string = acc.accountNumber;
-      try {
-        const positions = await api.getPositions(accNum);
-        for (const pos of positions) {
-          const wirePos: Record<string, any> = { ...pos };
-          // ALWAYS set account-number from the loop variable — the API may not include it in items
-          wirePos['account-number'] = accNum;
-          wirePos['close-price'] = pos['close-price'] ?? '0';
-          wirePos['expires-at'] = pos['expires-at'] ?? '';
-          allPositions.push(wirePos);
+      const fetchWithRetry = async (attempt: number): Promise<void> => {
+        try {
+          const positions = await api.getPositions(accNum);
+          for (const pos of positions) {
+            const wirePos: Record<string, any> = { ...pos };
+            // ALWAYS set account-number from the loop variable — the API may not include it in items
+            wirePos['account-number'] = accNum;
+            wirePos['close-price'] = pos['close-price'] ?? '0';
+            wirePos['expires-at'] = pos['expires-at'] ?? '';
+            allPositions.push(wirePos);
+          }
+          console.log(`[getStrictLivePositions] Account ${accNum}: fetched ${positions.length} positions`);
+        } catch (err: any) {
+          const isTransientError = err.message?.includes('socket') || err.message?.includes('TLS') ||
+            err.message?.includes('ECONNRESET') || err.message?.includes('ETIMEDOUT') ||
+            err.message?.includes('network') || err.message?.includes('connect') ||
+            err.message?.includes('ENOTFOUND') || err.message?.includes('EHOSTUNREACH');
+          if (isTransientError && attempt < 2) {
+            console.warn(`[getStrictLivePositions] Transient network error for account ${accNum} (attempt ${attempt}), retrying in 1.5s...`);
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            return fetchWithRetry(attempt + 1);
+          }
+          console.error(`[getStrictLivePositions] Failed to fetch positions for account ${accNum}:`, err.message);
+          throw new Error(`Failed to fetch live positions for account ${accNum}: ${err.message}`);
         }
-        console.log(`[getStrictLivePositions] Account ${accNum}: fetched ${positions.length} positions`);
-      } catch (err: any) {
-        console.error(`[getStrictLivePositions] Failed to fetch positions for account ${accNum}:`, err.message);
-        throw new Error(`Failed to fetch live positions for account ${accNum}: ${err.message}`);
-      }
+      };
+      await fetchWithRetry(1);
     })
   );
   console.log(`[getStrictLivePositions] Total live positions fetched: ${allPositions.length}`);
