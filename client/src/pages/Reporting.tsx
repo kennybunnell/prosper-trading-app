@@ -192,15 +192,15 @@ function PremiumIncomeReport({ range }: { range: DateRange }) {
       {data.strategyData.length > 0 && (
         <div>
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">By Strategy</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart margin={{ top: 30, right: 60, bottom: 20, left: 60 }}>
               <Pie
                 data={data.strategyData}
                 dataKey="value"
                 nameKey="name"
                 cx="50%"
-                cy="45%"
-                outerRadius={75}
+                cy="52%"
+                outerRadius={80}
                 label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
               >
