@@ -535,11 +535,30 @@ async function getAssignmentTracker(userId: number, from?: string, to?: string) 
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-  const assignments = await db
+  // Fetch all assignment events (option removal records)
+  const allAssignments = await db
     .select()
     .from(cachedTransactions)
     .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionSubType, "Assignment")));
 
+  // Filter to PUT assignments only (CSP assigned = you bought stock and need recovery)
+  // Call assignments = shares called away = not a recovery situation
+  const putAssignments = allAssignments.filter(a => {
+    const sym = (a.symbol || "").toUpperCase();
+    const optType = (a.optionType || "").toUpperCase();
+    if (optType === "C") return false;
+    if (optType === "P") return true;
+    // Fall back to parsing the OCC symbol — look for 'P' before 8 digits
+    return /[A-Z\s]+\d{6}P\d{8}/.test(sym);
+  });
+
+  // Fetch all Receive Deliver transactions to find paired stock deliveries
+  const receiveDelivers = await db
+    .select()
+    .from(cachedTransactions)
+    .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionType, "Receive Deliver")));
+
+  // Fetch all trades for CC recovery calculation
   const allTrades = await db
     .select()
     .from(cachedTransactions)
@@ -555,10 +574,36 @@ async function getAssignmentTracker(userId: number, from?: string, to?: string) 
     ccTradeCount: number;
   }> = [];
 
-  for (const asgn of assignments) {
+  for (const asgn of putAssignments) {
     const sym = asgn.underlyingSymbol || "Unknown";
     const assignedAt = asgn.executedAt || new Date(0);
-    const assignmentCost = parseMoney(asgn.value) || 0;
+    const assignedAtMs = assignedAt.getTime();
+
+    // Find the paired "Buy to Open" stock delivery at the same timestamp.
+    // Tastytrade creates this record when shares are delivered on CSP assignment.
+    const stockDelivery = receiveDelivers.find(r => {
+      const rMs = (r.executedAt || new Date(0)).getTime();
+      const action = (r.transactionSubType || r.action || "").toLowerCase();
+      return (
+        r.underlyingSymbol === sym &&
+        Math.abs(rMs - assignedAtMs) < 60000 && // within 1 minute
+        (action.includes("buy") || action.includes("receive"))
+      );
+    });
+
+    // Cost basis: use the stock delivery net_value if found,
+    // otherwise fall back to strike × quantity × 100 shares per contract
+    let assignmentCost = 0;
+    if (stockDelivery) {
+      assignmentCost = Math.abs(parseMoney(stockDelivery.netValue || stockDelivery.value));
+    }
+    if (assignmentCost === 0) {
+      const strike = parseFloat(asgn.strikePrice || "0");
+      const qty = parseFloat(asgn.quantity || "1");
+      assignmentCost = strike * qty * 100;
+    }
+
+    // Find CC trades on this underlying AFTER the assignment date
     const ccTrades = allTrades.filter(t => {
       const action = t.action || t.transactionSubType || "";
       return (
@@ -568,8 +613,10 @@ async function getAssignmentTracker(userId: number, from?: string, to?: string) 
         (t.executedAt || new Date(0)) >= assignedAt
       );
     });
+
     const recoveredPremium = ccTrades.reduce((s, t) => s + parseMoney(t.netValue || t.value), 0);
     const recoveryPct = assignmentCost > 0 ? Math.round((recoveredPremium / assignmentCost) * 1000) / 10 : 0;
+
     assignmentData.push({
       symbol: sym,
       assignedAt: assignedAt.toISOString().split("T")[0],
@@ -580,16 +627,19 @@ async function getAssignmentTracker(userId: number, from?: string, to?: string) 
     });
   }
 
+  // Sort by assignment date descending
+  assignmentData.sort((a, b) => b.assignedAt.localeCompare(a.assignedAt));
+
   const fullyRecovered = assignmentData.filter(a => a.recoveryPct >= 100).length;
   const recoveryRate = assignmentData.length > 0
     ? Math.round((fullyRecovered / assignmentData.length) * 1000) / 10
     : 0;
 
   return {
-    totalAssignments: assignments.length,
+    totalAssignments: putAssignments.length,
     fullyRecovered,
     recoveryRate,
-    assignmentData: assignmentData.slice(0, 20),
+    assignmentData: assignmentData.slice(0, 30),
   };
 }
 
