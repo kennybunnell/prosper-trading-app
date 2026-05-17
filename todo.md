@@ -10041,3 +10041,12 @@ ROC Fix Mar 18 2026
 - [x] Add per-field ⚡ Apply to All button next to Stop Loss dropdown only
 - [x] Add per-field ⚡ Apply to All button next to DTE Floor dropdown only
 - [x] Profit Target keeps "Save Default" only (no bulk apply)
+
+## Roll Urgency Score (May 2026)
+- [x] Create roll-urgency-score.ts server module with 6-factor composite scoring algorithm (0-100)
+- [x] Add Greeks enrichment to listOpenShortPositions: Tradier option chain fetch for delta, gamma, theta, vega
+- [x] Add underlying price fetch for ITM depth calculation
+- [x] Wire calculateRollUrgencyScore into listOpenShortPositions result per position
+- [x] Add Roll Score column to Auto-Close / Roll monitor table (color-coded pill: green/yellow/orange/red)
+- [x] Add hover tooltip with per-factor breakdown (progress bars + detail text for all 7 factors)
+- [x] TypeScript clean (EXIT:0)

@@ -18,6 +18,7 @@ import { positionTargets, autoCloseLog, globalBracketDefaults } from '../drizzle
 import { eq, and, inArray, desc, asc } from 'drizzle-orm';
 import { getApiCredentials } from './db';
 import { authenticateTastytrade } from './tastytrade';
+import { calculateRollUrgencyScore } from './roll-urgency-score';
 import { notifyOwner } from './_core/notification';
 import { writeTradingLog } from './routers-trading-log';
 import { sendTelegramMessage } from './telegram';
@@ -219,6 +220,72 @@ export const autoCloseRouter = router({
       return { optionType: m[3] as 'C' | 'P', strike, expiration };
     }
 
+    // ── Greeks enrichment via Tradier ──────────────────────────────────────
+    type GreeksData = { delta: number | null; gamma: number | null; theta: number | null; vega: number | null };
+    const greeksMap = new Map<string, GreeksData>();
+    const underlyingPriceMap = new Map<string, number>();
+    try {
+      const credentials = await getApiCredentials(ctx.user.id);
+      const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+      if (tradierApiKey) {
+        const { createTradierAPI } = await import('./tradier');
+        const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
+        // Collect unique (underlyingSymbol, expiration) pairs
+        const chainKeys = new Set<string>();
+        const underlyingSymbols = new Set<string>();
+        for (const p of allPositions) {
+          const instrType = p['instrument-type'];
+          if (instrType !== 'Equity Option' && instrType !== 'Index Option') continue;
+          const direction = (p['quantity-direction'] ?? '').toLowerCase();
+          const qty2 = parseFloat(String(p.quantity ?? '0'));
+          if (direction !== 'short' && qty2 >= 0) continue;
+          const rawSym2: string = p.symbol ?? '';
+          const clean2 = rawSym2.replace(/\s+/g, '');
+          const m2 = clean2.match(/^([A-Z0-9]+)(\d{6})([CP])(\d+)$/);
+          if (!m2) continue;
+          const uSym = (p['underlying-symbol'] as string) || m2[1];
+          const ds = m2[2];
+          const exp = `20${ds.substring(0,2)}-${ds.substring(2,4)}-${ds.substring(4,6)}`;
+          chainKeys.add(`${uSym}::${exp}`);
+          underlyingSymbols.add(uSym);
+        }
+        // Fetch chains + underlying quotes concurrently
+        const [chainResults, quoteResults] = await Promise.all([
+          Promise.allSettled(Array.from(chainKeys).map(async (key2) => {
+            const [sym2, exp2] = key2.split('::');
+            try {
+              return await Promise.race([
+                tradierApi.getOptionChain(sym2, exp2, true),
+                new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+              ]);
+            } catch { return []; }
+          })),
+          Promise.allSettled(Array.from(underlyingSymbols).map(async (sym3) => {
+            try {
+              const q = await tradierApi.getQuote(sym3);
+              return { sym: sym3, price: q.last ?? q.close ?? 0 };
+            } catch { return { sym: sym3, price: 0 }; }
+          })),
+        ]);
+        for (const r of chainResults) {
+          if (r.status !== 'fulfilled') continue;
+          for (const c of r.value) {
+            if (!c.symbol || !c.greeks) continue;
+            const norm = c.symbol.replace(/\s+/g, '');
+            greeksMap.set(norm, {
+              delta: c.greeks.delta ?? null,
+              gamma: c.greeks.gamma ?? null,
+              theta: c.greeks.theta ?? null,
+              vega:  c.greeks.vega  ?? null,
+            });
+          }
+        }
+        for (const r of quoteResults) {
+          if (r.status === 'fulfilled') underlyingPriceMap.set(r.value.sym, r.value.price);
+        }
+      }
+    } catch { /* Greeks are optional — score degrades gracefully */ }
+
     const result: Array<{
       accountId: string;
       accountNumber: string;
@@ -239,6 +306,23 @@ export const autoCloseRouter = router({
       dteFloor?: number | null;
       targetStatus?: string;
       lastProfitPct?: string;
+      delta?: number | null;
+      gamma?: number | null;
+      theta?: number | null;
+      vega?: number | null;
+      underlyingPrice?: number | null;
+      rollScore?: number;
+      rollBand?: 'green' | 'yellow' | 'orange' | 'red';
+      rollLabel?: string;
+      rollFactors?: {
+        itmDepth:       { pts: number; max: number; detail: string };
+        itmBonus:       { pts: number; max: number; detail: string };
+        deltaBreach:    { pts: number; max: number; detail: string };
+        dteDecayZone:   { pts: number; max: number; detail: string };
+        profitCaptured: { pts: number; max: number; detail: string };
+        thetaDecay:     { pts: number; max: number; detail: string };
+        gammaSpike:     { pts: number; max: number; detail: string };
+      };
     }> = [];
 
     for (const p of allPositions) {
@@ -271,11 +355,27 @@ export const autoCloseRouter = router({
       const normalizedSym = rawSym.replace(/\s+/g, '');
       const key = `${accountNumber}::${normalizedSym}`;
       const existing = targetMap.get(key);
+      const greeks = greeksMap.get(normalizedSym) ?? null;
+      const underlyingSymbol = (p['underlying-symbol'] as string) ?? rawSym;
+      const underlyingPrice = underlyingPriceMap.get(underlyingSymbol) ?? null;
+      const strikeNum = parseFloat(parsed.strike);
+      const urgency = calculateRollUrgencyScore({
+        optionType: parsed.optionType,
+        strike: strikeNum,
+        underlyingPrice: underlyingPrice ?? strikeNum,
+        dte,
+        profitPct: Math.round(profitPct * 10) / 10,
+        delta: greeks?.delta ?? null,
+        gamma: greeks?.gamma ?? null,
+        theta: greeks?.theta ?? null,
+        averageOpenPrice: avgOpen,
+        currentMark: mark,
+      });
 
       result.push({
         accountId: accountNumber,
         accountNumber,
-        symbol: p['underlying-symbol'] ?? rawSym,
+        symbol: underlyingSymbol,
         optionSymbol: rawSym,
         optionType: parsed.optionType,
         strike: parsed.strike,
@@ -292,6 +392,15 @@ export const autoCloseRouter = router({
         dteFloor: existing?.dteFloor ?? null,
         targetStatus: existing?.status,
         lastProfitPct: existing?.lastProfitPct ?? undefined,
+        delta: greeks?.delta ?? null,
+        gamma: greeks?.gamma ?? null,
+        theta: greeks?.theta ?? null,
+        vega: greeks?.vega ?? null,
+        underlyingPrice,
+        rollScore: urgency.score,
+        rollBand: urgency.band,
+        rollLabel: urgency.label,
+        rollFactors: urgency.factors,
       });
     }
 

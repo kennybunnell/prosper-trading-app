@@ -22,8 +22,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import {
   Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock,
   AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert, Settings2, Save,
-  CheckSquare, X, ArrowLeftRight, TrendingUp, TrendingDown, Minus, Star
+  CheckSquare, X, ArrowLeftRight, TrendingUp, TrendingDown, Minus, Star, Info
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 
 type ProfitTargetPct = 25 | 50 | 75 | 90;
@@ -872,6 +873,10 @@ export default function AutoCloseStep() {
                 <th className="text-center px-3 py-3 text-yellow-400/80 font-medium text-xs">
                   <div>DTE</div><div>Floor</div>
                 </th>
+                {/* Roll Urgency Score column */}
+                <th className="text-center px-2 py-3 text-purple-400/80 font-medium text-xs min-w-[80px]">
+                  <div>Roll</div><div>Score</div>
+                </th>
                 <th className="text-center px-3 py-3 text-gray-400 font-medium min-w-[160px]">Action</th>
               </tr>
             </thead>
@@ -966,6 +971,84 @@ export default function AutoCloseStep() {
                       }`}>
                         {pos.dte}
                       </span>
+                    </td>
+
+                    {/* ── Roll Urgency Score ───────────────────────────── */}
+                    <td className="px-2 py-3 text-center">
+                      {pos.rollScore != null ? (
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className={`inline-flex flex-col items-center gap-0.5 cursor-help px-2 py-1 rounded-md border ${
+                                pos.rollBand === 'red'    ? 'bg-red-900/40 border-red-500/50' :
+                                pos.rollBand === 'orange' ? 'bg-orange-900/40 border-orange-500/50' :
+                                pos.rollBand === 'yellow' ? 'bg-yellow-900/40 border-yellow-500/50' :
+                                                            'bg-green-900/40 border-green-500/50'
+                              }`}>
+                                <span className={`text-sm font-bold ${
+                                  pos.rollBand === 'red'    ? 'text-red-400' :
+                                  pos.rollBand === 'orange' ? 'text-orange-400' :
+                                  pos.rollBand === 'yellow' ? 'text-yellow-400' :
+                                                              'text-green-400'
+                                }`}>{pos.rollScore}</span>
+                                <span className={`text-[9px] font-medium leading-none ${
+                                  pos.rollBand === 'red'    ? 'text-red-400/80' :
+                                  pos.rollBand === 'orange' ? 'text-orange-400/80' :
+                                  pos.rollBand === 'yellow' ? 'text-yellow-400/80' :
+                                                              'text-green-400/80'
+                                }`}>{pos.rollLabel}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="bg-gray-900 border-gray-700 text-xs p-3 max-w-[260px]">
+                              <div className="space-y-2">
+                                <div className="font-semibold text-white border-b border-gray-700 pb-1.5 mb-1.5">
+                                  Roll Urgency Score: {pos.rollScore}/100
+                                </div>
+                                {pos.rollFactors && [
+                                  { key: 'itmDepth',       label: 'ITM Depth',       max: 10 },
+                                  { key: 'itmBonus',       label: 'Deep ITM Bonus',  max: 20 },
+                                  { key: 'deltaBreach',    label: 'Delta Breach',    max: 20 },
+                                  { key: 'dteDecayZone',   label: 'DTE Decay Zone',  max: 20 },
+                                  { key: 'profitCaptured', label: 'Profit Captured', max: 15 },
+                                  { key: 'thetaDecay',     label: 'Theta Decay',     max: 10 },
+                                  { key: 'gammaSpike',     label: 'Gamma Spike',     max: 5  },
+                                ].map(({ key, label, max }) => {
+                                  const f = (pos.rollFactors as any)[key];
+                                  if (!f) return null;
+                                  const pct = Math.round((f.pts / max) * 100);
+                                  return (
+                                    <div key={key} className="space-y-0.5">
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-gray-400">{label}</span>
+                                        <span className={`font-medium ${
+                                          f.pts === 0 ? 'text-gray-500' :
+                                          pct >= 75   ? 'text-red-400' :
+                                          pct >= 50   ? 'text-orange-400' :
+                                          pct >= 25   ? 'text-yellow-400' : 'text-green-400'
+                                        }`}>{f.pts}/{max}</span>
+                                      </div>
+                                      <div className="w-full bg-gray-800 rounded-full h-1">
+                                        <div
+                                          className={`h-1 rounded-full ${
+                                            f.pts === 0 ? 'bg-gray-700' :
+                                            pct >= 75   ? 'bg-red-500' :
+                                            pct >= 50   ? 'bg-orange-500' :
+                                            pct >= 25   ? 'bg-yellow-500' : 'bg-green-500'
+                                          }`}
+                                          style={{ width: `${pct}%` }}
+                                        />
+                                      </div>
+                                      <div className="text-[10px] text-gray-500">{f.detail}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className="text-gray-600 text-xs">—</span>
+                      )}
                     </td>
 
                     {/* ── Profit Target % picker ───────────────────────── */}
