@@ -1523,9 +1523,9 @@ export default function AutoCloseStep() {
                           <td className={`px-3 py-2.5 text-right font-bold ${
                             isDebit ? 'text-red-400' : 'text-green-400'
                           }`}>
-                            <div className="text-sm">{isDebit ? '-' : '+'}${Math.abs(netCreditPerShare).toFixed(2)}<span className="text-[10px] font-normal text-gray-500 ml-0.5">/sh</span></div>
+                            <div className="text-sm font-semibold">{isDebit ? '-' : '+'}${Math.abs(netCreditPerShare).toFixed(2)}<span className="text-[10px] font-normal text-gray-500 ml-0.5">/sh</span></div>
                             <div className="text-[10px] font-normal text-gray-400">{isDebit ? '-' : '+'}${Math.abs(netCreditPerContract).toFixed(0)}/contract</div>
-                            <div className="text-[10px] font-normal text-emerald-500/70">{isDebit ? '-' : '+'}${Math.abs(netCreditGrandTotal).toFixed(0)} total</div>
+                            <div className={`text-[11px] font-bold mt-0.5 ${isDebit ? 'text-red-400' : 'text-emerald-400'}`}>{isDebit ? '-' : '+'}${Math.abs(netCreditGrandTotal).toFixed(0)} total</div>
                           </td>
                           <td className="px-3 py-2.5 text-right text-gray-400">
                             {c.delta != null ? c.delta.toFixed(2) : '—'}
