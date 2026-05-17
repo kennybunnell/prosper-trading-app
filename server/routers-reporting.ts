@@ -678,6 +678,18 @@ export const reportingRouter = router({
       return { success: true };
     }),
 
+  // Incremental sync: pull new transactions from Tastytrade API since last DB record
+  syncTransactions: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      const { syncPortfolio } = await import('./portfolio-sync');
+      const result = await syncPortfolio(ctx.user.id, false);
+      return { success: true, message: 'Sync complete', result };
+    } catch (err: any) {
+      console.error('[Reporting] syncTransactions error:', err.message);
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message || 'Sync failed' });
+    }
+  }),
+
   // Transaction count for sync status display
   transactionStats: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();

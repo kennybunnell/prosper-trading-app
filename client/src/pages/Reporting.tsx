@@ -117,7 +117,25 @@ function InlineChart({ chartType, chartData, chartTitle, tableColumns }: {
       {chartType === "pie" && (
         <ResponsiveContainer width="100%" height={220}>
           <PieChart>
-            <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+            <Pie
+              data={chartData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }) => {
+                const RADIAN = Math.PI / 180;
+                const radius = innerRadius + (outerRadius - innerRadius) * 1.35;
+                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                return percent > 0.04 ? (
+                  <text x={x} y={y} fill="#e2e8f0" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={11}>
+                    {`${name} ${(percent * 100).toFixed(0)}%`}
+                  </text>
+                ) : null;
+              }}
+            >
               {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
             </Pie>
             <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }} />
@@ -183,12 +201,31 @@ function PremiumIncomeReport({ range }: { range: DateRange }) {
       {data.strategyData.length > 0 && (
         <div>
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">By Strategy</p>
-          <ResponsiveContainer width="100%" height={160}>
+          <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={data.strategyData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+              <Pie
+                data={data.strategyData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={70}
+                label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }) => {
+                  const RADIAN = Math.PI / 180;
+                  const radius = innerRadius + (outerRadius - innerRadius) * 1.5;
+                  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                  return percent > 0.04 ? (
+                    <text x={x} y={y} fill="#e2e8f0" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={11}>
+                      {`${name} ${(percent * 100).toFixed(0)}%`}
+                    </text>
+                  ) : null;
+                }}
+              >
                 {data.strategyData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
               <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }} formatter={(v: any) => [fmt$(v), ""]} />
+              <Legend formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{value}</span>} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -404,8 +441,20 @@ export default function Reporting() {
   const [isAsking, setIsAsking] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  const { data: stats } = trpc.reporting.transactionStats.useQuery();
+  const { data: stats, refetch: refetchStats } = trpc.reporting.transactionStats.useQuery();
   const { data: pinnedList, refetch: refetchPinned } = trpc.reporting.listPinned.useQuery();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const syncMutation = trpc.reporting.syncTransactions.useMutation({
+    onSuccess: () => {
+      refetchStats();
+      toast({ title: "Sync complete", description: "Transaction history updated from Tastytrade." });
+      setIsSyncing(false);
+    },
+    onError: (e) => {
+      toast({ title: "Sync failed", description: e.message, variant: "destructive" });
+      setIsSyncing(false);
+    },
+  });
   const pinMutation = trpc.reporting.pinReport.useMutation({
     onSuccess: () => { refetchPinned(); toast({ title: "Report pinned", description: "Added to your pinned reports." }); },
     onError: () => toast({ title: "Error", description: "Could not pin report.", variant: "destructive" }),
@@ -502,6 +551,16 @@ export default function Reporting() {
                 ) : "Loading transaction data..."}
               </p>
             </div>
+            {/* Sync + Date range controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setIsSyncing(true); syncMutation.mutate(); }}
+                disabled={isSyncing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                {isSyncing ? "Syncing..." : "Sync Now"}
+              </button>
             {/* Date range selector — only shown on Reports tab */}
             {activeTab === "reports" && (
               <div className="flex gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
@@ -516,6 +575,7 @@ export default function Reporting() {
                 ))}
               </div>
             )}
+            </div>
           </div>
 
           {/* ── Tabs ── */}
