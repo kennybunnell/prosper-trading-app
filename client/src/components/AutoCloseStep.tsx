@@ -1389,12 +1389,16 @@ export default function AutoCloseStep() {
                     {rollCandidatesQuery.data!.candidates.map((c: { action: string; expiration?: string; dte?: number; strike?: number; netCredit?: number | null; delta?: number | null; annualizedReturn?: number | null; newPremium?: number | null; score: number; description: string }, i: number) => {
                       const isBest = i === bestCreditIdx;
                       const isSelected = i === selectedRollIdx;
-                      const netCredit = c.netCredit ?? 0;
-                      const isDebit = netCredit < 0;
-                      const btcCost = parseFloat(rollTarget?.currentMark ?? '0');
-                      const stoMid = c.newPremium ?? (netCredit + btcCost);
+                      // c.netCredit from rollDetection.ts is GRAND TOTAL dollars (per-share × 100 × qty)
+                      const netCreditGrandTotal = c.netCredit ?? 0;
                       const qty = rollTarget?.quantity ?? 1;
-                      const totalCredit = netCredit * qty;
+                      // Derive per-share and per-contract from grand total
+                      const netCreditPerShare = qty > 0 ? netCreditGrandTotal / (qty * 100) : 0;
+                      const netCreditPerContract = qty > 0 ? netCreditGrandTotal / qty : 0;
+                      const isDebit = netCreditGrandTotal < 0;
+                      const btcCost = parseFloat(rollTarget?.currentMark ?? '0');
+                      // stoMid: c.newPremium is per-share from rollDetection; use it directly
+                      const stoMid = c.newPremium ?? (netCreditPerShare + btcCost);
                       // annualizedReturn is annual %; convert to weekly approx
                       const wklyPct = c.annualizedReturn != null ? (c.annualizedReturn / 52) : null;
 
@@ -1442,10 +1446,9 @@ export default function AutoCloseStep() {
                           <td className={`px-3 py-2.5 text-right font-bold ${
                             isDebit ? 'text-red-400' : 'text-green-400'
                           }`}>
-                            {isDebit ? '-' : '+'}${Math.abs(netCredit).toFixed(2)}
-                            <div className="text-[10px] font-normal text-gray-500">
-                              {isDebit ? '-' : '+'}${Math.abs(totalCredit).toFixed(0)} total
-                            </div>
+                            <div className="text-sm">{isDebit ? '-' : '+'}${Math.abs(netCreditPerShare).toFixed(2)}<span className="text-[10px] font-normal text-gray-500 ml-0.5">/sh</span></div>
+                            <div className="text-[10px] font-normal text-gray-400">{isDebit ? '-' : '+'}${Math.abs(netCreditPerContract).toFixed(0)}/contract</div>
+                            <div className="text-[10px] font-normal text-emerald-500/70">{isDebit ? '-' : '+'}${Math.abs(netCreditGrandTotal).toFixed(0)} total</div>
                           </td>
                           <td className="px-3 py-2.5 text-right text-gray-400">
                             {c.delta != null ? c.delta.toFixed(2) : '—'}
