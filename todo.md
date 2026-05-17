@@ -10076,3 +10076,19 @@ ROC Fix Mar 18 2026
 ## Tab Reorder (May 17, 2026)
 - [x] Swapped tab 3 and 4: SPX Spreads moved to position 3, PMCC Mgmt moved to position 4
 - [x] Final tab order: 1) Auto-Close/Roll, 2) Sell Calls, 3) SPX Spreads, 4) PMCC Mgmt
+
+## Reporting Page Rebuild (May 17, 2026)
+- [x] Rename sidebar item from "Performance" to "Reporting"
+- [x] Seed 916 transactions from Tastytrade CSV into cached_transactions table
+- [x] Add pinnedReports table to schema and database
+- [x] Build reportingRouter with 5 standard reports + AI query + pinned CRUD
+- [x] Report 1: Premium Income Summary (monthly bar chart + strategy pie)
+- [x] Report 2: Win Rate & Trade Quality (win/loss, profit factor, symbol P&L)
+- [x] Report 3: Capital Efficiency (monthly premium line chart, symbol concentration)
+- [x] Report 4: Assignment & Recovery Tracker (table with recovery %)
+- [x] Report 5: Expiration & Close Analysis (expired vs BTC monthly stacked bar)
+- [x] AI Ask a Question interface with inline charts/tables + pin button
+- [x] Suggested prompts on empty state
+- [x] Date range selector (All Time / YTD / 6M / 3M / 1M)
+- [x] Pin/unpin standard reports
+- [x] 24 unit tests passing for reporting helper functions

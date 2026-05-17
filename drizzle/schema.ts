@@ -1407,3 +1407,27 @@ export const globalBracketDefaults = mysqlTable('global_bracket_defaults', {
 
 export type GlobalBracketDefaults = typeof globalBracketDefaults.$inferSelect;
 export type InsertGlobalBracketDefaults = typeof globalBracketDefaults.$inferInsert;
+
+// ─── Pinned Reports (AI-generated + standard) ────────────────────────────────
+export const pinnedReports = mysqlTable('pinned_reports', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** Display title shown on the card */
+  title: varchar('title', { length: 255 }).notNull(),
+  /** The natural-language prompt used to generate this report */
+  prompt: text('prompt').notNull(),
+  /** 'standard' = one of the 5 built-in reports; 'ai' = user-created via chat */
+  reportType: mysqlEnum('report_type', ['standard', 'ai']).notNull().default('ai'),
+  /** For standard reports, the report key (e.g. 'premium_income', 'win_rate') */
+  reportKey: varchar('report_key', { length: 64 }),
+  /** Display order (lower = shown first) */
+  sortOrder: int('sort_order').notNull().default(0),
+  /** Whether this report is visible on the dashboard */
+  isVisible: boolean('is_visible').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index('pinned_reports_user_id_idx').on(table.userId),
+}));
+export type PinnedReport = typeof pinnedReports.$inferSelect;
+export type InsertPinnedReport = typeof pinnedReports.$inferInsert;

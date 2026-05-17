@@ -14,7 +14,7 @@ import CCDashboard from "./pages/CCDashboard";
 import PMCCDashboard from "./pages/PMCCDashboard";
 import IronCondorDashboard from "./pages/IronCondorDashboard";
 import GtcOrders from "./pages/GtcOrders";
-import Performance from "./pages/Performance";
+import Reporting from "./pages/Reporting";
 import StrategyAdvisorPage from "./pages/StrategyAdvisorPage";
 import PortfolioAdvisor from "./pages/PortfolioAdvisor";
 import AutomationDashboard from './pages/AutomationDashboard';
@@ -174,7 +174,7 @@ function Router() {
           <Route path={"/iron-condor"} component={IronCondorDashboard} />
           <Route path={"/gtc-orders"} component={GtcOrders} />
           <Route path={"/pmcc"} component={PMCCDashboard} />
-          <Route path={"/performance"} component={Performance} />
+          <Route path={"/performance"} component={Reporting} />
 
           <Route path={"/404"} component={NotFound} />
           {/* Final fallback route */}

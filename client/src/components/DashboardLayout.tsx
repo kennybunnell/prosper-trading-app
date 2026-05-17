@@ -53,7 +53,7 @@ const tradingStrategyItems = [
 ];
 
 const bottomMenuItems = [
-  { icon: Activity, label: "Performance", path: "/performance" },
+  { icon: Activity, label: "Reporting", path: "/performance" },
   { icon: ListChecks, label: "GTC Orders", path: "/gtc-orders" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];

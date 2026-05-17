@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `pinned_reports` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `user_id` int NOT NULL,\n  `title` varchar(255) NOT NULL,\n  `prompt` text NOT NULL,\n  `report_type` enum('standard','ai') NOT NULL DEFAULT 'ai',\n  `report_key` varchar(64),\n  `sort_order` int NOT NULL DEFAULT 0,\n  `is_visible` boolean NOT NULL DEFAULT true,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `pinned_reports_id` PRIMARY KEY(`id`),\n  INDEX `pinned_reports_user_id_idx` (`user_id`),\n  CONSTRAINT `pinned_reports_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute CREATE TABLE IF NOT EXISTS `pinned_reports` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `user_id` int NOT NULL,\n  `title` varchar(255) NOT NULL,\n  `prompt` text NOT NULL,\n  `report_type` enum('standard','ai') NOT NULL DEFAULT 'ai',\n  `report_key` varchar(64),\n  `sort_order` int NOT NULL DEFAULT 0,\n  `is_visible` boolean NOT NULL DEFAULT true,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `pinned_reports_id` PRIMARY KEY(`id`),\n  INDEX `pinned_reports_user_id_idx` (`user_id`),\n  CONSTRAINT `pinned_reports_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 390
+}

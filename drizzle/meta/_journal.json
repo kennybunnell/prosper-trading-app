@@ -568,6 +568,13 @@
       "when": 1778862013517,
       "tag": "0081_new_loki",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "5",
+      "when": 1779048933602,
+      "tag": "0082_yielding_masque",
+      "breakpoints": true
     }
   ]
 }
