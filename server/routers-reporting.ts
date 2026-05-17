@@ -427,7 +427,6 @@ async function getWinRate(userId: number, from?: string, to?: string) {
     if (t.isWin) bySymbol[t.symbol].wins++; else bySymbol[t.symbol].losses++;
     bySymbol[t.symbol].totalPnl += t.pnl;
   }
-
   const total = wins + losses;
   const winRate = total > 0 ? Math.round((wins / total) * 1000) / 10 : 0;
   const avgWin = wins > 0 ? closedTrades.filter(t => t.isWin).reduce((s, t) => s + t.pnl, 0) / wins : 0;
@@ -435,15 +434,34 @@ async function getWinRate(userId: number, from?: string, to?: string) {
   const profitFactor = avgLoss > 0 && losses > 0
     ? Math.round((avgWin * wins) / (avgLoss * losses) * 100) / 100
     : (wins > 0 ? 99.99 : 0);
-
-  const symbolData = Object.entries(bySymbol)
-    .map(([symbol, data]) => ({
+  // P&L by underlying: use direct net_value sum (credit minus debit) per underlying.
+  // The STO/BTC matching approach fails for spreads where legs have different strikes.
+  // Direct sum is accurate: STO credits are positive, BTO debits are negative in net_value.
+  const directBySymbol: Record<string, number> = {};
+  for (const t of trades) {
+    const action = t.action || t.transactionSubType || "";
+    const sym = t.underlyingSymbol || "Unknown";
+    const val = parseMoney(t.netValue || t.value);
+    if (val === 0) continue;
+    if (!directBySymbol[sym]) directBySymbol[sym] = 0;
+    // Credits (sells) add to P&L, debits (buys) subtract
+    if (isSellAction(action)) {
+      directBySymbol[sym] += val;
+    } else if (isBuyAction(action)) {
+      directBySymbol[sym] -= val;
+    }
+  }
+  const symbolData = Object.entries(directBySymbol)
+    .map(([symbol, totalPnl]) => ({
       symbol,
-      wins: data.wins,
-      losses: data.losses,
-      winRate: Math.round((data.wins / (data.wins + data.losses)) * 1000) / 10,
-      totalPnl: Math.round(data.totalPnl * 100) / 100,
+      wins: bySymbol[symbol]?.wins ?? 0,
+      losses: bySymbol[symbol]?.losses ?? 0,
+      winRate: bySymbol[symbol]
+        ? Math.round((bySymbol[symbol].wins / (bySymbol[symbol].wins + bySymbol[symbol].losses)) * 1000) / 10
+        : 0,
+      totalPnl: Math.round(totalPnl * 100) / 100,
     }))
+    .filter(s => s.totalPnl > 0)
     .sort((a, b) => b.totalPnl - a.totalPnl)
     .slice(0, 15);
 

@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT \n  underlying_symbol,\n  COUNT(*) as trade_count,\n  SUM(CASE WHEN net_value_effect = 'Credit' THEN CAST(net_value AS DECIMAL(12,2)) ELSE 0 END) as total_credits,\n  SUM(CASE WHEN net_value_effect = 'Debit' THEN CAST(net_value AS DECIMAL(12,2)) ELSE 0 END) as total_debits,\n  SUM(CASE WHEN net_value_effect = 'Credit' THEN CAST(net_value AS DECIMAL(12,2)) ELSE -CAST(net_value AS DECIMAL(12,2)) END) as net_pnl\nFROM cached_transactions\nWHERE transaction_type = 'Trade'\n  AND underlying_symbol IS NOT NULL\n  AND underlying_symbol != ''\nGROUP BY underlying_symbol\nORDER BY net_pnl DESC\nLIMIT 20;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute \nSELECT \n  underlying_symbol,\n  COUNT(*) as trade_count,\n  SUM(CASE WHEN net_value_effect = 'Credit' THEN CAST(net_value AS DECIMAL(12,2)) ELSE 0 END) as total_credits,\n  SUM(CASE WHEN net_value_effect = 'Debit' THEN CAST(net_value AS DECIMAL(12,2)) ELSE 0 END) as total_debits,\n  SUM(CASE WHEN net_value_effect = 'Credit' THEN CAST(net_value AS DECIMAL(12,2)) ELSE -CAST(net_value AS DECIMAL(12,2)) END) as net_pnl\nFROM cached_transactions\nWHERE transaction_type = 'Trade'\n  AND underlying_symbol IS NOT NULL\n  AND underlying_symbol != ''\nGROUP BY underlying_symbol\nORDER BY net_pnl DESC\nLIMIT 20;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'net_value_effect' in 'where clause'"
+  ]
+}

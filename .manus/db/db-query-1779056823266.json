@@ -1,0 +1,110 @@
+{
+  "query": "\nSELECT \n  underlying_symbol,\n  COUNT(*) as trade_count,\n  SUM(CASE WHEN action IN ('Sell to Open','Sell to Close') THEN CAST(net_value AS DECIMAL(12,2)) ELSE -CAST(net_value AS DECIMAL(12,2)) END) as net_pnl\nFROM cached_transactions\nWHERE transaction_type = 'Trade'\n  AND underlying_symbol IS NOT NULL\n  AND underlying_symbol != ''\n  AND net_value IS NOT NULL\nGROUP BY underlying_symbol\nORDER BY net_pnl DESC\nLIMIT 20;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute \nSELECT \n  underlying_symbol,\n  COUNT(*) as trade_count,\n  SUM(CASE WHEN action IN ('Sell to Open','Sell to Close') THEN CAST(net_value AS DECIMAL(12,2)) ELSE -CAST(net_value AS DECIMAL(12,2)) END) as net_pnl\nFROM cached_transactions\nWHERE transaction_type = 'Trade'\n  AND underlying_symbol IS NOT NULL\n  AND underlying_symbol != ''\n  AND net_value IS NOT NULL\nGROUP BY underlying_symbol\nORDER BY net_pnl DESC\nLIMIT 20;\n",
+  "rows": [
+    {
+      "underlying_symbol": "IREN",
+      "trade_count": "316",
+      "net_pnl": "142337.91"
+    },
+    {
+      "underlying_symbol": "SPX",
+      "trade_count": "245",
+      "net_pnl": "78933.58"
+    },
+    {
+      "underlying_symbol": "AVGO",
+      "trade_count": "149",
+      "net_pnl": "69476.01"
+    },
+    {
+      "underlying_symbol": "TSLA",
+      "trade_count": "170",
+      "net_pnl": "66360.40"
+    },
+    {
+      "underlying_symbol": "MSFT",
+      "trade_count": "89",
+      "net_pnl": "54660.93"
+    },
+    {
+      "underlying_symbol": "HOOD",
+      "trade_count": "222",
+      "net_pnl": "43017.02"
+    },
+    {
+      "underlying_symbol": "AMD",
+      "trade_count": "131",
+      "net_pnl": "31314.00"
+    },
+    {
+      "underlying_symbol": "NBIS",
+      "trade_count": "150",
+      "net_pnl": "29679.22"
+    },
+    {
+      "underlying_symbol": "AMZN",
+      "trade_count": "219",
+      "net_pnl": "28071.26"
+    },
+    {
+      "underlying_symbol": "COIN",
+      "trade_count": "109",
+      "net_pnl": "25472.46"
+    },
+    {
+      "underlying_symbol": "SNDK",
+      "trade_count": "7",
+      "net_pnl": "20361.55"
+    },
+    {
+      "underlying_symbol": "PLTR",
+      "trade_count": "145",
+      "net_pnl": "18304.74"
+    },
+    {
+      "underlying_symbol": "LMND",
+      "trade_count": "46",
+      "net_pnl": "17998.74"
+    },
+    {
+      "underlying_symbol": "GOOGL",
+      "trade_count": "102",
+      "net_pnl": "17689.12"
+    },
+    {
+      "underlying_symbol": "SHOP",
+      "trade_count": "67",
+      "net_pnl": "16426.57"
+    },
+    {
+      "underlying_symbol": "TQQQ",
+      "trade_count": "81",
+      "net_pnl": "15590.38"
+    },
+    {
+      "underlying_symbol": "ORCL",
+      "trade_count": "77",
+      "net_pnl": "15449.09"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "trade_count": "37",
+      "net_pnl": "15398.29"
+    },
+    {
+      "underlying_symbol": "META",
+      "trade_count": "95",
+      "net_pnl": "13911.25"
+    },
+    {
+      "underlying_symbol": "CIFR",
+      "trade_count": "129",
+      "net_pnl": "11857.38"
+    }
+  ],
+  "messages": [],
+  "stdout": "underlying_symbol\ttrade_count\tnet_pnl\nIREN\t316\t142337.91\nSPX\t245\t78933.58\nAVGO\t149\t69476.01\nTSLA\t170\t66360.40\nMSFT\t89\t54660.93\nHOOD\t222\t43017.02\nAMD\t131\t31314.00\nNBIS\t150\t29679.22\nAMZN\t219\t28071.26\nCOIN\t109\t25472.46\nSNDK\t7\t20361.55\nPLTR\t145\t18304.74\nLMND\t46\t17998.74\nGOOGL\t102\t17689.12\nSHOP\t67\t16426.57\nTQQQ\t81\t15590.38\nORCL\t77\t15449.09\nNDX\t37\t15398.29\nMETA\t95\t13911.25\nCIFR\t129\t11857.38\n",
+  "stderr": "",
+  "execution_time_ms": 290
+}

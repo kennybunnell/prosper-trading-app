@@ -1,0 +1,210 @@
+{
+  "query": "\nSELECT \n  underlying_symbol,\n  action,\n  transaction_sub_type,\n  symbol,\n  strike_price,\n  expires_at,\n  net_value,\n  description\nFROM cached_transactions\nWHERE transaction_type = 'Trade'\n  AND (underlying_symbol LIKE '%SPX%' OR underlying_symbol LIKE '%NDX%')\nORDER BY underlying_symbol, executed_at DESC\nLIMIT 20;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute \nSELECT \n  underlying_symbol,\n  action,\n  transaction_sub_type,\n  symbol,\n  strike_price,\n  expires_at,\n  net_value,\n  description\nFROM cached_transactions\nWHERE transaction_type = 'Trade'\n  AND (underlying_symbol LIKE '%SPX%' OR underlying_symbol LIKE '%NDX%')\nORDER BY underlying_symbol, executed_at DESC\nLIMIT 20;\n",
+  "rows": [
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Close",
+      "transaction_sub_type": "Sell to Close",
+      "symbol": "NDX   260515P26725000",
+      "strike_price": "26725.00",
+      "expires_at": "2026-05-15",
+      "net_value": "608.63",
+      "description": "Sold 1 NDX 05/15/26 Put 26725.00 @ 6.09"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Close",
+      "transaction_sub_type": "Buy to Close",
+      "symbol": "NDX   260515P26750000",
+      "strike_price": "26750.00",
+      "expires_at": "2026-05-15",
+      "net_value": "641.37",
+      "description": "Bought 1 NDX 05/15/26 Put 26750.00 @ 6.41"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Close",
+      "transaction_sub_type": "Sell to Close",
+      "symbol": "NDX   260515P26050000",
+      "strike_price": "26050.00",
+      "expires_at": "2026-05-15",
+      "net_value": "629.25",
+      "description": "Sold 2 NDX 05/15/26 Put 26050.00 @ 3.15"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Close",
+      "transaction_sub_type": "Buy to Close",
+      "symbol": "NDX   260515P26100000",
+      "strike_price": "26100.00",
+      "expires_at": "2026-05-15",
+      "net_value": "690.75",
+      "description": "Bought 2 NDX 05/15/26 Put 26100.00 @ 3.45"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Open",
+      "transaction_sub_type": "Sell to Open",
+      "symbol": "NDXP  260522P28000000",
+      "strike_price": "28000.00",
+      "expires_at": "2026-05-22",
+      "net_value": "12548.63",
+      "description": "Sold 1 NDX 05/22/26 Put 28000.00 @ 125.50"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Open",
+      "transaction_sub_type": "Buy to Open",
+      "symbol": "NDXP  260522P27950000",
+      "strike_price": "27950.00",
+      "expires_at": "2026-05-22",
+      "net_value": "11901.37",
+      "description": "Bought 1 NDX 05/22/26 Put 27950.00 @ 119.00"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Open",
+      "transaction_sub_type": "Sell to Open",
+      "symbol": "NDXP  260511P27150000",
+      "strike_price": "27150.00",
+      "expires_at": "2026-05-11",
+      "net_value": "12281.63",
+      "description": "Sold 1 NDX 05/11/26 Put 27150.00 @ 122.83"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Open",
+      "transaction_sub_type": "Buy to Open",
+      "symbol": "NDXP  260511P27100000",
+      "strike_price": "27100.00",
+      "expires_at": "2026-05-11",
+      "net_value": "11454.37",
+      "description": "Bought 1 NDX 05/11/26 Put 27100.00 @ 114.53"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Open",
+      "transaction_sub_type": "Buy to Open",
+      "symbol": "NDX   260515P26725000",
+      "strike_price": "26725.00",
+      "expires_at": "2026-05-15",
+      "net_value": "12741.37",
+      "description": "Bought 1 NDX 05/15/26 Put 26725.00 @ 127.40"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Open",
+      "transaction_sub_type": "Sell to Open",
+      "symbol": "NDX   260515P26750000",
+      "strike_price": "26750.00",
+      "expires_at": "2026-05-15",
+      "net_value": "13028.63",
+      "description": "Sold 1 NDX 05/15/26 Put 26750.00 @ 130.30"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Open",
+      "transaction_sub_type": "Buy to Open",
+      "symbol": "NDX   260515P26050000",
+      "strike_price": "26050.00",
+      "expires_at": "2026-05-15",
+      "net_value": "16146.37",
+      "description": "Bought 1 NDX 05/15/26 Put 26050.00 @ 161.45"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Open",
+      "transaction_sub_type": "Sell to Open",
+      "symbol": "NDX   260515P26100000",
+      "strike_price": "26100.00",
+      "expires_at": "2026-05-15",
+      "net_value": "16853.627",
+      "description": "Sold 1 NDX 05/15/26 Put 26100.00 @ 168.55"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Open",
+      "transaction_sub_type": "Buy to Open",
+      "symbol": "NDXP  260508P26000000",
+      "strike_price": "26000.00",
+      "expires_at": "2026-05-08",
+      "net_value": "9920.37",
+      "description": "Bought 1 NDX 05/08/26 Put 26000.00 @ 99.19"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Open",
+      "transaction_sub_type": "Sell to Open",
+      "symbol": "NDXP  260508P26050000",
+      "strike_price": "26050.00",
+      "expires_at": "2026-05-08",
+      "net_value": "10499.627",
+      "description": "Sold 1 NDX 05/08/26 Put 26050.00 @ 105.01"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Open",
+      "transaction_sub_type": "Buy to Open",
+      "symbol": "NDX   260515P26050000",
+      "strike_price": "26050.00",
+      "expires_at": "2026-05-15",
+      "net_value": "17341.37",
+      "description": "Bought 1 NDX 05/15/26 Put 26050.00 @ 173.40"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Open",
+      "transaction_sub_type": "Sell to Open",
+      "symbol": "NDX   260515P26100000",
+      "strike_price": "26100.00",
+      "expires_at": "2026-05-15",
+      "net_value": "18125.627",
+      "description": "Sold 1 NDX 05/15/26 Put 26100.00 @ 181.27"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Close",
+      "transaction_sub_type": "Buy to Close",
+      "symbol": "NDXP  260402C25250000",
+      "strike_price": "25250.00",
+      "expires_at": "2026-04-02",
+      "net_value": "245.37",
+      "description": "Bought 1 NDX 04/02/26 Call 25250.00 @ 2.45"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Close",
+      "transaction_sub_type": "Sell to Close",
+      "symbol": "NDXP  260402C25300000",
+      "strike_price": "25300.00",
+      "expires_at": "2026-04-02",
+      "net_value": "184.627",
+      "description": "Sold 1 NDX 04/02/26 Call 25300.00 @ 1.85"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Sell to Close",
+      "transaction_sub_type": "Sell to Close",
+      "symbol": "NDXP  260327C24600000",
+      "strike_price": "24600.00",
+      "expires_at": "2026-03-27",
+      "net_value": "18.627",
+      "description": "Sold 1 NDX 03/27/26 Call 24600.00 @ 0.19"
+    },
+    {
+      "underlying_symbol": "NDX",
+      "action": "Buy to Close",
+      "transaction_sub_type": "Buy to Close",
+      "symbol": "NDXP  260327C24500000",
+      "strike_price": "24500.00",
+      "expires_at": "2026-03-27",
+      "net_value": "37.37",
+      "description": "Bought 1 NDX 03/27/26 Call 24500.00 @ 0.37"
+    }
+  ],
+  "messages": [],
+  "stdout": "underlying_symbol\taction\ttransaction_sub_type\tsymbol\tstrike_price\texpires_at\tnet_value\tdescription\nNDX\tSell to Close\tSell to Close\tNDX   260515P26725000\t26725.00\t2026-05-15\t608.63\tSold 1 NDX 05/15/26 Put 26725.00 @ 6.09\nNDX\tBuy to Close\tBuy to Close\tNDX   260515P26750000\t26750.00\t2026-05-15\t641.37\tBought 1 NDX 05/15/26 Put 26750.00 @ 6.41\nNDX\tSell to Close\tSell to Close\tNDX   260515P26050000\t26050.00\t2026-05-15\t629.25\tSold 2 NDX 05/15/26 Put 26050.00 @ 3.15\nNDX\tBuy to Close\tBuy to Close\tNDX   260515P26100000\t26100.00\t2026-05-15\t690.75\tBought 2 NDX 05/15/26 Put 26100.00 @ 3.45\nNDX\tSell to Open\tSell to Open\tNDXP  260522P28000000\t28000.00\t2026-05-22\t12548.63\tSold 1 NDX 05/22/26 Put 28000.00 @ 125.50\nNDX\tBuy to Open\tBuy to Open\tNDXP  260522P27950000\t27950.00\t2026-05-22\t11901.37\tBought 1 NDX 05/22/26 Put 27950.00 @ 119.00\nNDX\tSell to Open\tSell to Open\tNDXP  260511P27150000\t27150.00\t2026-05-11\t12281.63\tSold 1 NDX 05/11/26 Put 27150.00 @ 122.83\nNDX\tBuy to Open\tBuy to Open\tNDXP  260511P27100000\t27100.00\t2026-05-11\t11454.37\tBought 1 NDX 05/11/26 Put 27100.00 @ 114.53\nNDX\tBuy to Open\tBuy to Open\tNDX   260515P26725000\t26725.00\t2026-05-15\t12741.37\tBought 1 NDX 05/15/26 Put 26725.00 @ 127.40\nNDX\tSell to Open\tSell to Open\tNDX   260515P26750000\t26750.00\t2026-05-15\t13028.63\tSold 1 NDX 05/15/26 Put 26750.00 @ 130.30\nNDX\tBuy to Open\tBuy to Open\tNDX   260515P26050000\t26050.00\t2026-05-15\t16146.37\tBought 1 NDX 05/15/26 Put 26050.00 @ 161.45\nNDX\tSell to Open\tSell to Open\tNDX   260515P26100000\t26100.00\t2026-05-15\t16853.627\tSold 1 NDX 05/15/26 Put 26100.00 @ 168.55\nNDX\tBuy to Open\tBuy to Open\tNDXP  260508P26000000\t26000.00\t2026-05-08\t9920.37\tBought 1 NDX 05/08/26 Put 26000.00 @ 99.19\nNDX\tSell to Open\tSell to Open\tNDXP  260508P26050000\t26050.00\t2026-05-08\t10499.627\tSold 1 NDX 05/08/26 Put 26050.00 @ 105.01\nNDX\tBuy to Open\tBuy to Open\tNDX   260515P26050000\t26050.00\t2026-05-15\t17341.37\tBought 1 NDX 05/15/26 Put 26050.00 @ 173.40\nNDX\tSell to Open\tSell to Open\tNDX   260515P26100000\t26100.00\t2026-05-15\t18125.627\tSold 1 NDX 05/15/26 Put 26100.00 @ 181.27\nNDX\tBuy to Close\tBuy to Close\tNDXP  260402C25250000\t25250.00\t2026-04-02\t245.37\tBought 1 NDX 04/02/26 Call 25250.00 @ 2.45\nNDX\tSell to Close\tSell to Close\tNDXP  260402C25300000\t25300.00\t2026-04-02\t184.627\tSold 1 NDX 04/02/26 Call 25300.00 @ 1.85\nNDX\tSell to Close\tSell to Close\tNDXP  260327C24600000\t24600.00\t2026-03-27\t18.627\tSold 1 NDX 03/27/26 Call 24600.00 @ 0.19\nNDX\tBuy to Close\tBuy to Close\tNDXP  260327C24500000\t24500.00\t2026-03-27\t37.37\tBought 1 NDX 03/27/26 Call 24500.00 @ 0.37\n",
+  "stderr": "",
+  "execution_time_ms": 273
+}
