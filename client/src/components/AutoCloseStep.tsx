@@ -10,17 +10,19 @@
  * Global Defaults panel: set default bracket values that pre-fill every new row.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
+import { skipToken } from '@tanstack/react-query';
 import { AutoCloseLogTab } from './AutoCloseLogTab';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import {
   Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock,
   AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert, Settings2, Save,
-  CheckSquare, X
+  CheckSquare, X, ArrowLeftRight, TrendingUp, TrendingDown, Minus, Star
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -67,6 +69,20 @@ interface RowBracket {
   profitTargetPct: ProfitTargetPct;
   stopLossPct: number | null;
   dteFloor: number | null;
+}
+
+/** Position passed to the Roll dialog */
+interface RollTarget {
+  symbol: string;
+  optionSymbol: string;
+  optionType: 'C' | 'P';
+  strike: string;
+  expiration: string;
+  quantity: number;
+  averageOpenPrice: string; // open premium per share
+  currentMark: string;      // current BTC cost per share
+  accountNumber: string;
+  dte: number;
 }
 
 export default function AutoCloseStep() {
@@ -180,6 +196,59 @@ export default function AutoCloseStep() {
     onError: (err) => toast({ title: 'Error applying to selected', description: err.message, variant: 'destructive' }),
   });
   const notifyOptInMut = trpc.autoClose.notifyOptIn.useMutation();
+  // ── Roll dialog state ─────────────────────────────────────────────────────
+  const [rollTarget, setRollTarget] = useState<RollTarget | null>(null);
+  const [selectedRollIdx, setSelectedRollIdx] = useState<number | null>(null);
+
+  const rollCandidatesQuery = trpc.rolls.getRollCandidates.useQuery(
+    rollTarget ? {
+      symbol: rollTarget.symbol,
+      strategy: rollTarget.optionType === 'P' ? 'csp' : 'cc',
+      strikePrice: parseFloat(rollTarget.strike),
+      expirationDate: rollTarget.expiration,
+      currentValue: parseFloat(rollTarget.currentMark),
+      openPremium: parseFloat(rollTarget.averageOpenPrice),
+      quantity: rollTarget.quantity,
+      positionId: rollTarget.optionSymbol,
+    } : skipToken,
+    { staleTime: 60_000 }
+  );
+
+  const submitRollMut = trpc.rolls.submitRollOrders.useMutation({
+    onSuccess: (result) => {
+      const isDry = rollDryRun;
+      toast({
+        title: isDry ? 'Roll dry-run passed ✓' : `Roll submitted for ${rollTarget?.symbol}`,
+        description: isDry
+          ? 'Order validated — toggle off Dry Run to submit live.'
+          : 'BTC + STO spread order sent to Tastytrade.',
+      });
+      if (!isDry) {
+        setRollTarget(null);
+        setSelectedRollIdx(null);
+        refetch();
+      }
+    },
+    onError: (err) => toast({ title: 'Roll failed', description: err.message, variant: 'destructive' }),
+  });
+
+  const [rollDryRun, setRollDryRun] = useState(true);
+
+  // Best net credit index among roll candidates
+  const bestCreditIdx = useMemo(() => {
+    const candidates = rollCandidatesQuery.data?.candidates;
+    if (!candidates || candidates.length === 0) return null;
+    let best = -1;
+    let bestCredit = -Infinity;
+    candidates.forEach((c: { action: string; netCredit?: number | null }, i: number) => {
+      if (c.action === 'roll' && (c.netCredit ?? -Infinity) > bestCredit) {
+        bestCredit = c.netCredit ?? -Infinity;
+        best = i;
+      }
+    });
+    return best >= 0 ? best : null;
+  }, [rollCandidatesQuery.data]);
+
   const [bulkPending, setBulkPending] = useState(false);
   const bulkSetTargetsMut = trpc.autoClose.bulkSetTargets.useMutation({
     onSuccess: (result) => {
@@ -966,6 +1035,29 @@ export default function AutoCloseStep() {
 
                     {/* ── Opt-in / Opt-out action ──────────────────────── */}
                     <td className="px-3 py-3 text-center">
+                      {/* Roll button — always available */}
+                      <div className="flex flex-col items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          setRollTarget({
+                            symbol: pos.symbol,
+                            optionSymbol: pos.optionSymbol,
+                            optionType: pos.optionType,
+                            strike: pos.strike,
+                            expiration: pos.expiration,
+                            quantity: pos.quantity,
+                            averageOpenPrice: pos.averageOpenPrice,
+                            currentMark: pos.currentMark,
+                            accountNumber: pos.accountNumber,
+                            dte: pos.dte,
+                          });
+                          setSelectedRollIdx(null);
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 border border-purple-500/30 transition-colors"
+                      >
+                        <ArrowLeftRight className="h-3 w-3" />
+                        Roll
+                      </button>
                       {isPending ? (
                         <Button size="sm" disabled className="w-36 text-xs">
                           <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -1012,6 +1104,7 @@ export default function AutoCloseStep() {
                           Monitor
                         </Button>
                       )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1088,6 +1181,195 @@ export default function AutoCloseStep() {
           </div>
         </div>
       </div>
+      {/* ── Roll Dialog (Sheet) ────────────────────────────────────────── */}
+      <Sheet open={!!rollTarget} onOpenChange={(open) => { if (!open) { setRollTarget(null); setSelectedRollIdx(null); } }}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl bg-gray-950 border-gray-800 overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-white flex items-center gap-2">
+              <ArrowLeftRight className="h-5 w-5 text-purple-400" />
+              Roll Position — {rollTarget?.symbol} {rollTarget?.optionType === 'P' ? 'Put' : 'Call'}
+            </SheetTitle>
+            <SheetDescription className="text-gray-400 text-sm">
+              Current: ${rollTarget?.strike} exp {rollTarget?.expiration} · {rollTarget?.dte} DTE ·
+              Open: ${parseFloat(rollTarget?.averageOpenPrice ?? '0').toFixed(2)} ·
+              BTC: ${parseFloat(rollTarget?.currentMark ?? '0').toFixed(2)}
+            </SheetDescription>
+          </SheetHeader>
+
+          {rollCandidatesQuery.isLoading && (
+            <div className="flex items-center justify-center py-16 text-gray-400">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              Fetching expiration chains…
+            </div>
+          )}
+
+          {rollCandidatesQuery.error && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+              {rollCandidatesQuery.error.message}
+            </div>
+          )}
+
+          {rollCandidatesQuery.data?.candidates && (
+            <div className="space-y-4">
+              {/* Legend */}
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-400" /> Best net credit</span>
+                <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3 text-blue-400" /> Strike up (OTM)</span>
+                <span className="flex items-center gap-1"><Minus className="h-3 w-3 text-gray-400" /> Same strike</span>
+                <span className="flex items-center gap-1"><TrendingDown className="h-3 w-3 text-orange-400" /> Strike down (ITM)</span>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto rounded-lg border border-gray-800">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-800 bg-gray-900/60 text-gray-400">
+                      <th className="px-3 py-2.5 text-left w-8"></th>
+                      <th className="px-3 py-2.5 text-left">Expiration</th>
+                      <th className="px-3 py-2.5 text-right">DTE</th>
+                      <th className="px-3 py-2.5 text-right">Strike</th>
+                      <th className="px-3 py-2.5 text-right">Direction</th>
+                      <th className="px-3 py-2.5 text-right">New Mid</th>
+                      <th className="px-3 py-2.5 text-right">BTC Cost</th>
+                      <th className="px-3 py-2.5 text-right font-semibold text-white">Net Credit</th>
+                      <th className="px-3 py-2.5 text-right">New Delta</th>
+                      <th className="px-3 py-2.5 text-right">Wkly%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rollCandidatesQuery.data!.candidates.map((c: { action: string; expiration?: string; dte?: number; strike?: number; netCredit?: number | null; delta?: number | null; annualizedReturn?: number | null; newPremium?: number | null; score: number; description: string }, i: number) => {
+                      const isBest = i === bestCreditIdx;
+                      const isSelected = i === selectedRollIdx;
+                      const netCredit = c.netCredit ?? 0;
+                      const isDebit = netCredit < 0;
+                      const btcCost = parseFloat(rollTarget?.currentMark ?? '0');
+                      const stoMid = c.newPremium ?? (netCredit + btcCost);
+                      const qty = rollTarget?.quantity ?? 1;
+                      const totalCredit = netCredit * qty;
+                      // annualizedReturn is annual %; convert to weekly approx
+                      const wklyPct = c.annualizedReturn != null ? (c.annualizedReturn / 52) : null;
+
+                      // Direction indicator
+                      const newStrike = c.strike ?? parseFloat(rollTarget?.strike ?? '0');
+                      const origStrike = parseFloat(rollTarget?.strike ?? '0');
+                      let dirIcon = <Minus className="h-3 w-3 text-gray-400" />;
+                      let dirLabel = 'Same';
+                      if (newStrike > origStrike) {
+                        dirIcon = <TrendingUp className="h-3 w-3 text-blue-400" />;
+                        dirLabel = '+' + (newStrike - origStrike).toFixed(0);
+                      } else if (newStrike < origStrike) {
+                        dirIcon = <TrendingDown className="h-3 w-3 text-orange-400" />;
+                        dirLabel = (newStrike - origStrike).toFixed(0);
+                      }
+
+                      return (
+                        <tr
+                          key={i}
+                          onClick={() => setSelectedRollIdx(i === selectedRollIdx ? null : i)}
+                          className={`border-b border-gray-800/50 cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-purple-500/20 border-l-2 border-l-purple-400'
+                              : isBest
+                                ? 'bg-amber-500/10 hover:bg-amber-500/15'
+                                : 'hover:bg-gray-800/30'
+                          }`}
+                        >
+                          <td className="px-3 py-2.5">
+                            {isBest && <Star className="h-3.5 w-3.5 text-amber-400" />}
+                            {isSelected && !isBest && <CheckCircle className="h-3.5 w-3.5 text-purple-400" />}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-200 font-medium">
+                            {c.expiration ? new Date(c.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : rollTarget?.expiration}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-gray-300">{c.dte ?? rollTarget?.dte}</td>
+                          <td className="px-3 py-2.5 text-right text-gray-200">${newStrike.toFixed(0)}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            <span className="flex items-center justify-end gap-1 text-gray-400">
+                              {dirIcon} {dirLabel}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-gray-300">${stoMid.toFixed(2)}</td>
+                          <td className="px-3 py-2.5 text-right text-red-300">${btcCost.toFixed(2)}</td>
+                          <td className={`px-3 py-2.5 text-right font-bold ${
+                            isDebit ? 'text-red-400' : 'text-green-400'
+                          }`}>
+                            {isDebit ? '-' : '+'}${Math.abs(netCredit).toFixed(2)}
+                            <div className="text-[10px] font-normal text-gray-500">
+                              {isDebit ? '-' : '+'}${Math.abs(totalCredit).toFixed(0)} total
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-gray-400">
+                            {c.delta != null ? c.delta.toFixed(2) : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-gray-400">
+                            {wklyPct != null ? `${wklyPct.toFixed(2)}%` : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Submit section */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-800">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rollDryRun}
+                      onChange={(e) => setRollDryRun(e.target.checked)}
+                      className="rounded border-gray-600 bg-gray-800 accent-purple-500"
+                    />
+                    Dry Run (validate only)
+                  </label>
+                  {selectedRollIdx != null && rollCandidatesQuery.data?.candidates[selectedRollIdx] && (
+                    <span className="text-xs text-gray-500">
+                      Selected: {rollCandidatesQuery.data.candidates[selectedRollIdx].expiration
+                        ? new Date(rollCandidatesQuery.data.candidates[selectedRollIdx].expiration!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                        : rollTarget?.expiration} @
+                      ${(rollCandidatesQuery.data.candidates[selectedRollIdx].strike ?? 0).toFixed(0)}
+                    </span>
+                  )}
+                </div>
+                <Button
+                  disabled={
+                    selectedRollIdx == null ||
+                    submitRollMut.isPending ||
+                    !rollTarget
+                  }
+                  onClick={() => {
+                    if (selectedRollIdx == null || !rollTarget || !rollCandidatesQuery.data) return;
+                    const c = rollCandidatesQuery.data.candidates[selectedRollIdx] as { strike?: number; expiration?: string; netCredit?: number | null };
+                    submitRollMut.mutate({
+                      dryRun: rollDryRun,
+                      orders: [{
+                        accountNumber: rollTarget.accountNumber,
+                        symbol: rollTarget.symbol,
+                        strategyType: rollTarget.optionType === 'P' ? 'CSP' : 'CC',
+                        action: 'roll',
+                        currentOptionSymbol: rollTarget.optionSymbol,
+                        currentQuantity: rollTarget.quantity,
+                        currentValue: parseFloat(rollTarget.currentMark),
+                        newStrike: c.strike ?? parseFloat(rollTarget.strike),
+                        newExpiration: c.expiration ?? rollTarget.expiration,
+                        netCredit: c.netCredit ?? 0,
+                        positionId: rollTarget.optionSymbol,
+                      }],
+                    });
+                  }}
+                  className="bg-purple-600 hover:bg-purple-500 text-white"
+                >
+                  {submitRollMut.isPending
+                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting…</>
+                    : <><ArrowLeftRight className="h-4 w-4 mr-2" /> {rollDryRun ? 'Validate Roll' : 'Submit Roll'}</>
+                  }
+                </Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </>}
     </div>
   );

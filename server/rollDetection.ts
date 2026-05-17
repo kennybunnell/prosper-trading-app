@@ -585,12 +585,12 @@ export async function generateRollCandidates(
     score: scoreRollCandidate(c, position, analysis),
   }));
 
-  // Return top 5 roll candidates + close option
+  // Return top 8 roll candidates + close option (sorted by net credit descending so best credit shows first)
   const closeOption = scoredCandidates.find(c => c.action === 'close')!;
   const rollCandidates = scoredCandidates
     .filter(c => c.action === 'roll')
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
+    .sort((a, b) => (b.netCredit ?? 0) - (a.netCredit ?? 0))
+    .slice(0, 8);
 
   return [closeOption, ...rollCandidates];
 }
