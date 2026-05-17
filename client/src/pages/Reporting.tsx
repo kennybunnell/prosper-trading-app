@@ -8,7 +8,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -483,9 +482,8 @@ export default function Reporting() {
   const [activeTab, setActiveTab] = useState<"reports" | "ask">("reports");
 
   return (
-    <DashboardLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
           {/* ── Header ── */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -710,8 +708,7 @@ export default function Reporting() {
 
           </Tabs>
 
-        </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 }
