@@ -10,10 +10,11 @@
  * Global Defaults panel: set default bracket values that pre-fill every new row.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { trpc } from '@/lib/trpc';
 import { skipToken } from '@tanstack/react-query';
 import { AutoCloseLogTab } from './AutoCloseLogTab';
+import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrderPreviewModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -23,7 +24,7 @@ import {
   Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock,
   AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert, Settings2, Save,
   CheckSquare, X, ArrowLeftRight, TrendingUp, TrendingDown, Minus, Star, Info,
-  ChevronUp, ChevronDown, ChevronsUpDown, Shield, Target
+  ChevronUp, ChevronDown, ChevronsUpDown, Shield, Target, DollarSign
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
@@ -119,6 +120,19 @@ export default function AutoCloseStep() {
     }
   }
 
+  // ── Close for Profit mode ────────────────────────────────────────────────
+  const [cfpMode, setCfpMode] = useState(false);           // toggle CfP mode
+  const [cfpThreshold, setCfpThreshold] = useState(50);    // adjustable profit % threshold
+  const [cfpThresholdInput, setCfpThresholdInput] = useState('50'); // raw text input
+  const [cfpSelected, setCfpSelected] = useState<Set<string>>(new Set()); // selected rowKeys
+  // UnifiedOrderPreviewModal state for CfP
+  const [cfpOrders, setCfpOrders] = useState<UnifiedOrder[]>([]);
+  const [cfpPreviewOpen, setCfpPreviewOpen] = useState(false);
+  const [cfpAccountId, setCfpAccountId] = useState('');
+  const [cfpSubmitComplete, setCfpSubmitComplete] = useState(false);
+  const [cfpFinalStatus, setCfpFinalStatus] = useState<string | null>(null);
+  const cfpPositionsRef = useRef<NonNullable<typeof positions>>([]);
+
   // Global defaults panel state
   const [showDefaults, setShowDefaults] = useState(false);
   const [defaultProfitPct, setDefaultProfitPct] = useState<ProfitTargetPct>(50);
@@ -213,6 +227,148 @@ export default function AutoCloseStep() {
     onError: (err) => toast({ title: 'Error applying to selected', description: err.message, variant: 'destructive' }),
   });
   const notifyOptInMut = trpc.autoClose.notifyOptIn.useMutation();
+
+  // ── Close for Profit: submit BTC orders ──────────────────────────────────────
+  const submitCloseOrders = trpc.automation.submitCloseOrders.useMutation({
+    onError: (err) => toast({ title: 'Order submission failed', description: err.message, variant: 'destructive' }),
+  });
+  const utils = trpc.useUtils();
+
+  /** Keep ref in sync so handleCfpSubmit can access current positions */
+  useEffect(() => {
+    cfpPositionsRef.current = positions ?? [];
+  }, [positions]);
+
+  /** Positions at or above the CfP threshold */
+  const cfpQualifying = useMemo(() => {
+    return (positions ?? []).filter(p => p.profitPct >= cfpThreshold);
+  }, [positions, cfpThreshold]);
+
+  /** Open the UnifiedOrderPreviewModal for the selected CfP positions */
+  const handleOpenCfpPreview = useCallback(() => {
+    const allPos = cfpPositionsRef.current;
+    const selected = allPos.filter(p => {
+      const k = `${p.accountId}::${p.optionSymbol.replace(/\s+/g, '')}`;
+      return cfpSelected.has(k);
+    });
+    if (selected.length === 0) {
+      toast({ title: 'No positions selected', description: 'Select at least one position to close.', variant: 'destructive' });
+      return;
+    }
+    // Build UnifiedOrder[] for BTC
+    const orders: UnifiedOrder[] = selected.map(pos => {
+      const mark = parseFloat(pos.currentMark);
+      const estimatedBid = Math.max(0.01, mark * 0.8);
+      const estimatedAsk = Math.max(0.02, mark * 1.2);
+      // Parse call/put from OCC symbol
+      const cleanSym = pos.optionSymbol.replace(/\s+/g, '');
+      const occMatch = cleanSym.match(/([CP])(\d{8})$/);
+      const isCall = occMatch ? occMatch[1] === 'C' : pos.optionType === 'C';
+      const strike = occMatch ? parseInt(occMatch[2], 10) / 1000 : parseFloat(pos.strike);
+      return {
+        symbol: pos.symbol,
+        strike,
+        expiration: pos.expiration,
+        premium: mark,
+        action: 'BTC' as const,
+        optionType: isCall ? 'CALL' as const : 'PUT' as const,
+        bid: estimatedBid,
+        ask: estimatedAsk,
+        currentPrice: mark,
+        optionSymbol: pos.optionSymbol,
+        accountNumber: pos.accountNumber,
+        quantity: pos.quantity,
+        isEstimated: false,
+        perOrderPremiumCollected: parseFloat(pos.averageOpenPrice),
+      };
+    });
+    const firstAccount = selected[0].accountNumber;
+    const totalPremium = selected.reduce((sum, p) => sum + parseFloat(p.averageOpenPrice) * p.quantity * 100, 0);
+    setCfpOrders(orders);
+    setCfpAccountId(firstAccount);
+    setCfpSubmitComplete(false);
+    setCfpFinalStatus(null);
+    setCfpPreviewOpen(true);
+    // Store total premium for display (not used in submit but good for context)
+    void totalPremium;
+  }, [cfpSelected, toast]);
+
+  /** Submit handler for UnifiedOrderPreviewModal */
+  const handleCfpSubmit = useCallback(async (
+    orders: UnifiedOrder[],
+    quantities: Map<string, number>,
+    isDryRun: boolean
+  ): Promise<{ results: any[] }> => {
+    try {
+      const selected = orders
+        .filter(o => o.optionSymbol && o.accountNumber)
+        .map(o => {
+          const qty = quantities.get(`${o.symbol}-${o.strike}-${o.expiration}`) ?? o.quantity ?? 1;
+          return {
+            accountNumber: o.accountNumber!,
+            optionSymbol: o.optionSymbol!,
+            symbol: o.symbol,
+            quantity: qty,
+            buyBackCost: (o.premium ?? 0) * qty * 100,
+            isEstimated: o.isEstimated ?? false,
+            userLimitPrice: o.premium !== undefined && o.premium > 0 ? o.premium : undefined,
+          };
+        });
+      if (selected.length === 0) return { results: [] };
+      const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
+      if (!isDryRun) {
+        // Clear selection for submitted positions
+        const submittedKeys = new Set(selected.map(s => `${s.accountNumber}::${s.optionSymbol.replace(/\s+/g, '')}`));
+        setCfpSelected(prev => {
+          const next = new Set(prev);
+          submittedKeys.forEach(k => next.delete(k));
+          return next;
+        });
+        refetch();
+      }
+      return { results: (response as any).results ?? [] };
+    } catch (err: any) {
+      console.error('[handleCfpSubmit] error:', err);
+      return { results: [] };
+    }
+  }, [submitCloseOrders, refetch]);
+
+  /** Poll order statuses for CfP modal */
+  const handleCfpPollStatuses = useCallback(async (
+    orderIds: string[],
+    accountId: string
+  ) => {
+    try {
+      const statusMap = await utils.orders.checkStatusBatch.fetch({ accountId, orderIds });
+      return orderIds.map((orderId, idx) => {
+        const s = statusMap[orderId];
+        const rawStatus = s?.status;
+        const mappedStatus =
+          rawStatus === 'Filled' ? 'Filled' as const
+          : rawStatus === 'Rejected' ? 'Rejected' as const
+          : rawStatus === 'Cancelled' ? 'Cancelled' as const
+          : rawStatus === 'MarketClosed' ? 'MarketClosed' as const
+          : 'Working' as const;
+        return {
+          orderId,
+          symbol: cfpOrders[idx]?.symbol ?? 'Unknown',
+          status: mappedStatus,
+          message: rawStatus === 'Filled' ? 'Order filled successfully'
+            : rawStatus === 'Rejected' ? `Order rejected: ${(s as any)?.rejectedReason ?? 'Unknown reason'}`
+            : rawStatus === 'MarketClosed' ? (s as any)?.marketClosedMessage ?? 'Market is closed'
+            : rawStatus === 'Working' ? 'Order is working'
+            : 'Checking order status...',
+        };
+      });
+    } catch {
+      return orderIds.map((orderId, idx) => ({
+        orderId,
+        symbol: cfpOrders[idx]?.symbol ?? 'Unknown',
+        status: 'Working' as const,
+        message: 'Retrying status check...',
+      }));
+    }
+  }, [utils.orders.checkStatusBatch, cfpOrders]);
   // ── Roll dialog state ─────────────────────────────────────────────────────
   const [rollTarget, setRollTarget] = useState<RollTarget | null>(null);
   const [selectedRollIdx, setSelectedRollIdx] = useState<number | null>(null);
@@ -695,6 +851,22 @@ export default function AutoCloseStep() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Close for Profit mode toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setCfpMode(v => !v);
+              setCfpSelected(new Set());
+            }}
+            className={cfpMode
+              ? 'border-green-500/60 bg-green-500/15 text-green-300 hover:bg-green-500/25'
+              : 'border-gray-700 text-gray-300 hover:text-white'
+            }
+          >
+            <DollarSign className="h-3.5 w-3.5 mr-1.5" />
+            {cfpMode ? 'Exit Close for Profit' : 'Close for Profit'}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -738,6 +910,81 @@ export default function AutoCloseStep() {
           </>
         )}
       </div>
+
+      {/* ── Close for Profit mode banner ─────────────────────────────── */}
+      {cfpMode && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/8 p-4 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-green-400" />
+              <span className="font-semibold text-green-300">Close for Profit Mode</span>
+              <span className="text-xs text-gray-400">— select positions at or above your threshold and submit BTC orders</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400">Profit threshold:</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={cfpThresholdInput}
+                  onChange={(e) => {
+                    setCfpThresholdInput(e.target.value);
+                    const v = parseInt(e.target.value);
+                    if (!isNaN(v) && v >= 1 && v <= 100) setCfpThreshold(v);
+                  }}
+                  onBlur={() => {
+                    const v = parseInt(cfpThresholdInput);
+                    if (isNaN(v) || v < 1) { setCfpThreshold(1); setCfpThresholdInput('1'); }
+                    else if (v > 100) { setCfpThreshold(100); setCfpThresholdInput('100'); }
+                    else { setCfpThreshold(v); setCfpThresholdInput(String(v)); }
+                  }}
+                  className="w-16 h-8 text-center text-sm rounded-md bg-gray-800 border border-green-500/40 text-green-300 focus:outline-none focus:border-green-400"
+                />
+                <span className="text-green-300 font-medium">%</span>
+              </div>
+              <span className="text-xs text-gray-500">
+                {cfpQualifying.length} position{cfpQualifying.length !== 1 ? 's' : ''} qualify
+              </span>
+            </div>
+          </div>
+          {/* Quick-select qualifying */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => {
+                const keys = new Set(cfpQualifying.map(p => `${p.accountId}::${p.optionSymbol.replace(/\s+/g, '')}`));
+                setCfpSelected(keys);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-green-500/20 text-green-300 hover:bg-green-500/30 border border-green-500/30 transition-colors"
+            >
+              <CheckSquare className="h-3 w-3" />
+              Select All Qualifying ({cfpQualifying.length})
+            </button>
+            {cfpSelected.size > 0 && (
+              <button
+                onClick={() => setCfpSelected(new Set())}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-gray-700/50 text-gray-300 hover:bg-gray-700 border border-gray-600/50 transition-colors"
+              >
+                <X className="h-3 w-3" />
+                Clear ({cfpSelected.size})
+              </button>
+            )}
+            {cfpSelected.size > 0 && (
+              <Button
+                size="sm"
+                onClick={handleOpenCfpPreview}
+                className="bg-green-600 hover:bg-green-500 text-white ml-auto"
+              >
+                <DollarSign className="h-3.5 w-3.5 mr-1.5" />
+                Review & Close {cfpSelected.size} for Profit
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">
+            Rows highlighted in green meet the threshold. The automation already handles these automatically — use this to close at a <em>different</em> threshold than your bracket setting.
+          </p>
+        </div>
+      )}
 
       {/* ── Bracket legend ─────────────────────────────────────────────── */}
       <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 flex items-start gap-3">
@@ -1000,28 +1247,52 @@ export default function AutoCloseStep() {
                 const bracket   = getEffectiveBracket(rowKey, pos);
                 const atTarget  = pos.profitPct >= bracket.profitTargetPct;
                 const isPending = pendingRows.has(rowKey);
+                // CfP mode helpers
+                const cfpQualifies = cfpMode && pos.profitPct >= cfpThreshold;
+                const cfpIsSelected = cfpSelected.has(rowKey);
 
                 return (
                   <tr
                     key={rowKey}
                     className={`border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors ${
-                      isEnabled ? 'bg-green-950/10 border-l-2 border-l-green-500/40' : ''
+                      cfpQualifies && cfpMode
+                        ? 'bg-green-950/20 border-l-2 border-l-green-400/60'
+                        : isEnabled ? 'bg-green-950/10 border-l-2 border-l-green-500/40' : ''
                     }`}
                   >
-                    {/* Row checkbox */}
+                    {/* Row checkbox — CfP mode shows green checkbox for qualifying rows */}
                     <td className="px-3 py-3 w-8">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-600 bg-gray-800 accent-orange-500 cursor-pointer"
-                        checked={selectedRows.has(rowKey)}
-                        onChange={(e) => {
-                          setSelectedRows(prev => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(rowKey); else next.delete(rowKey);
-                            return next;
-                          });
-                        }}
-                      />
+                      {cfpMode ? (
+                        cfpQualifies ? (
+                          <input
+                            type="checkbox"
+                            className="rounded border-green-500/60 bg-gray-800 accent-green-500 cursor-pointer"
+                            checked={cfpIsSelected}
+                            onChange={(e) => {
+                              setCfpSelected(prev => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(rowKey); else next.delete(rowKey);
+                                return next;
+                              });
+                            }}
+                          />
+                        ) : (
+                          <span className="block w-4 h-4" title="Below threshold" />
+                        )
+                      ) : (
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-600 bg-gray-800 accent-orange-500 cursor-pointer"
+                          checked={selectedRows.has(rowKey)}
+                          onChange={(e) => {
+                            setSelectedRows(prev => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(rowKey); else next.delete(rowKey);
+                              return next;
+                            });
+                          }}
+                        />
+                      )}
                     </td>
                     {/* Symbol */}
                     <td className="px-3 py-3">
@@ -1073,6 +1344,11 @@ export default function AutoCloseStep() {
                       {atTarget && isEnabled && (
                         <div className="text-xs text-green-400 mt-0.5 font-medium animate-pulse">
                           At target!
+                        </div>
+                      )}
+                      {cfpQualifies && (
+                        <div className="text-[10px] text-green-400 mt-0.5 font-medium">
+                          ≥ {cfpThreshold}% ✓
                         </div>
                       )}
                     </td>
@@ -1375,8 +1651,30 @@ export default function AutoCloseStep() {
           </div>
         </div>
       </div>
-      {/* ── Roll Dialog (Sheet) ────────────────────────────────────────── */}
-      <Sheet open={!!rollTarget} onOpenChange={(open) => { if (!open) { setRollTarget(null); setSelectedRollIdx(null); } }}>
+
+      {/* ── Close for Profit: UnifiedOrderPreviewModal ───────────────────────── */}
+      <UnifiedOrderPreviewModal
+        open={cfpPreviewOpen}
+        onOpenChange={(open) => {
+          setCfpPreviewOpen(open);
+          if (!open) { setCfpSubmitComplete(false); setCfpFinalStatus(null); }
+        }}
+        orders={cfpOrders}
+        strategy="btc"
+        accountId={cfpAccountId}
+        availableBuyingPower={0}
+        allowQuantityEdit={false}
+        onSubmit={handleCfpSubmit}
+        onPollStatuses={handleCfpPollStatuses}
+        submissionComplete={cfpSubmitComplete}
+        finalOrderStatus={cfpFinalStatus}
+        onSubmissionStateChange={(complete, status) => {
+          setCfpSubmitComplete(complete);
+          setCfpFinalStatus(status);
+        }}
+      />
+
+      {/* ── Roll Dialog (Sheet) ──────────────────────────────────────────────── */}      <Sheet open={!!rollTarget} onOpenChange={(open) => { if (!open) { setRollTarget(null); setSelectedRollIdx(null); } }}>
         <SheetContent side="right" className="w-full sm:max-w-2xl bg-gray-950 border-gray-800 overflow-y-auto">
           <SheetHeader className="mb-4">
             <SheetTitle className="text-white flex items-center gap-2">

@@ -10058,3 +10058,17 @@ ROC Fix Mar 18 2026
 - [x] Add no-credit warning banner for positions too deep ITM to roll for a credit (with CC/CSP-specific close/assignment guidance)
 - [x] Roll Urgency Score composite column in Auto-Close / Roll monitor (0-100 score with delta, gamma, theta, ITM depth, DTE, profit captured; color-coded pill + hover tooltip breakdown)
 - [x] Sortable column headers on all Auto-Close / Roll monitor columns (defaults to Roll Score descending)
+
+## Close for Profit Consolidation (May 17, 2026)
+- [x] Added "Close for Profit" mode toggle button to Step 2 (Auto-Close / Roll) toolbar
+- [x] Added adjustable profit threshold input (default 50%, freely editable)
+- [x] Added green row highlighting for positions at or above threshold
+- [x] Added per-row green checkboxes for qualifying positions in CfP mode
+- [x] Added "Select All Qualifying" and "Clear" bulk selection buttons
+- [x] Added "Review & Close N for Profit" button that opens UnifiedOrderPreviewModal
+- [x] Wired CfP submit to trpc.automation.submitCloseOrders (same BTC path as Step 1)
+- [x] Added order status polling via trpc.orders.checkStatusBatch
+- [x] Removed Step 1 (Close for Profit) tab from AutomationDashboard
+- [x] Renumbered tabs: Auto-Close/Roll=1, Sell Calls=2, PMCC Mgmt=3, SPX Spreads=4
+- [x] Updated grid-cols-5 → grid-cols-4 in TabsList
+- [x] Default activeTab changed to step5-gtc (Auto-Close/Roll)
