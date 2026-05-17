@@ -10072,3 +10072,7 @@ ROC Fix Mar 18 2026
 - [x] Renumbered tabs: Auto-Close/Roll=1, Sell Calls=2, PMCC Mgmt=3, SPX Spreads=4
 - [x] Updated grid-cols-5 → grid-cols-4 in TabsList
 - [x] Default activeTab changed to step5-gtc (Auto-Close/Roll)
+
+## Tab Reorder (May 17, 2026)
+- [x] Swapped tab 3 and 4: SPX Spreads moved to position 3, PMCC Mgmt moved to position 4
+- [x] Final tab order: 1) Auto-Close/Roll, 2) Sell Calls, 3) SPX Spreads, 4) PMCC Mgmt
