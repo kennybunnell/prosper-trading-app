@@ -22,13 +22,16 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import {
   Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock,
   AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert, Settings2, Save,
-  CheckSquare, X, ArrowLeftRight, TrendingUp, TrendingDown, Minus, Star, Info
+  CheckSquare, X, ArrowLeftRight, TrendingUp, TrendingDown, Minus, Star, Info,
+  ChevronUp, ChevronDown, ChevronsUpDown
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 
 type ProfitTargetPct = 25 | 50 | 75 | 90;
 type FilterTab = 'all' | 'monitored' | 'unmonitored';
+type SortKey = 'symbol' | 'strike' | 'expiration' | 'accountNumber' | 'quantity' | 'averageOpenPrice' | 'profitPct' | 'dte' | 'rollScore';
+type SortDir = 'asc' | 'desc';
 
 // Stop-loss options: 100% = 1× premium, 200% = 2× premium, etc.
 const STOP_LOSS_OPTIONS = [
@@ -103,6 +106,19 @@ export default function AutoCloseStep() {
   const [applySelectedProfitPct, setApplySelectedProfitPct] = useState<ProfitTargetPct>(50);
   const [applySelectedStopLoss, setApplySelectedStopLoss] = useState<number | null>(null);
   const [applySelectedDteFloor, setApplySelectedDteFloor] = useState<number | null>(null);
+  // Sort state — default to Roll Score descending (highest urgency first)
+  const [sortKey, setSortKey] = useState<SortKey>('rollScore');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'rollScore' || key === 'profitPct' ? 'desc' : 'asc');
+    }
+  }
+
   // Global defaults panel state
   const [showDefaults, setShowDefaults] = useState(false);
   const [defaultProfitPct, setDefaultProfitPct] = useState<ProfitTargetPct>(50);
@@ -401,11 +417,32 @@ export default function AutoCloseStep() {
   const monitoredCount   = allPositions.filter(p => p.targetEnabled).length;
   const unmonitoredCount = allPositions.filter(p => !p.targetEnabled).length;
 
-  const filteredPositions = allPositions.filter(p => {
-    if (filterTab === 'monitored')   return p.targetEnabled;
-    if (filterTab === 'unmonitored') return !p.targetEnabled;
-    return true;
-  });
+  const filteredPositions = useMemo(() => {
+    const base = allPositions.filter(p => {
+      if (filterTab === 'monitored')   return p.targetEnabled;
+      if (filterTab === 'unmonitored') return !p.targetEnabled;
+      return true;
+    });
+    return [...base].sort((a, b) => {
+      let av: number | string;
+      let bv: number | string;
+      switch (sortKey) {
+        case 'symbol':           av = a.symbol;                          bv = b.symbol;           break;
+        case 'strike':           av = parseFloat(a.strike);              bv = parseFloat(b.strike); break;
+        case 'expiration':       av = a.expiration;                      bv = b.expiration;       break;
+        case 'accountNumber':    av = a.accountNumber;                   bv = b.accountNumber;    break;
+        case 'quantity':         av = a.quantity;                        bv = b.quantity;         break;
+        case 'averageOpenPrice': av = parseFloat(a.averageOpenPrice);    bv = parseFloat(b.averageOpenPrice); break;
+        case 'profitPct':        av = a.profitPct;                       bv = b.profitPct;        break;
+        case 'dte':              av = a.dte;                             bv = b.dte;              break;
+        case 'rollScore':        av = a.rollScore ?? -1;                 bv = b.rollScore ?? -1;  break;
+        default:                 av = 0; bv = 0;
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [allPositions, filterTab, sortKey, sortDir]);
 
   const filterTabs: { id: FilterTab; label: string; count: number; icon: React.ReactNode }[] = [
     { id: 'all',          label: 'All Positions', count: allPositions.length,  icon: null },
@@ -856,14 +893,32 @@ export default function AutoCloseStep() {
                     }}
                   />
                 </th>
-                <th className="text-left px-3 py-3 text-gray-400 font-medium">Symbol</th>
-                <th className="text-left px-3 py-3 text-gray-400 font-medium">Strike / Exp</th>
-                <th className="text-left px-3 py-3 text-gray-400 font-medium">Acct</th>
-                <th className="text-right px-3 py-3 text-gray-400 font-medium">Qty</th>
-                <th className="text-right px-3 py-3 text-gray-400 font-medium">Open $</th>
-                <th className="text-right px-3 py-3 text-gray-400 font-medium">P/L %</th>
-                <th className="text-right px-3 py-3 text-gray-400 font-medium">DTE</th>
-                {/* Bracket columns */}
+                {/* Sortable column headers */}
+                {([
+                  { key: 'symbol',           label: 'Symbol',      align: 'left'   },
+                  { key: 'strike',           label: 'Strike / Exp',align: 'left'   },
+                  { key: 'accountNumber',    label: 'Acct',        align: 'left'   },
+                  { key: 'quantity',         label: 'Qty',         align: 'right'  },
+                  { key: 'averageOpenPrice', label: 'Open $',      align: 'right'  },
+                  { key: 'profitPct',        label: 'P/L %',       align: 'right'  },
+                  { key: 'dte',              label: 'DTE',         align: 'right'  },
+                ] as { key: SortKey; label: string; align: string }[]).map(col => (
+                  <th
+                    key={col.key}
+                    onClick={() => handleSort(col.key)}
+                    className={`px-3 py-3 font-medium text-xs cursor-pointer select-none group ${
+                      col.align === 'right' ? 'text-right' : 'text-left'
+                    } ${sortKey === col.key ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                  >
+                    <span className={`inline-flex items-center gap-1 ${col.align === 'right' ? 'flex-row-reverse' : ''}`}>
+                      {col.label}
+                      {sortKey === col.key
+                        ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3 text-orange-400" /> : <ChevronDown className="h-3 w-3 text-orange-400" />)
+                        : <ChevronsUpDown className="h-3 w-3 opacity-30 group-hover:opacity-60" />}
+                    </span>
+                  </th>
+                ))}
+                {/* Bracket columns — not sortable */}
                 <th className="text-center px-3 py-3 text-orange-400/80 font-medium text-xs">
                   <div>Profit</div><div>Target</div>
                 </th>
@@ -873,9 +928,22 @@ export default function AutoCloseStep() {
                 <th className="text-center px-3 py-3 text-yellow-400/80 font-medium text-xs">
                   <div>DTE</div><div>Floor</div>
                 </th>
-                {/* Roll Urgency Score column */}
-                <th className="text-center px-2 py-3 text-purple-400/80 font-medium text-xs min-w-[80px]">
-                  <div>Roll</div><div>Score</div>
+                {/* Roll Urgency Score — sortable */}
+                <th
+                  onClick={() => handleSort('rollScore')}
+                  className={`text-center px-2 py-3 font-medium text-xs min-w-[80px] cursor-pointer select-none group ${
+                    sortKey === 'rollScore' ? 'text-white' : 'text-purple-400/80 hover:text-purple-300'
+                  }`}
+                >
+                  <span className="inline-flex flex-col items-center gap-0">
+                    <span className="flex items-center gap-1">
+                      Roll
+                      {sortKey === 'rollScore'
+                        ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3 text-orange-400" /> : <ChevronDown className="h-3 w-3 text-orange-400" />)
+                        : <ChevronsUpDown className="h-3 w-3 opacity-30 group-hover:opacity-60" />}
+                    </span>
+                    <span>Score</span>
+                  </span>
                 </th>
                 <th className="text-center px-3 py-3 text-gray-400 font-medium min-w-[160px]">Action</th>
               </tr>
