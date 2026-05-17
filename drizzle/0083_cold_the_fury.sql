@@ -1,0 +1,1 @@
+ALTER TABLE `pinned_reports` ADD `content` text;

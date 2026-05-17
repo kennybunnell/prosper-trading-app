@@ -877,6 +877,7 @@ export const reportingRouter = router({
     .input(z.object({
       title: z.string(),
       prompt: z.string(),
+      content: z.string().optional(),
       reportType: z.string().optional(),
       reportKey: z.string().optional(),
     }))
@@ -888,6 +889,7 @@ export const reportingRouter = router({
         userId: ctx.user.id,
         title: input.title,
         prompt: input.prompt,
+        content: input.content || null,
         reportType,
         reportKey: input.reportKey || null,
         sortOrder: 0,

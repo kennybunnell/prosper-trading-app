@@ -575,6 +575,13 @@
       "when": 1779048933602,
       "tag": "0082_yielding_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "5",
+      "when": 1779060665674,
+      "tag": "0083_cold_the_fury",
+      "breakpoints": true
     }
   ]
 }

@@ -1420,6 +1420,8 @@ export const pinnedReports = mysqlTable('pinned_reports', {
   reportType: mysqlEnum('report_type', ['standard', 'ai']).notNull().default('ai'),
   /** For standard reports, the report key (e.g. 'premium_income', 'win_rate') */
   reportKey: varchar('report_key', { length: 64 }),
+  /** The AI-generated answer text to display on the pinned card */
+  content: text('content'),
   /** Display order (lower = shown first) */
   sortOrder: int('sort_order').notNull().default(0),
   /** Whether this report is visible on the dashboard */

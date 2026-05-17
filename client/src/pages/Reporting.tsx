@@ -509,10 +509,14 @@ export default function Reporting() {
 
   function handlePinAiResult(msg: ChatMessage) {
     if (!msg.result) return;
+    const userQuestion = messages.find(m => m.id === String(parseInt(msg.id) - 1))?.content || msg.content;
     pinMutation.mutate({
-      title: msg.content.substring(0, 60) + (msg.content.length > 60 ? "..." : ""),
-      prompt: messages.find(m => m.id === String(parseInt(msg.id) - 1))?.content || msg.content,
+      title: userQuestion.substring(0, 80) + (userQuestion.length > 80 ? "..." : ""),
+      prompt: userQuestion,
+      content: msg.content,
       reportType: "ai",
+    }, {
+      onSuccess: () => setActiveTab("pinned"),
     });
   }
 
@@ -529,7 +533,7 @@ export default function Reporting() {
     }
   }
 
-  const [activeTab, setActiveTab] = useState<"reports" | "ask">("reports");
+  const [activeTab, setActiveTab] = useState<"reports" | "ask" | "pinned">("reports");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
@@ -580,7 +584,7 @@ export default function Reporting() {
           </div>
 
           {/* ── Tabs ── */}
-          <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "reports" | "ask")}>
+          <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "reports" | "ask" | "pinned")}>
             <TabsList className="bg-white/5 border border-white/10 p-1 h-auto">
               <TabsTrigger
                 value="reports"
@@ -596,6 +600,18 @@ export default function Reporting() {
                 <Sparkles className="w-3.5 h-3.5" />
                 Ask a Question
                 <Badge variant="secondary" className="bg-violet-500/20 text-violet-300 text-xs border border-violet-500/30 ml-1">AI</Badge>
+              </TabsTrigger>
+              <TabsTrigger
+                value="pinned"
+                className="data-[state=active]:bg-amber-600 data-[state=active]:text-white text-slate-400 px-5 py-2 text-sm font-medium flex items-center gap-2"
+              >
+                <Pin className="w-3.5 h-3.5" />
+                Pinned Reports
+                {pinnedList && pinnedList.filter(p => p.reportType === "ai").length > 0 && (
+                  <Badge variant="secondary" className="bg-amber-500/20 text-amber-300 text-xs border border-amber-500/30 ml-1">
+                    {pinnedList.filter(p => p.reportType === "ai").length}
+                  </Badge>
+                )}
               </TabsTrigger>
             </TabsList>
 
@@ -765,6 +781,82 @@ export default function Reporting() {
               AI has access to all {stats ? Number(stats.count).toLocaleString() : "your"} transactions. Ask about trends, comparisons, or specific strategies.
             </p>
           </div>
+          </TabsContent>
+
+          {/* ── Tab 3: Pinned Reports ── */}
+          <TabsContent value="pinned" className="mt-4">
+            <div>
+              <h2 className="text-base font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                <Pin className="w-4 h-4 text-amber-400" />
+                Pinned Reports
+                <Badge variant="secondary" className="bg-white/10 text-slate-300 text-xs">
+                  {pinnedList?.filter(p => p.reportType === "ai").length ?? 0}
+                </Badge>
+              </h2>
+
+              {(!pinnedList || pinnedList.filter(p => p.reportType === "ai").length === 0) ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Pin className="w-10 h-10 text-slate-600 mb-3" />
+                  <p className="text-slate-400 font-medium">No pinned reports yet</p>
+                  <p className="text-slate-500 text-sm mt-1 max-w-xs">
+                    Ask a question in the &ldquo;Ask a Question&rdquo; tab, then click &ldquo;Pin this report&rdquo; to save it here.
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-4 text-violet-400 hover:text-violet-300"
+                    onClick={() => setActiveTab("ask")}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                    Go to Ask a Question
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pinnedList
+                    .filter(p => p.reportType === "ai")
+                    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
+                    .map(pin => (
+                      <div
+                        key={pin.id}
+                        className="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-amber-500/30 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Pin className="w-4 h-4 text-amber-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-200 leading-snug">{pin.title}</p>
+                              {pin.prompt && pin.prompt !== pin.title && (
+                                <p className="text-xs text-slate-500 mt-0.5 truncate">{pin.prompt}</p>
+                              )}
+                              <p className="text-xs text-slate-600 mt-1">
+                                {pin.createdAt ? new Date(pin.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : ""}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-xs text-slate-500 hover:text-red-400 h-7 gap-1 flex-shrink-0"
+                            onClick={() => unpinMutation.mutate({ id: pin.id })}
+                            disabled={unpinMutation.isPending}
+                          >
+                            <Pin className="w-3 h-3" />
+                            Unpin
+                          </Button>
+                        </div>
+                        {pin.content && (
+                          <div className="mt-3 ml-11 bg-white/5 border border-white/10 rounded-lg px-3 py-2.5">
+                            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{pin.content}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           </Tabs>
