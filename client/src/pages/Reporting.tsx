@@ -254,7 +254,12 @@ function WinRateReport({ range }: { range: DateRange }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
               <XAxis type="number" tick={{ fill: "#94a3b8", fontSize: 11 }} tickFormatter={v => `$${v}`} />
               <YAxis type="category" dataKey="symbol" tick={{ fill: "#94a3b8", fontSize: 11 }} width={44} />
-              <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }} formatter={(v: any) => [fmt$(v), "P&L"]} />
+              <Tooltip
+                contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
+                labelStyle={{ color: '#f1f5f9', fontWeight: 600 }}
+                itemStyle={{ color: '#10b981' }}
+                formatter={(v: any) => [fmt$(v), "P&L"]}
+              />
               <Bar dataKey="totalPnl" radius={[0, 3, 3, 0]} name="P&L">
                 {data.symbolData.map((entry, i) => <Cell key={i} fill={entry.totalPnl >= 0 ? GREEN : RED} />)}
               </Bar>
