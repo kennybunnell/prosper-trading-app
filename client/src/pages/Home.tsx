@@ -18,8 +18,7 @@ import { useSupportWidget } from "@/contexts/SupportContext";
 import { MessageCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
-import { TradingViewEconomicCalendar } from "@/components/TradingViewEconomicCalendar";
-import { TradingViewTickerTape } from "@/components/TradingViewTickerTape";
+import { TradingViewNewsWidget } from "@/components/TradingViewNewsWidget";
 import { GapAdvisorModal } from "@/components/GapAdvisorModal";
 import {
   Dialog,
@@ -1426,25 +1425,14 @@ export default function Home() {
         {/* Monthly Income Target Tracker */}
         <MonthlyIncomeTracker />
 
-        {/* Rolled Today Summary */}
-        <RolledTodayCard />
-
-        {/* Navigation Grid */}
-        <NavigationGrid />
-
-        {/* Ticker Tape */}
-        <div className="-mx-4 sm:-mx-0">
-          <TradingViewTickerTape />
-        </div>
-
-        {/* Market Events — Economic Calendar */}
+        {/* Market News Feed */}
         <div>
-          <SectionHeader icon={Newspaper} label="Market Events" accent="text-orange-400" />
+          <SectionHeader icon={Newspaper} label="Market News" accent="text-blue-400" />
           <p className="text-sm text-muted-foreground mb-4">
-            Upcoming economic events, Fed decisions, CPI, NFP, and earnings releases — critical context for managing short premium positions.
+            Live financial headlines — stay informed on market-moving events relevant to your positions.
           </p>
-          <div className="rounded-2xl border border-border/30 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden" style={{ height: '500px' }}>
-            <TradingViewEconomicCalendar />
+          <div className="rounded-2xl border border-border/30 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden" style={{ height: '600px' }}>
+            <TradingViewNewsWidget />
           </div>
         </div>
       </main>
