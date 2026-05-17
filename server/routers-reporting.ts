@@ -60,6 +60,62 @@ function inferStrategy(description: string | null | undefined, optionType: strin
   return "Other";
 }
 
+/**
+ * Classify a group of legs that share the same executed_at timestamp.
+ * Returns a strategy label for the STO net value to be attributed to.
+ *
+ * Rules (applied in order):
+ *  1. Single STO, no BTO in group → naked: CSP (P) or CC (C)
+ *  2. BTO+STO same underlying, same expiry, both P → Bull Put Spread
+ *  3. BTO+STO same underlying, same expiry, both C → Bear Call Spread
+ *  4. BTO+STO same underlying, same expiry, C+P mix (4 legs) → Iron Condor
+ *  5. BTO+STO same underlying, both C, different expiry (long DTE >> short) → PMCC
+ *  6. Multiple STO on DIFFERENT underlyings (no BTO) → treat each independently
+ *  7. Anything else → Other Spread
+ */
+function classifySpreadGroup(legs: Array<{
+  action: string;
+  optionType: string;
+  underlying: string;
+  expiry: string;
+  strikePrice: number;
+  netValue: number;
+}>): string {
+  const stoLegs = legs.filter(l => normalizeAction(l.action) === 'sell to open');
+  const btoLegs = legs.filter(l => normalizeAction(l.action) === 'buy to open');
+
+  // Rule 6: multiple STOs on different underlyings, no BTOs → each is naked (caller handles splitting)
+  if (btoLegs.length === 0) return 'NAKED_MULTI';
+
+  // Has both BTO and STO legs — it's a spread
+  const underlyings = new Set(legs.map(l => l.underlying));
+  const expiries = new Set(legs.map(l => l.expiry));
+  const optTypes = new Set(legs.map(l => l.optionType.toUpperCase()));
+
+  // Rule 5: PMCC — 2 legs, both C, same underlying, different expiry
+  if (legs.length === 2 && optTypes.size === 1 && optTypes.has('C') &&
+      underlyings.size === 1 && expiries.size === 2) {
+    // Long leg has much further expiry → PMCC
+    const sortedExpiries = Array.from(expiries).sort();
+    const daysGap = (new Date(sortedExpiries[1]).getTime() - new Date(sortedExpiries[0]).getTime()) / 86400000;
+    if (daysGap >= 60) return 'PMCC';
+    return 'Bear Call Spread';
+  }
+
+  // Same underlying, same expiry spreads
+  if (underlyings.size === 1 && expiries.size === 1) {
+    // Rule 4: Iron Condor — 4 legs, P+C mix
+    if (legs.length >= 4 && optTypes.has('P') && optTypes.has('C')) return 'Iron Condor';
+    // Rule 2: Bull Put Spread — 2 legs, both P
+    if (optTypes.size === 1 && optTypes.has('P')) return 'Bull Put Spread';
+    // Rule 3: Bear Call Spread — 2 legs, both C
+    if (optTypes.size === 1 && optTypes.has('C')) return 'Bear Call Spread';
+  }
+
+  // Multiple underlyings with BTOs mixed in → Other Spread
+  return 'Other Spread';
+}
+
 function dateRangeWhere(userId: number, from?: string, to?: string) {
   const filters: any[] = [eq(cachedTransactions.userId, userId)];
   if (from) filters.push(gte(cachedTransactions.executedAt, new Date(from)));
@@ -98,16 +154,22 @@ async function getPremiumIncome(userId: number, from?: string, to?: string) {
           const endMs = new Date(endDateStr + 'T23:59:59Z').getTime();
 
           const byMonth: Record<string, { credits: number; debits: number; net: number; trades: number }> = {};
-          const byStrategy: Record<string, number> = { CSP: 0, CC: 0, PMCC: 0, Spreads: 0, Other: 0 };
+          const byStrategy: Record<string, number> = {};
           let totalCredits = 0, totalDebits = 0, tradeCount = 0;
-
+          // Collect all raw option trades first, then group by timestamp for spread detection
+          const allTxns: Array<{
+            action: string; symbol: string; netValue: number; netValueEffect: string;
+            executedAt: string; monthKey: string; optType: string; underlying: string;
+            expiry: string; strikePrice: number;
+          }> = [];
           await Promise.all(accountNumbers.map(async (accountNumber: string) => {
             try {
               const rawTxns = await tt.getTransactionHistory(accountNumber, startDateStr, endDateStr);
               for (const txn of rawTxns) {
                 if (txn['transaction-type'] !== 'Trade') continue;
                 const txnSymbol: string = txn['symbol'] || '';
-                if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol)) continue;
+                const m = txnSymbol.match(/([A-Z0-9 ]+?)\s*(\d{6})([CP])(\d+)/);
+                if (!m) continue;
                 const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
                 const netValueEffect = txn['net-value-effect'];
                 const executedAt = txn['executed-at'];
@@ -115,29 +177,66 @@ async function getPremiumIncome(userId: number, from?: string, to?: string) {
                 const txnDate = new Date(executedAt);
                 if (txnDate.getTime() < startMs || txnDate.getTime() > endMs) continue;
                 const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
-                if (!byMonth[monthKey]) byMonth[monthKey] = { credits: 0, debits: 0, net: 0, trades: 0 };
-                if (netValueEffect === 'Credit') {
-                  byMonth[monthKey].credits += netValue;
-                  byMonth[monthKey].net += netValue;
-                  totalCredits += netValue;
-                  if ((txn['action'] || '') === 'Sell to Open') {
-                    const optType = txnSymbol.match(/\d{6}([CP])\d+/)?.[1] || '';
-                    if (optType === 'P') byStrategy['CSP'] += netValue;
-                    else if (optType === 'C') byStrategy['CC'] += netValue;
-                    else byStrategy['Other'] += netValue;
-                  }
-                } else if (netValueEffect === 'Debit') {
-                  byMonth[monthKey].debits += netValue;
-                  byMonth[monthKey].net -= netValue;
-                  totalDebits += netValue;
-                }
-                byMonth[monthKey].trades++;
-                tradeCount++;
+                const underlying = (txn['underlying-symbol'] || m[1].trim()).toUpperCase();
+                const expiry = `20${m[2].slice(0,2)}-${m[2].slice(2,4)}-${m[2].slice(4,6)}`;
+                const strikePrice = parseInt(m[4]) / 1000;
+                allTxns.push({
+                  action: txn['action'] || '',
+                  symbol: txnSymbol, netValue, netValueEffect,
+                  executedAt, monthKey, optType: m[3],
+                  underlying, expiry, strikePrice,
+                });
               }
             } catch (err: any) {
               console.error(`[Reporting] Live fetch failed for account ${accountNumber}:`, err.message);
             }
           }));
+          // Group by executed_at second for spread detection
+          const byTimestamp: Record<string, typeof allTxns> = {};
+          for (const txn of allTxns) {
+            const tsKey = txn.executedAt.slice(0, 19); // second-level precision
+            if (!byTimestamp[tsKey]) byTimestamp[tsKey] = [];
+            byTimestamp[tsKey].push(txn);
+          }
+          // Process each timestamp group
+          for (const [, group] of Object.entries(byTimestamp)) {
+            const openLegs = group.filter(t => normalizeAction(t.action) === 'sell to open' || normalizeAction(t.action) === 'buy to open');
+            const stoLegs = openLegs.filter(t => normalizeAction(t.action) === 'sell to open');
+            // Month/credit/debit accounting (all legs)
+            for (const txn of group) {
+              const { monthKey, netValue, netValueEffect } = txn;
+              if (!byMonth[monthKey]) byMonth[monthKey] = { credits: 0, debits: 0, net: 0, trades: 0 };
+              if (netValueEffect === 'Credit') {
+                byMonth[monthKey].credits += netValue;
+                byMonth[monthKey].net += netValue;
+                totalCredits += netValue;
+              } else if (netValueEffect === 'Debit') {
+                byMonth[monthKey].debits += netValue;
+                byMonth[monthKey].net -= netValue;
+                totalDebits += netValue;
+              }
+              byMonth[monthKey].trades++;
+              tradeCount++;
+            }
+            if (stoLegs.length === 0) continue;
+            // Classify strategy for STO credit value
+            const spreadLabel = classifySpreadGroup(openLegs.map(l => ({
+              action: l.action, optionType: l.optType,
+              underlying: l.underlying, expiry: l.expiry,
+              strikePrice: l.strikePrice, netValue: l.netValue,
+            })));
+            if (spreadLabel === 'NAKED_MULTI') {
+              // Multiple independent naked trades submitted at same second
+              for (const sto of stoLegs) {
+                const label = sto.optType === 'P' ? 'CSP' : sto.optType === 'C' ? 'CC' : 'Other';
+                byStrategy[label] = (byStrategy[label] || 0) + sto.netValue;
+              }
+            } else {
+              // Spread: attribute net STO credit to the spread label
+              const stoCredit = stoLegs.reduce((s, l) => s + l.netValue, 0);
+              byStrategy[spreadLabel] = (byStrategy[spreadLabel] || 0) + stoCredit;
+            }
+          }
 
           const monthlyData = Object.entries(byMonth)
             .sort(([a], [b]) => a.localeCompare(b))
@@ -179,30 +278,57 @@ async function getPremiumIncome(userId: number, from?: string, to?: string) {
     .orderBy(cachedTransactions.executedAt);
 
   const byMonth: Record<string, { credits: number; debits: number; net: number; trades: number }> = {};
-  const byStrategy: Record<string, number> = { CSP: 0, CC: 0, PMCC: 0, Spreads: 0, Other: 0 };
+  const byStrategy: Record<string, number> = {};
   let totalCredits = 0, totalDebits = 0, tradeCount = 0;
-
+  // Group rows by executed_at second for spread detection
+  const dbByTimestamp: Record<string, typeof rows> = {};
   for (const row of rows) {
     const action = row.action || row.transactionSubType || "";
-    const isSell = isSellAction(action);
-    const isBuy = isBuyAction(action);
-    if (!isSell && !isBuy) continue;
-    const val = parseMoney(row.netValue || row.value);
-    if (val === 0) continue;
-    const monthKey = row.executedAt
-      ? `${row.executedAt.getFullYear()}-${String(row.executedAt.getMonth() + 1).padStart(2, "0")}`
-      : "Unknown";
-    if (!byMonth[monthKey]) byMonth[monthKey] = { credits: 0, debits: 0, net: 0, trades: 0 };
-    if (isSell) {
-      byMonth[monthKey].credits += val; byMonth[monthKey].net += val; totalCredits += val;
-    } else {
-      byMonth[monthKey].debits += val; byMonth[monthKey].net -= val; totalDebits += val;
+    if (!isSellAction(action) && !isBuyAction(action)) continue;
+    if (parseMoney(row.netValue || row.value) === 0) continue;
+    const tsKey = row.executedAt ? row.executedAt.toISOString().slice(0, 19) : 'unknown';
+    if (!dbByTimestamp[tsKey]) dbByTimestamp[tsKey] = [];
+    dbByTimestamp[tsKey].push(row);
+  }
+  for (const [, group] of Object.entries(dbByTimestamp)) {
+    const openLegs = group.filter(r => isSTO(r.action || r.transactionSubType || '') || normalizeAction(r.action || r.transactionSubType || '') === 'buy to open');
+    const stoLegs = openLegs.filter(r => isSTO(r.action || r.transactionSubType || ''));
+    // Accounting for all legs
+    for (const row of group) {
+      const action = row.action || row.transactionSubType || "";
+      const isSell = isSellAction(action);
+      const val = parseMoney(row.netValue || row.value);
+      const monthKey = row.executedAt
+        ? `${row.executedAt.getFullYear()}-${String(row.executedAt.getMonth() + 1).padStart(2, "0")}`
+        : "Unknown";
+      if (!byMonth[monthKey]) byMonth[monthKey] = { credits: 0, debits: 0, net: 0, trades: 0 };
+      if (isSell) {
+        byMonth[monthKey].credits += val; byMonth[monthKey].net += val; totalCredits += val;
+      } else {
+        byMonth[monthKey].debits += val; byMonth[monthKey].net -= val; totalDebits += val;
+      }
+      byMonth[monthKey].trades++;
+      tradeCount++;
     }
-    byMonth[monthKey].trades++;
-    tradeCount++;
-    if (isSTO(action)) {
-      const strat = inferStrategy(row.description, row.optionType);
-      byStrategy[strat === "CSP" ? "CSP" : strat === "CC" ? "CC" : "Other"] += val;
+    if (stoLegs.length === 0) continue;
+    // Classify strategy
+    const spreadLabel = classifySpreadGroup(openLegs.map(r => ({
+      action: r.action || r.transactionSubType || '',
+      optionType: r.optionType || '',
+      underlying: r.underlyingSymbol || '',
+      expiry: r.expiresAt ? (typeof r.expiresAt === 'string' ? r.expiresAt : (r.expiresAt as Date).toISOString().split('T')[0]) : '',
+      strikePrice: parseFloat(r.strikePrice || '0'),
+      netValue: parseMoney(r.netValue || r.value),
+    })));
+    if (spreadLabel === 'NAKED_MULTI') {
+      for (const sto of stoLegs) {
+        const opt = (sto.optionType || '').toUpperCase();
+        const label = opt === 'P' ? 'CSP' : opt === 'C' ? 'CC' : 'Other';
+        byStrategy[label] = (byStrategy[label] || 0) + parseMoney(sto.netValue || sto.value);
+      }
+    } else {
+      const stoCredit = stoLegs.reduce((s, r) => s + parseMoney(r.netValue || r.value), 0);
+      byStrategy[spreadLabel] = (byStrategy[spreadLabel] || 0) + stoCredit;
     }
   }
 

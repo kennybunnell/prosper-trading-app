@@ -1,0 +1,130 @@
+{
+  "query": "SELECT executed_at, COUNT(*) as leg_count, GROUP_CONCAT(action ORDER BY action SEPARATOR '|') as actions, GROUP_CONCAT(option_type ORDER BY strike_price SEPARATOR ',') as opt_types, GROUP_CONCAT(DISTINCT underlying_symbol) as underlying, GROUP_CONCAT(strike_price ORDER BY strike_price SEPARATOR ',') as strikes FROM cached_transactions WHERE transaction_type = 'Trade' AND action IN ('Buy to Open','Sell to Open') GROUP BY executed_at HAVING leg_count >= 2 AND opt_types LIKE '%C%' AND opt_types LIKE '%P%' ORDER BY executed_at DESC LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT executed_at, COUNT(*) as leg_count, GROUP_CONCAT(action ORDER BY action SEPARATOR '|') as actions, GROUP_CONCAT(option_type ORDER BY strike_price SEPARATOR ',') as opt_types, GROUP_CONCAT(DISTINCT underlying_symbol) as underlying, GROUP_CONCAT(strike_price ORDER BY strike_price SEPARATOR ',') as strikes FROM cached_transactions WHERE transaction_type = 'Trade' AND action IN ('Buy to Open','Sell to Open') GROUP BY executed_at HAVING leg_count >= 2 AND opt_types LIKE '%C%' AND opt_types LIKE '%P%' ORDER BY executed_at DESC LIMIT 15;",
+  "rows": [
+    {
+      "executed_at": "2026-05-11 14:17:05",
+      "leg_count": "2",
+      "actions": "Sell to Open|Sell to Open",
+      "opt_types": "C,P",
+      "underlying": "CVX,META",
+      "strikes": "190.00,585.00"
+    },
+    {
+      "executed_at": "2026-04-10 16:41:23",
+      "leg_count": "4",
+      "actions": "Buy to Open|Buy to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C",
+      "underlying": "SPY",
+      "strikes": "635.00,640.00,720.00,725.00"
+    },
+    {
+      "executed_at": "2026-03-26 15:11:28",
+      "leg_count": "4",
+      "actions": "Buy to Open|Buy to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C",
+      "underlying": "XOM",
+      "strikes": "157.50,160.00,167.50,170.00"
+    },
+    {
+      "executed_at": "2026-03-12 18:35:44",
+      "leg_count": "4",
+      "actions": "Buy to Open|Buy to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C",
+      "underlying": "AMZN",
+      "strikes": "175.00,180.00,235.00,240.00"
+    },
+    {
+      "executed_at": "2026-03-06 18:05:56",
+      "leg_count": "2",
+      "actions": "Sell to Open|Sell to Open",
+      "opt_types": "P,C",
+      "underlying": "APLD",
+      "strikes": "27.50,36.00"
+    },
+    {
+      "executed_at": "2026-02-23 16:31:56",
+      "leg_count": "10",
+      "actions": "Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,P,P,C,C,P,C,C,C",
+      "underlying": "AVGO,APLD,AAPL",
+      "strikes": "22.50,257.50,262.50,27.50,277.50,282.50,310.00,34.50,380.00,39.50"
+    },
+    {
+      "executed_at": "2026-02-20 18:13:25",
+      "leg_count": "4",
+      "actions": "Buy to Open|Buy to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C",
+      "underlying": "NEM",
+      "strikes": "110.00,115.00,140.00,145.00"
+    },
+    {
+      "executed_at": "2026-02-20 18:13:24",
+      "leg_count": "8",
+      "actions": "Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C,P,P,C,C",
+      "underlying": "NKE,AVGO",
+      "strikes": "315.00,320.00,390.00,395.00,55.00,60.00,72.50,77.50"
+    },
+    {
+      "executed_at": "2026-02-20 17:32:54",
+      "leg_count": "4",
+      "actions": "Buy to Open|Buy to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C",
+      "underlying": "AVGO",
+      "strikes": "315.00,320.00,385.00,390.00"
+    },
+    {
+      "executed_at": "2026-02-18 19:41:57",
+      "leg_count": "16",
+      "actions": "Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,P,C,P,C,P,C,P,C,C,P,P,C,C",
+      "underlying": "NVDA,WMT,AVGO,ORCL",
+      "strikes": "113.00,123.00,134.00,140.00,144.00,150.00,170.00,172.50,180.00,182.50,205.00,215.00,315.00,325.00,360.00,370.00"
+    },
+    {
+      "executed_at": "2026-02-18 18:32:12",
+      "leg_count": "18",
+      "actions": "Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C,P,P,P,P,C,C,P,C,C,C,C,P,P,C",
+      "underlying": "WMT,NVDA,AVGO,ORCL,COIN",
+      "strikes": "118.00,123.00,138.00,143.00,145.00,150.00,155.00,160.00,172.50,177.50,182.50,187.50,192.50,205.00,210.00,320.00,325.00,360.00"
+    },
+    {
+      "executed_at": "2026-02-17 20:52:15",
+      "leg_count": "16",
+      "actions": "Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C,P,P,P,P,C,P,C,C,P,C,C,C",
+      "underlying": "AVGO,NVDA,HD",
+      "strikes": "167.50,177.50,202.50,212.50,312.50,312.50,322.50,322.50,352.50,362.50,362.50,365.00,372.50,375.00,405.00,415.00"
+    },
+    {
+      "executed_at": "2026-02-17 20:52:14",
+      "leg_count": "16",
+      "actions": "Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,P,C,P,P,P,C,C,P,C,P,C,C,C",
+      "underlying": "ORCL,COIN,AMD,NEM",
+      "strikes": "108.00,118.00,135.00,138.00,145.00,148.00,150.00,160.00,170.00,180.00,185.00,190.00,195.00,200.00,225.00,235.00"
+    },
+    {
+      "executed_at": "2026-02-17 20:43:20",
+      "leg_count": "8",
+      "actions": "Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C,P,P,C,C",
+      "underlying": "AVGO,NVDA",
+      "strikes": "165.00,175.00,210.00,220.00,300.00,310.00,400.00,410.00"
+    },
+    {
+      "executed_at": "2026-02-17 20:15:39",
+      "leg_count": "4",
+      "actions": "Buy to Open|Buy to Open|Sell to Open|Sell to Open",
+      "opt_types": "P,P,C,C",
+      "underlying": "NVDA",
+      "strikes": "172.50,177.50,202.50,207.50"
+    }
+  ],
+  "messages": [],
+  "stdout": "executed_at\tleg_count\tactions\topt_types\tunderlying\tstrikes\n2026-05-11 14:17:05\t2\tSell to Open|Sell to Open\tC,P\tCVX,META\t190.00,585.00\n2026-04-10 16:41:23\t4\tBuy to Open|Buy to Open|Sell to Open|Sell to Open\tP,P,C,C\tSPY\t635.00,640.00,720.00,725.00\n2026-03-26 15:11:28\t4\tBuy to Open|Buy to Open|Sell to Open|Sell to Open\tP,P,C,C\tXOM\t157.50,160.00,167.50,170.00\n2026-03-12 18:35:44\t4\tBuy to Open|Buy to Open|Sell to Open|Sell to Open\tP,P,C,C\tAMZN\t175.00,180.00,235.00,240.00\n2026-03-06 18:05:56\t2\tSell to Open|Sell to Open\tP,C\tAPLD\t27.50,36.00\n2026-02-23 16:31:56\t10\tBuy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open\tP,P,P,P,C,C,P,C,C,C\tAVGO,APLD,AAPL\t22.50,257.50,262.50,27.50,277.50,282.50,310.00,34.50,380.00,39.50\n2026-02-20 18:13:25\t4\tBuy to Open|Buy to Open|Sell to Open|Sell to Open\tP,P,C,C\tNEM\t110.00,115.00,140.00,145.00\n2026-02-20 18:13:24\t8\tBuy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open\tP,P,C,C,P,P,C,C\tNKE,AVGO\t315.00,320.00,390.00,395.00,55.00,60.00,72.50,77.50\n2026-02-20 17:32:54\t4\tBuy to Open|Buy to Open|Sell to Open|Sell to Open\tP,P,C,C\tAVGO\t315.00,320.00,385.00,390.00\n2026-02-18 19:41:57\t16\tBuy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open\tP,P,C,P,C,P,C,P,C,P,C,C,P,P,C,C\tNVDA,WMT,AVGO,ORCL\t113.00,123.00,134.00,140.00,144.00,150.00,170.00,172.50,180.00,182.50,205.00,215.00,315.00,325.00,360.00,370.00\n2026-02-18 18:32:12\t18\tBuy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open\tP,P,C,C,P,P,P,P,C,C,P,C,C,C,C,P,P,C\tWMT,NVDA,AVGO,ORCL,COIN\t118.00,123.00,138.00,143.00,145.00,150.00,155.00,160.00,172.50,177.50,182.50,187.50,192.50,205.00,210.00,320.00,325.00,360.00\n2026-02-17 20:52:15\t16\tBuy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open\tP,P,C,C,P,P,P,P,C,P,C,C,P,C,C,C\tAVGO,NVDA,HD\t167.50,177.50,202.50,212.50,312.50,312.50,322.50,322.50,352.50,362.50,362.50,365.00,372.50,375.00,405.00,415.00\n2026-02-17 20:52:14\t16\tBuy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open\tP,P,C,P,C,P,P,P,C,C,P,C,P,C,C,C\tORCL,COIN,AMD,NEM\t108.00,118.00,135.00,138.00,145.00,148.00,150.00,160.00,170.00,180.00,185.00,190.00,195.00,200.00,225.00,235.00\n2026-02-17 20:43:20\t8\tBuy to Open|Buy to Open|Buy to Open|Buy to Open|Sell to Open|Sell to Open|Sell to Open|Sell to Open\tP,P,C,C,P,P,C,C\tAVGO,NVDA\t165.00,175.00,210.00,220.00,300.00,310.00,400.00,410.00\n2026-02-17 20:15:39\t4\tBuy to Open|Buy to Open|Sell to Open|Sell to Open\tP,P,C,C\tNVDA\t172.50,177.50,202.50,207.50\n",
+  "stderr": "",
+  "execution_time_ms": 299
+}

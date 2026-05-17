@@ -192,22 +192,36 @@ function PremiumIncomeReport({ range }: { range: DateRange }) {
       {data.strategyData.length > 0 && (
         <div>
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">By Strategy</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart margin={{ top: 30, right: 60, bottom: 20, left: 60 }}>
+          <ResponsiveContainer width="100%" height={360}>
+            <PieChart margin={{ top: 50, right: 90, bottom: 10, left: 90 }}>
               <Pie
                 data={data.strategyData}
                 dataKey="value"
                 nameKey="name"
                 cx="50%"
-                cy="52%"
-                outerRadius={80}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                cy="48%"
+                outerRadius={90}
+                label={({ name, percent, x, y, midAngle }) => {
+                  if ((percent as number) < 0.03) return null;
+                  const RADIAN = Math.PI / 180;
+                  const anchor = Math.cos(-midAngle * RADIAN) >= 0 ? 'start' : 'end';
+                  return (
+                    <text x={x} y={y} fill="#cbd5e1" textAnchor={anchor} dominantBaseline="central" fontSize={11}>
+                      {`${name} ${((percent as number) * 100).toFixed(0)}%`}
+                    </text>
+                  );
+                }}
                 labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
               >
                 {data.strategyData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
               <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }} formatter={(v: any) => [fmt$(v), ""]} />
-              <Legend formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{value}</span>} />
+              <Legend
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
+                formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 11 }}>{value}</span>}
+              />
             </PieChart>
           </ResponsiveContainer>
         </div>

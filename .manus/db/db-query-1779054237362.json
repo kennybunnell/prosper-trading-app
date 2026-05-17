@@ -1,0 +1,150 @@
+{
+  "query": "SELECT executed_at, COUNT(*) as leg_count, GROUP_CONCAT(action ORDER BY action SEPARATOR ' | ') as actions, GROUP_CONCAT(option_type ORDER BY option_type SEPARATOR ',') as opt_types, GROUP_CONCAT(DISTINCT underlying_symbol) as underlying FROM cached_transactions WHERE transaction_type = 'Trade' AND action IN ('Buy to Open','Sell to Open') GROUP BY executed_at HAVING leg_count > 1 AND (opt_types LIKE '%C%' OR leg_count >= 4) ORDER BY executed_at DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT executed_at, COUNT(*) as leg_count, GROUP_CONCAT(action ORDER BY action SEPARATOR ' | ') as actions, GROUP_CONCAT(option_type ORDER BY option_type SEPARATOR ',') as opt_types, GROUP_CONCAT(DISTINCT underlying_symbol) as underlying FROM cached_transactions WHERE transaction_type = 'Trade' AND action IN ('Buy to Open','Sell to Open') GROUP BY executed_at HAVING leg_count > 1 AND (opt_types LIKE '%C%' OR leg_count >= 4) ORDER BY executed_at DESC LIMIT 20;",
+  "rows": [
+    {
+      "executed_at": "2026-05-15 15:50:13",
+      "leg_count": "4",
+      "actions": "Buy to Open | Buy to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P",
+      "underlying": "SPX"
+    },
+    {
+      "executed_at": "2026-05-14 15:14:40",
+      "leg_count": "4",
+      "actions": "Buy to Open | Buy to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P",
+      "underlying": "SPX"
+    },
+    {
+      "executed_at": "2026-05-13 17:06:11",
+      "leg_count": "16",
+      "actions": "Buy to Open | Buy to Open | Buy to Open | Buy to Open | Buy to Open | Buy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P",
+      "underlying": "SPX"
+    },
+    {
+      "executed_at": "2026-05-12 17:17:58",
+      "leg_count": "6",
+      "actions": "Buy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P,P,P",
+      "underlying": "SPX"
+    },
+    {
+      "executed_at": "2026-05-12 17:17:42",
+      "leg_count": "6",
+      "actions": "Buy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P,P,P",
+      "underlying": "SPX"
+    },
+    {
+      "executed_at": "2026-05-11 16:47:05",
+      "leg_count": "4",
+      "actions": "Buy to Open | Buy to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P",
+      "underlying": "SPX"
+    },
+    {
+      "executed_at": "2026-05-11 14:17:05",
+      "leg_count": "2",
+      "actions": "Sell to Open | Sell to Open",
+      "opt_types": "C,P",
+      "underlying": "CVX,META"
+    },
+    {
+      "executed_at": "2026-05-11 13:59:19",
+      "leg_count": "2",
+      "actions": "Sell to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "SHOP,CRM"
+    },
+    {
+      "executed_at": "2026-05-11 13:57:58",
+      "leg_count": "2",
+      "actions": "Sell to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "CRM"
+    },
+    {
+      "executed_at": "2026-05-08 19:32:16",
+      "leg_count": "2",
+      "actions": "Sell to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "CRWV"
+    },
+    {
+      "executed_at": "2026-05-08 15:02:40",
+      "leg_count": "6",
+      "actions": "Buy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P,P,P",
+      "underlying": "ORCL,NVDA"
+    },
+    {
+      "executed_at": "2026-05-06 17:32:24",
+      "leg_count": "4",
+      "actions": "Buy to Open | Buy to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P",
+      "underlying": "PG"
+    },
+    {
+      "executed_at": "2026-05-06 15:09:03",
+      "leg_count": "6",
+      "actions": "Buy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P,P,P",
+      "underlying": "SPY"
+    },
+    {
+      "executed_at": "2026-05-06 13:46:43",
+      "leg_count": "2",
+      "actions": "Sell to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "IREN"
+    },
+    {
+      "executed_at": "2026-05-01 15:08:22",
+      "leg_count": "4",
+      "actions": "Buy to Open | Buy to Open | Sell to Open | Sell to Open",
+      "opt_types": "P,P,P,P",
+      "underlying": "SPX"
+    },
+    {
+      "executed_at": "2026-05-01 14:33:29",
+      "leg_count": "2",
+      "actions": "Buy to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "SPY"
+    },
+    {
+      "executed_at": "2026-05-01 14:02:12",
+      "leg_count": "2",
+      "actions": "Buy to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "CRWV"
+    },
+    {
+      "executed_at": "2026-05-01 14:00:32",
+      "leg_count": "2",
+      "actions": "Buy to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "TSM"
+    },
+    {
+      "executed_at": "2026-05-01 13:49:42",
+      "leg_count": "2",
+      "actions": "Buy to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "AMZN"
+    },
+    {
+      "executed_at": "2026-05-01 13:47:04",
+      "leg_count": "2",
+      "actions": "Buy to Open | Sell to Open",
+      "opt_types": "C,C",
+      "underlying": "MU"
+    }
+  ],
+  "messages": [],
+  "stdout": "executed_at\tleg_count\tactions\topt_types\tunderlying\n2026-05-15 15:50:13\t4\tBuy to Open | Buy to Open | Sell to Open | Sell to Open\tP,P,P,P\tSPX\n2026-05-14 15:14:40\t4\tBuy to Open | Buy to Open | Sell to Open | Sell to Open\tP,P,P,P\tSPX\n2026-05-13 17:06:11\t16\tBuy to Open | Buy to Open | Buy to Open | Buy to Open | Buy to Open | Buy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open | Sell to Open\tP,P,P,P,P,P,P,P,P,P,P,P,P,P,P,P\tSPX\n2026-05-12 17:17:58\t6\tBuy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open\tP,P,P,P,P,P\tSPX\n2026-05-12 17:17:42\t6\tBuy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open\tP,P,P,P,P,P\tSPX\n2026-05-11 16:47:05\t4\tBuy to Open | Buy to Open | Sell to Open | Sell to Open\tP,P,P,P\tSPX\n2026-05-11 14:17:05\t2\tSell to Open | Sell to Open\tC,P\tCVX,META\n2026-05-11 13:59:19\t2\tSell to Open | Sell to Open\tC,C\tSHOP,CRM\n2026-05-11 13:57:58\t2\tSell to Open | Sell to Open\tC,C\tCRM\n2026-05-08 19:32:16\t2\tSell to Open | Sell to Open\tC,C\tCRWV\n2026-05-08 15:02:40\t6\tBuy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open\tP,P,P,P,P,P\tORCL,NVDA\n2026-05-06 17:32:24\t4\tBuy to Open | Buy to Open | Sell to Open | Sell to Open\tP,P,P,P\tPG\n2026-05-06 15:09:03\t6\tBuy to Open | Buy to Open | Buy to Open | Sell to Open | Sell to Open | Sell to Open\tP,P,P,P,P,P\tSPY\n2026-05-06 13:46:43\t2\tSell to Open | Sell to Open\tC,C\tIREN\n2026-05-01 15:08:22\t4\tBuy to Open | Buy to Open | Sell to Open | Sell to Open\tP,P,P,P\tSPX\n2026-05-01 14:33:29\t2\tBuy to Open | Sell to Open\tC,C\tSPY\n2026-05-01 14:02:12\t2\tBuy to Open | Sell to Open\tC,C\tCRWV\n2026-05-01 14:00:32\t2\tBuy to Open | Sell to Open\tC,C\tTSM\n2026-05-01 13:49:42\t2\tBuy to Open | Sell to Open\tC,C\tAMZN\n2026-05-01 13:47:04\t2\tBuy to Open | Sell to Open\tC,C\tMU\n",
+  "stderr": "",
+  "execution_time_ms": 311
+}
