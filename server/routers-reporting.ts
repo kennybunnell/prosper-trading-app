@@ -1,13 +1,13 @@
 /**
  * routers-reporting.ts
  * Reporting page: 5 standard reports + pinned reports CRUD + AI query endpoint.
- * All data comes from cached_transactions (seeded from Tastytrade CSV, incrementally synced).
  *
- * NOTE: The database contains two action formats:
+ * Report 1 (Premium Income) uses the SAME live Tastytrade API as the Dashboard
+ * to guarantee identical numbers. Falls back to DB cache if API is unavailable.
+ *
+ * Other reports use the DB cache (cached_transactions) which handles both formats:
  *   - API format:  "Sell to Open", "Buy to Close", "Sell to Close", "Buy to Open"
  *   - CSV format:  "SELL_TO_OPEN", "BUY_TO_CLOSE", "SELL_TO_CLOSE", "BUY_TO_OPEN"
- * All queries must handle BOTH formats. Use the isSell/isBuy helpers below.
- * Values in the `value` column are ALWAYS POSITIVE — sign is determined by action type.
  */
 
 import { z } from "zod";
@@ -15,7 +15,7 @@ import { protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
 import { cachedTransactions, pinnedReports } from "../drizzle/schema";
-import { and, desc, eq, gte, lte, sql, or } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -24,43 +24,37 @@ function parseMoney(s: string | null | undefined): number {
   if (!s) return 0;
   const cleaned = s.replace(/[$,\s]/g, "");
   const n = parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
+  return isNaN(n) ? 0 : Math.abs(n);
 }
 
-/** Normalize action string to a canonical form */
 function normalizeAction(action: string | null | undefined): string {
   if (!action) return "";
   return action.replace(/_/g, " ").toLowerCase().trim();
 }
 
-/** Is this a "sell" (credit) action? */
 function isSellAction(action: string | null | undefined): boolean {
   const n = normalizeAction(action);
   return n === "sell to open" || n === "sell to close";
 }
 
-/** Is this a "buy" (debit) action? */
 function isBuyAction(action: string | null | undefined): boolean {
   const n = normalizeAction(action);
   return n === "buy to close" || n === "buy to open";
 }
 
-/** Is this specifically a Sell to Open? */
 function isSTO(action: string | null | undefined): boolean {
   return normalizeAction(action) === "sell to open";
 }
 
-/** Is this specifically a Buy to Close? */
 function isBTC(action: string | null | undefined): boolean {
   return normalizeAction(action) === "buy to close";
 }
 
-/** Infer strategy from description and option type */
 function inferStrategy(description: string | null | undefined, optionType: string | null | undefined): string {
-  const desc = (description || "").toLowerCase();
   const opt = (optionType || "").toUpperCase();
   if (opt === "P") return "CSP";
   if (opt === "C") return "CC";
+  const desc = (description || "").toLowerCase();
   if (desc.includes("put")) return "CSP";
   if (desc.includes("call")) return "CC";
   return "Other";
@@ -80,60 +74,135 @@ function dateRangeWhere(userId: number, from?: string, to?: string) {
 // ─── Report 1: Premium Income Summary ────────────────────────────────────────
 
 async function getPremiumIncome(userId: number, from?: string, to?: string) {
+  // Try live Tastytrade API first (same logic as Dashboard)
+  try {
+    const { getApiCredentials } = await import('./db');
+    const { authenticateTastytrade } = await import('./tastytrade');
+    const credentials = await getApiCredentials(userId);
+    const hasOAuth = !!(credentials?.tastytradeRefreshToken && credentials?.tastytradeClientSecret);
+    const hasPassword = !!(credentials?.tastytradeUsername && credentials?.tastytradePassword);
+
+    if (hasOAuth || hasPassword) {
+      const tt = await authenticateTastytrade(credentials!, userId);
+      if (tt) {
+        const accounts = await tt.getAccounts();
+        const accountNumbers: string[] = accounts
+          .map((acc: any) => acc.account?.['account-number'] || acc['account-number'] || acc.accountNumber)
+          .filter(Boolean);
+
+        if (accountNumbers.length > 0) {
+          const now = new Date();
+          const startDateStr = from || '2025-08-01';
+          const endDateStr = to || now.toISOString().split('T')[0];
+          const startMs = new Date(startDateStr).getTime();
+          const endMs = new Date(endDateStr + 'T23:59:59Z').getTime();
+
+          const byMonth: Record<string, { credits: number; debits: number; net: number; trades: number }> = {};
+          const byStrategy: Record<string, number> = { CSP: 0, CC: 0, PMCC: 0, Spreads: 0, Other: 0 };
+          let totalCredits = 0, totalDebits = 0, tradeCount = 0;
+
+          await Promise.all(accountNumbers.map(async (accountNumber: string) => {
+            try {
+              const rawTxns = await tt.getTransactionHistory(accountNumber, startDateStr, endDateStr);
+              for (const txn of rawTxns) {
+                if (txn['transaction-type'] !== 'Trade') continue;
+                const txnSymbol: string = txn['symbol'] || '';
+                if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol)) continue;
+                const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+                const netValueEffect = txn['net-value-effect'];
+                const executedAt = txn['executed-at'];
+                if (!executedAt || netValue === 0 || !netValueEffect) continue;
+                const txnDate = new Date(executedAt);
+                if (txnDate.getTime() < startMs || txnDate.getTime() > endMs) continue;
+                const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+                if (!byMonth[monthKey]) byMonth[monthKey] = { credits: 0, debits: 0, net: 0, trades: 0 };
+                if (netValueEffect === 'Credit') {
+                  byMonth[monthKey].credits += netValue;
+                  byMonth[monthKey].net += netValue;
+                  totalCredits += netValue;
+                  if ((txn['action'] || '') === 'Sell to Open') {
+                    const optType = txnSymbol.match(/\d{6}([CP])\d+/)?.[1] || '';
+                    if (optType === 'P') byStrategy['CSP'] += netValue;
+                    else if (optType === 'C') byStrategy['CC'] += netValue;
+                    else byStrategy['Other'] += netValue;
+                  }
+                } else if (netValueEffect === 'Debit') {
+                  byMonth[monthKey].debits += netValue;
+                  byMonth[monthKey].net -= netValue;
+                  totalDebits += netValue;
+                }
+                byMonth[monthKey].trades++;
+                tradeCount++;
+              }
+            } catch (err: any) {
+              console.error(`[Reporting] Live fetch failed for account ${accountNumber}:`, err.message);
+            }
+          }));
+
+          const monthlyData = Object.entries(byMonth)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([month, data]) => ({
+              month,
+              credits: Math.round(data.credits * 100) / 100,
+              debits: Math.round(data.debits * 100) / 100,
+              net: Math.round(data.net * 100) / 100,
+              trades: data.trades,
+            }));
+          const strategyData = Object.entries(byStrategy)
+            .filter(([, v]) => v > 0)
+            .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
+
+          return {
+            totalCredits: Math.round(totalCredits * 100) / 100,
+            totalDebits: Math.round(totalDebits * 100) / 100,
+            netPremium: Math.round((totalCredits - totalDebits) * 100) / 100,
+            tradeCount,
+            monthlyData,
+            strategyData,
+            source: 'live' as const,
+          };
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Reporting] Live API unavailable, falling back to DB cache:', err.message);
+  }
+
+  // Fallback: DB cache
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-  // Fetch all trade rows (both formats)
   const rows = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        dateRangeWhere(userId, from, to),
-        eq(cachedTransactions.transactionType, "Trade")
-      )
-    )
+    .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionType, "Trade")))
     .orderBy(cachedTransactions.executedAt);
 
   const byMonth: Record<string, { credits: number; debits: number; net: number; trades: number }> = {};
   const byStrategy: Record<string, number> = { CSP: 0, CC: 0, PMCC: 0, Spreads: 0, Other: 0 };
-  let totalCredits = 0;
-  let totalDebits = 0;
-  let tradeCount = 0;
+  let totalCredits = 0, totalDebits = 0, tradeCount = 0;
 
   for (const row of rows) {
     const action = row.action || row.transactionSubType || "";
     const isSell = isSellAction(action);
     const isBuy = isBuyAction(action);
     if (!isSell && !isBuy) continue;
-
-    const val = parseMoney(row.value);
+    const val = parseMoney(row.netValue || row.value);
     if (val === 0) continue;
-
     const monthKey = row.executedAt
       ? `${row.executedAt.getFullYear()}-${String(row.executedAt.getMonth() + 1).padStart(2, "0")}`
       : "Unknown";
-
     if (!byMonth[monthKey]) byMonth[monthKey] = { credits: 0, debits: 0, net: 0, trades: 0 };
-
     if (isSell) {
-      byMonth[monthKey].credits += val;
-      byMonth[monthKey].net += val;
-      totalCredits += val;
+      byMonth[monthKey].credits += val; byMonth[monthKey].net += val; totalCredits += val;
     } else {
-      byMonth[monthKey].debits += val;
-      byMonth[monthKey].net -= val;
-      totalDebits += val;
+      byMonth[monthKey].debits += val; byMonth[monthKey].net -= val; totalDebits += val;
     }
     byMonth[monthKey].trades++;
     tradeCount++;
-
-    // Strategy breakdown — only for STO
     if (isSTO(action)) {
       const strat = inferStrategy(row.description, row.optionType);
-      if (strat === "CSP") byStrategy["CSP"] += val;
-      else if (strat === "CC") byStrategy["CC"] += val;
-      else byStrategy["Other"] += val;
+      byStrategy[strat === "CSP" ? "CSP" : strat === "CC" ? "CC" : "Other"] += val;
     }
   }
 
@@ -146,7 +215,6 @@ async function getPremiumIncome(userId: number, from?: string, to?: string) {
       net: Math.round(data.net * 100) / 100,
       trades: data.trades,
     }));
-
   const strategyData = Object.entries(byStrategy)
     .filter(([, v]) => v > 0)
     .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
@@ -158,6 +226,7 @@ async function getPremiumIncome(userId: number, from?: string, to?: string) {
     tradeCount,
     monthlyData,
     strategyData,
+    source: 'cache' as const,
   };
 }
 
@@ -170,41 +239,28 @@ async function getWinRate(userId: number, from?: string, to?: string) {
   const trades = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        dateRangeWhere(userId, from, to),
-        eq(cachedTransactions.transactionType, "Trade")
-      )
-    )
+    .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionType, "Trade")))
     .orderBy(cachedTransactions.executedAt);
 
-  // Group by underlying symbol — match STO with subsequent BTC on same symbol
-  // Strategy: for each STO, find the nearest BTC on the same symbol after it
   const stoList: Array<{ symbol: string; strike: string; expires: string; credit: number; executedAt: Date; matched: boolean }> = [];
   const btcList: Array<{ symbol: string; strike: string; expires: string; debit: number; executedAt: Date; used: boolean }> = [];
 
   for (const t of trades) {
     const action = t.action || t.transactionSubType || "";
-    const val = parseMoney(t.value);
+    const val = parseMoney(t.netValue || t.value);
     if (val === 0) continue;
     const sym = t.underlyingSymbol || "Unknown";
     const strike = t.strikePrice || "";
     const expires = t.expiresAt || "";
     const dt = t.executedAt || new Date(0);
-
-    if (isSTO(action)) {
-      stoList.push({ symbol: sym, strike, expires, credit: val, executedAt: dt, matched: false });
-    } else if (isBTC(action)) {
-      btcList.push({ symbol: sym, strike, expires, debit: val, executedAt: dt, used: false });
-    }
+    if (isSTO(action)) stoList.push({ symbol: sym, strike, expires, credit: val, executedAt: dt, matched: false });
+    else if (isBTC(action)) btcList.push({ symbol: sym, strike, expires, debit: val, executedAt: dt, used: false });
   }
 
-  // Match STO → BTC by symbol + strike + expires (exact match preferred)
   const closedTrades: Array<{ symbol: string; pnl: number; isWin: boolean }> = [];
   let wins = 0, losses = 0, totalPnl = 0;
 
   for (const sto of stoList) {
-    // Find matching BTC: same symbol, same strike, same expiry, after STO date
     const btcIdx = btcList.findIndex(
       b => !b.used && b.symbol === sto.symbol && b.strike === sto.strike && b.expires === sto.expires && b.executedAt >= sto.executedAt
     );
@@ -215,27 +271,18 @@ async function getWinRate(userId: number, from?: string, to?: string) {
       const pnl = sto.credit - btc.debit;
       const isWin = pnl > 0;
       closedTrades.push({ symbol: sto.symbol, pnl, isWin });
-      if (isWin) wins++;
-      else losses++;
+      if (isWin) wins++; else losses++;
       totalPnl += pnl;
     }
   }
 
-  // Also count expirations as wins (full premium kept)
   const expirations = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        dateRangeWhere(userId, from, to),
-        eq(cachedTransactions.transactionSubType, "Expiration")
-      )
-    );
+    .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionSubType, "Expiration")));
 
-  // Each expiration row = one option expired worthless = win
   for (const exp of expirations) {
     const sym = exp.underlyingSymbol || "Unknown";
-    // Find the matching STO for this expiration
     const stoIdx = stoList.findIndex(
       s => !s.matched && s.symbol === sym && s.strike === (exp.strikePrice || "") && s.expires === (exp.expiresAt || "")
     );
@@ -251,8 +298,7 @@ async function getWinRate(userId: number, from?: string, to?: string) {
   const bySymbol: Record<string, { wins: number; losses: number; totalPnl: number }> = {};
   for (const t of closedTrades) {
     if (!bySymbol[t.symbol]) bySymbol[t.symbol] = { wins: 0, losses: 0, totalPnl: 0 };
-    if (t.isWin) bySymbol[t.symbol].wins++;
-    else bySymbol[t.symbol].losses++;
+    if (t.isWin) bySymbol[t.symbol].wins++; else bySymbol[t.symbol].losses++;
     bySymbol[t.symbol].totalPnl += t.pnl;
   }
 
@@ -260,7 +306,9 @@ async function getWinRate(userId: number, from?: string, to?: string) {
   const winRate = total > 0 ? Math.round((wins / total) * 1000) / 10 : 0;
   const avgWin = wins > 0 ? closedTrades.filter(t => t.isWin).reduce((s, t) => s + t.pnl, 0) / wins : 0;
   const avgLoss = losses > 0 ? Math.abs(closedTrades.filter(t => !t.isWin).reduce((s, t) => s + t.pnl, 0) / losses) : 0;
-  const profitFactor = avgLoss > 0 && losses > 0 ? Math.round((avgWin * wins) / (avgLoss * losses) * 100) / 100 : (wins > 0 ? 99.99 : 0);
+  const profitFactor = avgLoss > 0 && losses > 0
+    ? Math.round((avgWin * wins) / (avgLoss * losses) * 100) / 100
+    : (wins > 0 ? 99.99 : 0);
 
   const symbolData = Object.entries(bySymbol)
     .map(([symbol, data]) => ({
@@ -286,7 +334,7 @@ async function getWinRate(userId: number, from?: string, to?: string) {
   };
 }
 
-// ─── Report 3: Capital Efficiency ─────────────────────────────────────────────
+// ─── Report 3: Capital Efficiency ────────────────────────────────────────────
 
 async function getCapitalEfficiency(userId: number, from?: string, to?: string) {
   const db = await getDb();
@@ -295,62 +343,49 @@ async function getCapitalEfficiency(userId: number, from?: string, to?: string) 
   const trades = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        dateRangeWhere(userId, from, to),
-        eq(cachedTransactions.transactionType, "Trade")
-      )
-    )
+    .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionType, "Trade")))
     .orderBy(cachedTransactions.executedAt);
 
-  const byMonth: Record<string, { premium: number; trades: number }> = {};
-  const activityBySymbol: Record<string, number> = {};
+  const byMonth: Record<string, number> = {};
+  const bySymbol: Record<string, number> = {};
+  let totalPremium = 0, tradeCount = 0;
 
   for (const t of trades) {
     const action = t.action || t.transactionSubType || "";
-    const sym = t.underlyingSymbol || "Unknown";
-    activityBySymbol[sym] = (activityBySymbol[sym] || 0) + 1;
-
     if (!isSTO(action)) continue;
-
-    const val = parseMoney(t.value);
+    const val = parseMoney(t.netValue || t.value);
     if (val === 0) continue;
-
-    const monthKey = t.executedAt
-      ? `${t.executedAt.getFullYear()}-${String(t.executedAt.getMonth() + 1).padStart(2, "0")}`
-      : "Unknown";
-    if (!byMonth[monthKey]) byMonth[monthKey] = { premium: 0, trades: 0 };
-    byMonth[monthKey].premium += val;
-    byMonth[monthKey].trades++;
+    totalPremium += val;
+    tradeCount++;
+    if (t.executedAt) {
+      const mk = `${t.executedAt.getFullYear()}-${String(t.executedAt.getMonth() + 1).padStart(2, "0")}`;
+      byMonth[mk] = (byMonth[mk] || 0) + val;
+    }
+    const sym = t.underlyingSymbol || "Unknown";
+    bySymbol[sym] = (bySymbol[sym] || 0) + 1;
   }
+
+  const avgPerTrade = tradeCount > 0 ? totalPremium / tradeCount : 0;
 
   const monthlyData = Object.entries(byMonth)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, data]) => ({
-      month,
-      premium: Math.round(data.premium * 100) / 100,
-      trades: data.trades,
-    }));
+    .map(([month, premium]) => ({ month, premium: Math.round(premium * 100) / 100 }));
 
-  const concentrationData = Object.entries(activityBySymbol)
+  const concentrationData = Object.entries(bySymbol)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10)
     .map(([symbol, count]) => ({ symbol, count }));
 
-  const totalPremium = monthlyData.reduce((s, m) => s + m.premium, 0);
-  const totalTrades = monthlyData.reduce((s, m) => s + m.trades, 0);
-  const avgPerTrade = totalTrades > 0 ? totalPremium / totalTrades : 0;
-
   return {
     totalPremium: Math.round(totalPremium * 100) / 100,
-    totalTrades,
+    totalTrades: tradeCount,
     avgPerTrade: Math.round(avgPerTrade * 100) / 100,
     monthlyData,
     concentrationData,
   };
 }
 
-// ─── Report 4: Assignment & Recovery ─────────────────────────────────────────
+// ─── Report 4: Assignment Tracker ────────────────────────────────────────────
 
 async function getAssignmentTracker(userId: number, from?: string, to?: string) {
   const db = await getDb();
@@ -359,67 +394,62 @@ async function getAssignmentTracker(userId: number, from?: string, to?: string) 
   const assignments = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        dateRangeWhere(userId, from, to),
-        or(
-          eq(cachedTransactions.transactionSubType, "Assignment"),
-          eq(cachedTransactions.transactionSubType, "Cash Settled Assignment")
-        )
-      )
-    )
-    .orderBy(cachedTransactions.executedAt);
+    .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionSubType, "Assignment")));
 
-  // Get all CC (sell calls) trades for recovery calculation
-  const ccTrades = await db
+  const allTrades = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        eq(cachedTransactions.userId, userId),
-        eq(cachedTransactions.transactionType, "Trade"),
-        eq(cachedTransactions.optionType, "C")
-      )
-    )
+    .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionType, "Trade")))
     .orderBy(cachedTransactions.executedAt);
 
-  const assignmentData = assignments.map(a => {
-    const sym = a.underlyingSymbol || "Unknown";
-    const assignDate = a.executedAt || new Date(0);
-    // Find CC trades on same symbol AFTER assignment date
-    const ccAfter = ccTrades.filter(t => {
-      const action = t.action || t.transactionSubType || "";
-      return t.underlyingSymbol === sym &&
-        t.executedAt &&
-        t.executedAt > assignDate &&
-        isSTO(action);
-    });
-    const recoveredPremium = ccAfter.reduce((s, t) => s + parseMoney(t.value), 0);
-    // Assignment cost = value of stock assigned (abs value)
-    const assignmentCost = Math.abs(parseMoney(a.value));
+  const assignmentData: Array<{
+    symbol: string;
+    assignedAt: string;
+    assignmentCost: number;
+    recoveredPremium: number;
+    recoveryPct: number;
+    ccTradeCount: number;
+  }> = [];
 
-    return {
+  for (const asgn of assignments) {
+    const sym = asgn.underlyingSymbol || "Unknown";
+    const assignedAt = asgn.executedAt || new Date(0);
+    const assignmentCost = parseMoney(asgn.value) || 0;
+    const ccTrades = allTrades.filter(t => {
+      const action = t.action || t.transactionSubType || "";
+      return (
+        t.underlyingSymbol === sym &&
+        isSTO(action) &&
+        (t.optionType || "").toUpperCase() === "C" &&
+        (t.executedAt || new Date(0)) >= assignedAt
+      );
+    });
+    const recoveredPremium = ccTrades.reduce((s, t) => s + parseMoney(t.netValue || t.value), 0);
+    const recoveryPct = assignmentCost > 0 ? Math.round((recoveredPremium / assignmentCost) * 1000) / 10 : 0;
+    assignmentData.push({
       symbol: sym,
-      assignedAt: a.executedAt?.toISOString().split("T")[0] || "",
+      assignedAt: assignedAt.toISOString().split("T")[0],
       assignmentCost: Math.round(assignmentCost * 100) / 100,
       recoveredPremium: Math.round(recoveredPremium * 100) / 100,
-      recoveryPct: assignmentCost > 0 ? Math.round((recoveredPremium / assignmentCost) * 1000) / 10 : 0,
-      ccTradesAfter: ccAfter.length,
-    };
-  });
+      recoveryPct,
+      ccTradeCount: ccTrades.length,
+    });
+  }
 
-  const totalAssignments = assignments.length;
   const fullyRecovered = assignmentData.filter(a => a.recoveryPct >= 100).length;
+  const recoveryRate = assignmentData.length > 0
+    ? Math.round((fullyRecovered / assignmentData.length) * 1000) / 10
+    : 0;
 
   return {
-    totalAssignments,
+    totalAssignments: assignments.length,
     fullyRecovered,
-    recoveryRate: totalAssignments > 0 ? Math.round((fullyRecovered / totalAssignments) * 1000) / 10 : 0,
-    assignmentData: assignmentData.slice(0, 25),
+    recoveryRate,
+    assignmentData: assignmentData.slice(0, 20),
   };
 }
 
-// ─── Report 5: Expiration & Close Analysis ────────────────────────────────────
+// ─── Report 5: Expiration & Close Analysis ───────────────────────────────────
 
 async function getExpirationAnalysis(userId: number, from?: string, to?: string) {
   const db = await getDb();
@@ -428,69 +458,63 @@ async function getExpirationAnalysis(userId: number, from?: string, to?: string)
   const expirations = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        dateRangeWhere(userId, from, to),
-        eq(cachedTransactions.transactionSubType, "Expiration")
-      )
-    );
+    .where(and(dateRangeWhere(userId, from, to), eq(cachedTransactions.transactionSubType, "Expiration")));
 
-  const btcTrades = await db
+  const allRows = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        dateRangeWhere(userId, from, to),
-        eq(cachedTransactions.transactionType, "Trade"),
-        or(
-          eq(cachedTransactions.action, "Buy to Close"),
-          eq(cachedTransactions.action, "BUY_TO_CLOSE")
-        )
-      )
-    );
+    .where(dateRangeWhere(userId, from, to));
 
+  const btcRows = allRows.filter(t => isBTC(t.action || t.transactionSubType || ""));
   const expiredCount = expirations.length;
-  const closedEarlyCount = btcTrades.length;
+  const closedEarlyCount = btcRows.length;
   const total = expiredCount + closedEarlyCount;
+  const expiredPct = total > 0 ? Math.round((expiredCount / total) * 1000) / 10 : 0;
 
-  const btcCosts = btcTrades.map(t => parseMoney(t.value));
-  const avgBtcCost = btcCosts.length > 0 ? btcCosts.reduce((s, v) => s + v, 0) / btcCosts.length : 0;
-  const totalBtcCost = btcCosts.reduce((s, v) => s + v, 0);
+  const btcValues = btcRows.map(t => parseMoney(t.netValue || t.value)).filter(v => v > 0);
+  const avgBtcCost = btcValues.length > 0 ? btcValues.reduce((a, b) => a + b, 0) / btcValues.length : 0;
 
-  const byMonth: Record<string, { expired: number; closed: number; btcCost: number }> = {};
-  for (const t of expirations) {
-    const monthKey = t.executedAt
-      ? `${t.executedAt.getFullYear()}-${String(t.executedAt.getMonth() + 1).padStart(2, "0")}`
-      : "Unknown";
-    if (!byMonth[monthKey]) byMonth[monthKey] = { expired: 0, closed: 0, btcCost: 0 };
-    byMonth[monthKey].expired++;
+  const byMonth: Record<string, { expired: number; closed: number }> = {};
+  for (const e of expirations) {
+    if (!e.executedAt) continue;
+    const mk = `${e.executedAt.getFullYear()}-${String(e.executedAt.getMonth() + 1).padStart(2, "0")}`;
+    if (!byMonth[mk]) byMonth[mk] = { expired: 0, closed: 0 };
+    byMonth[mk].expired++;
   }
-  for (const t of btcTrades) {
-    const monthKey = t.executedAt
-      ? `${t.executedAt.getFullYear()}-${String(t.executedAt.getMonth() + 1).padStart(2, "0")}`
-      : "Unknown";
-    if (!byMonth[monthKey]) byMonth[monthKey] = { expired: 0, closed: 0, btcCost: 0 };
-    byMonth[monthKey].closed++;
-    byMonth[monthKey].btcCost += parseMoney(t.value);
+  for (const t of btcRows) {
+    if (!t.executedAt) continue;
+    const mk = `${t.executedAt.getFullYear()}-${String(t.executedAt.getMonth() + 1).padStart(2, "0")}`;
+    if (!byMonth[mk]) byMonth[mk] = { expired: 0, closed: 0 };
+    byMonth[mk].closed++;
   }
 
   const monthlyData = Object.entries(byMonth)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, data]) => ({
-      month,
-      expired: data.expired,
-      closed: data.closed,
-      btcCost: Math.round(data.btcCost * 100) / 100,
-    }));
+    .map(([month, data]) => ({ month, expired: data.expired, closed: data.closed }));
 
   return {
     expiredCount,
     closedEarlyCount,
     total,
-    expiredPct: total > 0 ? Math.round((expiredCount / total) * 1000) / 10 : 0,
+    expiredPct,
     avgBtcCost: Math.round(avgBtcCost * 100) / 100,
-    totalBtcCost: Math.round(totalBtcCost * 100) / 100,
     monthlyData,
+  };
+}
+
+// ─── Transaction Stats ────────────────────────────────────────────────────────
+
+async function getTransactionStats(userId: number) {
+  const db = await getDb();
+  if (!db) return { count: 0, earliest: null as string | null, latest: null as string | null };
+  const rows = await db.select().from(cachedTransactions).where(eq(cachedTransactions.userId, userId));
+  const dates = rows.map(r => r.executedAt).filter(Boolean) as Date[];
+  const minDate = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : null;
+  const maxDate = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : null;
+  return {
+    count: rows.length,
+    earliest: minDate?.toISOString() || null,
+    latest: maxDate?.toISOString() || null,
   };
 }
 
@@ -500,59 +524,52 @@ async function runAiQuery(userId: number, prompt: string) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-  const [countResult] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(cachedTransactions)
-    .where(eq(cachedTransactions.userId, userId));
-
-  // Get a broad sample: most recent 300 trade rows
-  const recentTrades = await db
+  const rows = await db
     .select()
     .from(cachedTransactions)
-    .where(
-      and(
-        eq(cachedTransactions.userId, userId),
-        eq(cachedTransactions.transactionType, "Trade")
-      )
-    )
+    .where(eq(cachedTransactions.userId, userId))
     .orderBy(desc(cachedTransactions.executedAt))
-    .limit(300);
+    .limit(500);
 
-  const dataSummary = recentTrades.map(t => ({
-    date: t.executedAt?.toISOString().split("T")[0],
-    action: t.action || t.transactionSubType,
-    symbol: t.underlyingSymbol,
-    optionType: t.optionType,
-    strike: t.strikePrice,
-    expires: t.expiresAt,
-    value: t.value,
-    net: t.netValue,
-    description: t.description,
+  const dateRange = rows.length > 0
+    ? `${rows[rows.length - 1].executedAt?.toISOString().split('T')[0]} to ${rows[0].executedAt?.toISOString().split('T')[0]}`
+    : 'N/A';
+  const underlyings = Array.from(new Set(rows.map(r => r.underlyingSymbol).filter(Boolean))).slice(0, 30);
+  const sampleRows = rows.slice(0, 50).map(r => ({
+    date: r.executedAt?.toISOString().split('T')[0],
+    action: r.action || r.transactionSubType,
+    symbol: r.symbol,
+    underlying: r.underlyingSymbol,
+    value: r.netValue || r.value,
+    optionType: r.optionType,
+    strike: r.strikePrice,
+    expires: r.expiresAt,
   }));
 
-  const systemPrompt = `You are a financial data analyst assistant for a retail options trader.
-The trader uses the Wheel strategy: selling Cash-Secured Puts (CSP), getting assigned stock, then selling Covered Calls (CC) until called away.
-They also trade PMCC (Poor Man's Covered Calls) and SPX spreads.
+  const systemPrompt = `You are a financial analyst for an options trader using the wheel strategy (CSP → assignment → CC). You have access to their Tastytrade transaction history.
 
-You have access to their recent transaction history (last 300 trade rows shown, ${countResult?.count || 0} total transactions).
-Each row has: date, action (Sell to Open / Buy to Close / Expiration / Assignment — also in SNAKE_CASE format), symbol, optionType (C/P), strike, expires, value (always positive — credits for sells, debits for buys), net (after fees), description.
+DATA SUMMARY:
+- Date range: ${dateRange}
+- Total transactions: ${rows.length}
+- Underlying symbols: ${underlyings.join(', ')}
 
-When answering questions:
-1. Analyze the data provided and give specific, data-driven answers with numbers.
-2. Return your response as a JSON object with this structure:
+SAMPLE RECENT TRANSACTIONS (last 50 of ${rows.length}):
+${JSON.stringify(sampleRows, null, 2)}
+
+Answer the question with specific numbers. Be concise and data-driven.
+Return a JSON response with these exact fields:
 {
-  "summary": "2-3 sentence plain English answer",
-  "chartType": "bar" | "line" | "pie" | "table" | "none",
-  "chartTitle": "Chart title",
-  "chartData": [],
-  "tableColumns": [],
-  "insight": "One key actionable insight or observation"
-}
-
-For chartData: bar/line use [{name, value}], pie uses [{name, value}], table uses [{col1, col2, ...}].
-For tableColumns: list the keys to display from chartData objects.
-
-Data: ${JSON.stringify(dataSummary)}`;
+  "summary": "2-3 sentence answer with specific numbers",
+  "chartType": "bar|line|pie|table|none",
+  "chartTitle": "descriptive chart title or empty string",
+  "chartData": [array of objects with consistent keys],
+  "xKey": "field name for x-axis or empty string",
+  "yKey": "field name for y-axis or empty string",
+  "nameKey": "field name for pie chart name or empty string",
+  "valueKey": "field name for pie chart value or empty string",
+  "tableColumns": ["col1", "col2"] or empty array,
+  "insight": "1 sentence key takeaway"
+}`;
 
   const response = await invokeLLM({
     messages: [
@@ -562,43 +579,43 @@ Data: ${JSON.stringify(dataSummary)}`;
     response_format: {
       type: "json_schema",
       json_schema: {
-        name: "report_response",
+        name: "ai_query_result",
         strict: true,
         schema: {
           type: "object",
           properties: {
             summary: { type: "string" },
-            chartType: { type: "string", enum: ["bar", "line", "pie", "table", "none"] },
+            chartType: { type: "string" },
             chartTitle: { type: "string" },
             chartData: { type: "array", items: { type: "object", additionalProperties: true } },
+            xKey: { type: "string" },
+            yKey: { type: "string" },
+            nameKey: { type: "string" },
+            valueKey: { type: "string" },
             tableColumns: { type: "array", items: { type: "string" } },
             insight: { type: "string" },
           },
-          required: ["summary", "chartType", "chartTitle", "chartData", "tableColumns", "insight"],
+          required: ["summary", "chartType", "chartTitle", "chartData", "xKey", "yKey", "nameKey", "valueKey", "tableColumns", "insight"],
           additionalProperties: false,
         },
       },
     },
   });
 
-  const content = response.choices?.[0]?.message?.content;
-  if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No AI response" });
-
+  const rawContent = response.choices[0]?.message?.content;
+  const content: string = typeof rawContent === 'string' ? rawContent : "{}";
   try {
-    return JSON.parse(content) as {
-      summary: string;
-      chartType: string;
-      chartTitle: string;
-      chartData: any[];
-      tableColumns: string[];
-      insight: string;
-    };
+    return JSON.parse(content);
   } catch {
     return {
-      summary: content,
+      summary: typeof content === 'string' ? content : '',
       chartType: "none",
       chartTitle: "",
       chartData: [],
+      xKey: "",
+      yKey: "",
+      nameKey: "",
+      valueKey: "",
       tableColumns: [],
       insight: "",
     };
@@ -608,100 +625,100 @@ Data: ${JSON.stringify(dataSummary)}`;
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export const reportingRouter = router({
-  // Standard reports
+  // Header stats
+  transactionStats: protectedProcedure.query(async ({ ctx }) => {
+    return getTransactionStats(ctx.user.id);
+  }),
+
+  // Report 1
   premiumIncome: protectedProcedure
-    .input(z.object({ from: z.string().optional(), to: z.string().optional() }))
-    .query(async ({ ctx, input }) => getPremiumIncome(ctx.user.id, input.from, input.to)),
+    .input(z.object({ from: z.string().optional(), to: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return getPremiumIncome(ctx.user.id, input?.from, input?.to);
+    }),
 
+  // Report 2
   winRate: protectedProcedure
-    .input(z.object({ from: z.string().optional(), to: z.string().optional() }))
-    .query(async ({ ctx, input }) => getWinRate(ctx.user.id, input.from, input.to)),
+    .input(z.object({ from: z.string().optional(), to: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return getWinRate(ctx.user.id, input?.from, input?.to);
+    }),
 
+  // Report 3
   capitalEfficiency: protectedProcedure
-    .input(z.object({ from: z.string().optional(), to: z.string().optional() }))
-    .query(async ({ ctx, input }) => getCapitalEfficiency(ctx.user.id, input.from, input.to)),
+    .input(z.object({ from: z.string().optional(), to: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return getCapitalEfficiency(ctx.user.id, input?.from, input?.to);
+    }),
 
+  // Report 4 — frontend calls this "assignmentTracker"
   assignmentTracker: protectedProcedure
-    .input(z.object({ from: z.string().optional(), to: z.string().optional() }))
-    .query(async ({ ctx, input }) => getAssignmentTracker(ctx.user.id, input.from, input.to)),
+    .input(z.object({ from: z.string().optional(), to: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return getAssignmentTracker(ctx.user.id, input?.from, input?.to);
+    }),
 
+  // Report 5
   expirationAnalysis: protectedProcedure
-    .input(z.object({ from: z.string().optional(), to: z.string().optional() }))
-    .query(async ({ ctx, input }) => getExpirationAnalysis(ctx.user.id, input.from, input.to)),
+    .input(z.object({ from: z.string().optional(), to: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return getExpirationAnalysis(ctx.user.id, input?.from, input?.to);
+    }),
 
-  // AI query
+  // AI chat — frontend calls this "askQuestion"
   askQuestion: protectedProcedure
-    .input(z.object({ prompt: z.string().min(1).max(500) }))
-    .mutation(async ({ ctx, input }) => runAiQuery(ctx.user.id, input.prompt)),
+    .input(z.object({ prompt: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return runAiQuery(ctx.user.id, input.prompt);
+    }),
 
-  // Pinned reports CRUD
+  // Pinned reports — frontend calls "listPinned", "pinReport", "unpinReport"
   listPinned: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];
-    return db
-      .select()
-      .from(pinnedReports)
-      .where(and(eq(pinnedReports.userId, ctx.user.id), eq(pinnedReports.isVisible, true)))
-      .orderBy(pinnedReports.sortOrder, pinnedReports.createdAt);
+    return db.select().from(pinnedReports).where(eq(pinnedReports.userId, ctx.user.id)).orderBy(desc(pinnedReports.createdAt));
   }),
 
   pinReport: protectedProcedure
     .input(z.object({
-      title: z.string().min(1).max(255),
-      prompt: z.string().min(1),
-      reportType: z.enum(["standard", "ai"]).default("ai"),
+      title: z.string(),
+      prompt: z.string(),
+      reportType: z.string().optional(),
       reportKey: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const [result] = await db.insert(pinnedReports).values({
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const reportType: 'standard' | 'ai' = input.reportType === 'standard' ? 'standard' : 'ai';
+      await db.insert(pinnedReports).values({
         userId: ctx.user.id,
         title: input.title,
         prompt: input.prompt,
-        reportType: input.reportType,
-        reportKey: input.reportKey,
+        reportType,
+        reportKey: input.reportKey || null,
         sortOrder: 0,
         isVisible: true,
       });
-      return { id: (result as any).insertId };
+      return { success: true };
     }),
 
   unpinReport: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      await db
-        .delete(pinnedReports)
-        .where(and(eq(pinnedReports.id, input.id), eq(pinnedReports.userId, ctx.user.id)));
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(pinnedReports).where(and(eq(pinnedReports.id, input.id), eq(pinnedReports.userId, ctx.user.id)));
       return { success: true };
     }),
 
-  // Incremental sync: pull new transactions from Tastytrade API since last DB record
+  // Sync transactions from Tastytrade
   syncTransactions: protectedProcedure.mutation(async ({ ctx }) => {
     try {
       const { syncPortfolio } = await import('./portfolio-sync');
-      const result = await syncPortfolio(ctx.user.id, false);
-      return { success: true, message: 'Sync complete', result };
+      await syncPortfolio(ctx.user.id);
+      return { success: true, message: 'Transactions synced from Tastytrade.' };
     } catch (err: any) {
-      console.error('[Reporting] syncTransactions error:', err.message);
-      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message || 'Sync failed' });
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message || 'Sync failed' });
     }
-  }),
-
-  // Transaction count for sync status display
-  transactionStats: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return null;
-    const [result] = await db
-      .select({
-        count: sql<number>`count(*)`,
-        earliest: sql<string>`MIN(executed_at)`,
-        latest: sql<string>`MAX(executed_at)`,
-      })
-      .from(cachedTransactions)
-      .where(eq(cachedTransactions.userId, ctx.user.id));
-    return result;
   }),
 });

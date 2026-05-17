@@ -124,17 +124,8 @@ function InlineChart({ chartType, chartData, chartTitle, tableColumns }: {
               cx="50%"
               cy="50%"
               outerRadius={80}
-              label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }) => {
-                const RADIAN = Math.PI / 180;
-                const radius = innerRadius + (outerRadius - innerRadius) * 1.35;
-                const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                return percent > 0.04 ? (
-                  <text x={x} y={y} fill="#e2e8f0" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={11}>
-                    {`${name} ${(percent * 100).toFixed(0)}%`}
-                  </text>
-                ) : null;
-              }}
+              label={({ name, percent }) => percent > 0.04 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}
+              labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
             >
               {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
             </Pie>
@@ -201,26 +192,17 @@ function PremiumIncomeReport({ range }: { range: DateRange }) {
       {data.strategyData.length > 0 && (
         <div>
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">By Strategy</p>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie
                 data={data.strategyData}
                 dataKey="value"
                 nameKey="name"
                 cx="50%"
-                cy="50%"
-                outerRadius={70}
-                label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }) => {
-                  const RADIAN = Math.PI / 180;
-                  const radius = innerRadius + (outerRadius - innerRadius) * 1.5;
-                  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                  return percent > 0.04 ? (
-                    <text x={x} y={y} fill="#e2e8f0" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={11}>
-                      {`${name} ${(percent * 100).toFixed(0)}%`}
-                    </text>
-                  ) : null;
-                }}
+                cy="45%"
+                outerRadius={75}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
               >
                 {data.strategyData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
