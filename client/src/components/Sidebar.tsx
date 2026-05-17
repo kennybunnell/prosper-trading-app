@@ -46,7 +46,7 @@ const ALL_NAV_ITEMS = [
   { path: '/csp', name: 'Cash-Secured Puts' },
   { path: '/iron-condor', name: 'Spreads / Condors' },
   { path: '/pmcc', name: 'PMCC Dashboard' },
-  { path: '/performance', name: 'Performance' },
+  { path: '/performance', name: 'Reporting' },
   { path: '/settings', name: 'Settings' },
   { path: '/admin', name: 'Admin Panel' },
   { path: '/screener', name: 'Screener' },
@@ -185,7 +185,7 @@ export function Sidebar({ className }: SidebarProps) {
 
   // Secondary nav items (below Trading Strategies)
   const secondaryNavItems = [
-    { name: 'Performance', path: '/performance', icon: BarChart3 },
+    { name: 'Reporting', path: '/performance', icon: BarChart3 },
   ];
 
   const isIncomeActive = incomeStrategyItems.some(i => location === i.path);

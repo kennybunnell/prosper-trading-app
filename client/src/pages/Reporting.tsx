@@ -24,6 +24,7 @@ import {
   Pin, PinOff, Send, Sparkles, ChevronDown, ChevronUp, BarChart2,
   AlertCircle, CheckCircle2, Loader2, X
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // ─── Color palette ────────────────────────────────────────────────────────────
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#ec4899"];
@@ -479,10 +480,12 @@ export default function Reporting() {
     }
   }
 
+  const [activeTab, setActiveTab] = useState<"reports" | "ask">("reports");
+
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+        <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
           {/* ── Header ── */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -501,23 +504,46 @@ export default function Reporting() {
                 ) : "Loading transaction data..."}
               </p>
             </div>
-            {/* Date range selector */}
-            <div className="flex gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
-              {ranges.map(r => (
-                <button
-                  key={r.value}
-                  onClick={() => setRange(r.value)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${range === r.value ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white hover:bg-white/10"}`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
+            {/* Date range selector — only shown on Reports tab */}
+            {activeTab === "reports" && (
+              <div className="flex gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
+                {ranges.map(r => (
+                  <button
+                    key={r.value}
+                    onClick={() => setRange(r.value)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${range === r.value ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white hover:bg-white/10"}`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* ── Section 1: Standard Reports ── */}
+          {/* ── Tabs ── */}
+          <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "reports" | "ask")}>
+            <TabsList className="bg-white/5 border border-white/10 p-1 h-auto">
+              <TabsTrigger
+                value="reports"
+                className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-slate-400 px-5 py-2 text-sm font-medium flex items-center gap-2"
+              >
+                <Pin className="w-3.5 h-3.5" />
+                Standard Reports
+              </TabsTrigger>
+              <TabsTrigger
+                value="ask"
+                className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-slate-400 px-5 py-2 text-sm font-medium flex items-center gap-2"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Ask a Question
+                <Badge variant="secondary" className="bg-violet-500/20 text-violet-300 text-xs border border-violet-500/30 ml-1">AI</Badge>
+              </TabsTrigger>
+            </TabsList>
+
+          {/* ── Tab 1: Standard Reports ── */}
+          <TabsContent value="reports" className="mt-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-slate-200 mb-4 flex items-center gap-2">
               <Pin className="w-4 h-4 text-emerald-400" />
               Standard Reports
               <Badge variant="secondary" className="bg-white/10 text-slate-300 text-xs">{STANDARD_REPORTS.length}</Badge>
@@ -565,8 +591,10 @@ export default function Reporting() {
               })}
             </div>
           </div>
+          </TabsContent>
 
-          {/* ── Section 2: AI Ask a Question ── */}
+          {/* ── Tab 2: Ask a Question ── */}
+          <TabsContent value="ask" className="mt-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-violet-400" />
@@ -678,6 +706,9 @@ export default function Reporting() {
               AI has access to all {stats ? Number(stats.count).toLocaleString() : "your"} transactions. Ask about trends, comparisons, or specific strategies.
             </p>
           </div>
+          </TabsContent>
+
+          </Tabs>
 
         </div>
       </div>

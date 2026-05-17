@@ -129,3 +129,57 @@ describe("isInRange", () => {
     expect(isInRange(midday, undefined, "2025-12-31")).toBe(true);
   });
 });
+
+// ─── Normalized action matching (handles both API and CSV formats) ────────────
+function normalizeAction(action: string | null | undefined): string {
+  if (!action) return "";
+  return action.replace(/_/g, " ").toLowerCase().trim();
+}
+function isSTO(action: string | null | undefined): boolean {
+  return normalizeAction(action) === "sell to open";
+}
+function isBTC(action: string | null | undefined): boolean {
+  return normalizeAction(action) === "buy to close";
+}
+
+describe("normalizeAction", () => {
+  it("converts SELL_TO_OPEN (CSV format) to 'sell to open'", () => {
+    expect(normalizeAction("SELL_TO_OPEN")).toBe("sell to open");
+  });
+  it("converts 'Sell to Open' (API format) to 'sell to open'", () => {
+    expect(normalizeAction("Sell to Open")).toBe("sell to open");
+  });
+  it("converts BUY_TO_CLOSE to 'buy to close'", () => {
+    expect(normalizeAction("BUY_TO_CLOSE")).toBe("buy to close");
+  });
+  it("returns empty string for null", () => {
+    expect(normalizeAction(null)).toBe("");
+  });
+});
+
+describe("isSTO", () => {
+  it("matches CSV format SELL_TO_OPEN", () => {
+    expect(isSTO("SELL_TO_OPEN")).toBe(true);
+  });
+  it("matches API format 'Sell to Open'", () => {
+    expect(isSTO("Sell to Open")).toBe(true);
+  });
+  it("does not match BUY_TO_CLOSE", () => {
+    expect(isSTO("BUY_TO_CLOSE")).toBe(false);
+  });
+  it("does not match null", () => {
+    expect(isSTO(null)).toBe(false);
+  });
+});
+
+describe("isBTC", () => {
+  it("matches CSV format BUY_TO_CLOSE", () => {
+    expect(isBTC("BUY_TO_CLOSE")).toBe(true);
+  });
+  it("matches API format 'Buy to Close'", () => {
+    expect(isBTC("Buy to Close")).toBe(true);
+  });
+  it("does not match SELL_TO_OPEN", () => {
+    expect(isBTC("SELL_TO_OPEN")).toBe(false);
+  });
+});
