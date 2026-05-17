@@ -973,7 +973,70 @@ export default function AutoCloseStep() {
                       </span>
                     </td>
 
-                    {/* ── Roll Urgency Score ───────────────────────────── */}
+                    {/* ── Profit Target % picker ───────────────────────── */}
+                    <td className="px-3 py-3 text-center">
+                      <Select
+                        value={String(bracket.profitTargetPct)}
+                        onValueChange={(v) =>
+                          updateBracket(rowKey, { profitTargetPct: parseInt(v) as ProfitTargetPct }, pos)
+                        }
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-orange-500/30 text-orange-300 mx-auto">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-700">
+                          <SelectItem value="25">25%</SelectItem>
+                          <SelectItem value="50">50% ★</SelectItem>
+                          <SelectItem value="75">75%</SelectItem>
+                          <SelectItem value="90">90%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+
+                    {/* ── Stop Loss % picker ───────────────────────────── */}
+                    <td className="px-3 py-3 text-center">
+                      <Select
+                        value={bracket.stopLossPct == null ? 'off' : String(bracket.stopLossPct)}
+                        onValueChange={(v) =>
+                          updateBracket(rowKey, { stopLossPct: v === 'off' ? null : parseInt(v) }, pos)
+                        }
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-red-500/30 text-red-300 mx-auto">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-700">
+                          {STOP_LOSS_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value ?? 'off'} value={opt.value == null ? 'off' : String(opt.value)}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+
+                    {/* ── DTE Floor picker ─────────────────────────────── */}
+                    <td className="px-3 py-3 text-center">
+                      <Select
+                        value={bracket.dteFloor == null ? 'off' : String(bracket.dteFloor)}
+                        onValueChange={(v) =>
+                          updateBracket(rowKey, { dteFloor: v === 'off' ? null : parseInt(v) }, pos)
+                        }
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-yellow-500/30 text-yellow-300 mx-auto">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-700">
+                          {DTE_FLOOR_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value ?? 'off'} value={opt.value == null ? 'off' : String(opt.value)}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>                    {/* ── Roll Urgency Score ───────────────────────────── */}
                     <td className="px-2 py-3 text-center">
                       {pos.rollScore != null ? (
                         <TooltipProvider delayDuration={100}>
@@ -1051,72 +1114,7 @@ export default function AutoCloseStep() {
                       )}
                     </td>
 
-                    {/* ── Profit Target % picker ───────────────────────── */}
-                    <td className="px-3 py-3 text-center">
-                      <Select
-                        value={String(bracket.profitTargetPct)}
-                        onValueChange={(v) =>
-                          updateBracket(rowKey, { profitTargetPct: parseInt(v) as ProfitTargetPct }, pos)
-                        }
-                        disabled={isPending}
-                      >
-                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-orange-500/30 text-orange-300 mx-auto">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-900 border-gray-700">
-                          <SelectItem value="25">25%</SelectItem>
-                          <SelectItem value="50">50% ★</SelectItem>
-                          <SelectItem value="75">75%</SelectItem>
-                          <SelectItem value="90">90%</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-
-                    {/* ── Stop Loss % picker ───────────────────────────── */}
-                    <td className="px-3 py-3 text-center">
-                      <Select
-                        value={bracket.stopLossPct == null ? 'off' : String(bracket.stopLossPct)}
-                        onValueChange={(v) =>
-                          updateBracket(rowKey, { stopLossPct: v === 'off' ? null : parseInt(v) }, pos)
-                        }
-                        disabled={isPending}
-                      >
-                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-red-500/30 text-red-300 mx-auto">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-900 border-gray-700">
-                          {STOP_LOSS_OPTIONS.map(opt => (
-                            <SelectItem key={opt.value ?? 'off'} value={opt.value == null ? 'off' : String(opt.value)}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
-
-                    {/* ── DTE Floor picker ─────────────────────────────── */}
-                    <td className="px-3 py-3 text-center">
-                      <Select
-                        value={bracket.dteFloor == null ? 'off' : String(bracket.dteFloor)}
-                        onValueChange={(v) =>
-                          updateBracket(rowKey, { dteFloor: v === 'off' ? null : parseInt(v) }, pos)
-                        }
-                        disabled={isPending}
-                      >
-                        <SelectTrigger className="w-[82px] h-7 text-xs bg-gray-800 border-yellow-500/30 text-yellow-300 mx-auto">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-900 border-gray-700">
-                          {DTE_FLOOR_OPTIONS.map(opt => (
-                            <SelectItem key={opt.value ?? 'off'} value={opt.value == null ? 'off' : String(opt.value)}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
-
-                    {/* ── Opt-in / Opt-out action ──────────────────────── */}
+                    {/* ── Opt-in / Opt-out action ────────────────────────── */}
                     <td className="px-3 py-3 text-center">
                       {/* Roll button — always available */}
                       <div className="flex flex-col items-center gap-1.5">
