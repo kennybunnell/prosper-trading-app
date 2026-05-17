@@ -668,8 +668,10 @@ export const rollsRouter = router({
           expiration: input.expirationDate,
           quantity: input.quantity || 1, // Pass actual contract count for per-contract netCredit math
           costBasis: input.openPremium.toString(),
-          currentValue: input.currentValue.toString(),
-          unrealizedPnL: (input.openPremium - input.currentValue).toString(),
+          // rollDetection.ts expects current_value in TOTAL DOLLARS (per-share × qty × 100)
+          // input.currentValue is per-share from Tradier, so scale it up
+          currentValue: (input.currentValue * (input.quantity || 1) * 100).toString(),
+          unrealizedPnL: ((input.openPremium - input.currentValue) * (input.quantity || 1) * 100).toString(),
           realizedPnL: '0',
           status: 'open',
           spreadType: null,
@@ -686,7 +688,7 @@ export const rollsRouter = router({
             input.strikePrice
           ),
           open_premium: input.openPremium,
-          current_value: input.currentValue,
+          current_value: input.currentValue * (input.quantity || 1) * 100, // total dollars for rollDetection.ts
           expiration_date: input.expirationDate,
           strike_price: input.strikePrice,
           delta: 0,

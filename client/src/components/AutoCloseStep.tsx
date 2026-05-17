@@ -23,7 +23,7 @@ import {
   Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock,
   AlertTriangle, Eye, EyeOff, BellRing, BellOff, ShieldAlert, Settings2, Save,
   CheckSquare, X, ArrowLeftRight, TrendingUp, TrendingDown, Minus, Star, Info,
-  ChevronUp, ChevronDown, ChevronsUpDown
+  ChevronUp, ChevronDown, ChevronsUpDown, Shield, Target
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
@@ -265,6 +265,51 @@ export default function AutoCloseStep() {
     });
     return best >= 0 ? best : null;
   }, [rollCandidatesQuery.data]);
+
+  // Best safety roll: furthest OTM strike (highest for CC, lowest for CSP) with net credit > 0
+  const bestSafetyIdx = useMemo(() => {
+    const candidates = rollCandidatesQuery.data?.candidates;
+    if (!candidates || candidates.length === 0 || !rollTarget) return null;
+    const isCC = rollTarget.optionType === 'C';
+    let best = -1;
+    let bestStrike = isCC ? -Infinity : Infinity;
+    candidates.forEach((c: { action: string; netCredit?: number | null; strike?: number }, i: number) => {
+      if (c.action !== 'roll' || (c.netCredit ?? 0) <= 0 || c.strike == null) return;
+      if (isCC && c.strike > bestStrike) { bestStrike = c.strike; best = i; }
+      if (!isCC && c.strike < bestStrike) { bestStrike = c.strike; best = i; }
+    });
+    return best >= 0 && best !== bestCreditIdx ? best : null;
+  }, [rollCandidatesQuery.data, rollTarget, bestCreditIdx]);
+
+  // Best recovery roll: for deep ITM positions, the row that moves strike closest to ATM with net credit
+  // CC: highest strike with credit (moving up toward OTM); CSP: lowest strike with credit (moving down toward OTM)
+  // Only shown when position is > 5% ITM
+  const bestRecoveryIdx = useMemo(() => {
+    const candidates = rollCandidatesQuery.data?.candidates;
+    if (!candidates || candidates.length === 0 || !rollTarget) return null;
+    const isCC = rollTarget.optionType === 'C';
+    const origStrike = parseFloat(rollTarget.strike ?? '0');
+    // Only activate recovery indicator when position is meaningfully ITM (strike moved against us)
+    // For CC: ITM when underlying > strike; for CSP: ITM when underlying < strike
+    // We approximate ITM depth from the candidates' direction labels
+    const hasITMCandidates = candidates.some((c: { action: string; strike?: number }) => {
+      if (c.action !== 'roll' || c.strike == null) return false;
+      return isCC ? c.strike > origStrike : c.strike < origStrike;
+    });
+    if (!hasITMCandidates) return null; // Position is OTM — no recovery needed
+    // Among credit rolls, find the one closest to ATM (smallest distance from current underlying)
+    // We use strike direction: for CC recovery = highest strike with credit; for CSP = lowest strike with credit
+    let best = -1;
+    let bestStrike = isCC ? -Infinity : Infinity;
+    candidates.forEach((c: { action: string; netCredit?: number | null; strike?: number }, i: number) => {
+      if (c.action !== 'roll' || (c.netCredit ?? 0) <= 0 || c.strike == null) return;
+      // Recovery = moving toward OTM (up for CC, down for CSP) but not the same as safety (which is furthest)
+      if (isCC && c.strike > origStrike && c.strike > bestStrike) { bestStrike = c.strike; best = i; }
+      if (!isCC && c.strike < origStrike && c.strike < bestStrike) { bestStrike = c.strike; best = i; }
+    });
+    if (best < 0 || best === bestCreditIdx || best === bestSafetyIdx) return null;
+    return best;
+  }, [rollCandidatesQuery.data, rollTarget, bestCreditIdx, bestSafetyIdx]);
 
   const [bulkPending, setBulkPending] = useState(false);
   const bulkSetTargetsMut = trpc.autoClose.bulkSetTargets.useMutation({
@@ -1361,12 +1406,36 @@ export default function AutoCloseStep() {
           {rollCandidatesQuery.data?.candidates && (
             <div className="space-y-4">
               {/* Legend */}
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                 <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-400" /> Best net credit</span>
+                <span className="flex items-center gap-1"><Shield className="h-3 w-3 text-blue-400" /> Best safety roll</span>
+                <span className="flex items-center gap-1"><Target className="h-3 w-3 text-emerald-400" /> Best recovery roll</span>
                 <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3 text-blue-400" /> Strike up (OTM)</span>
                 <span className="flex items-center gap-1"><Minus className="h-3 w-3 text-gray-400" /> Same strike</span>
                 <span className="flex items-center gap-1"><TrendingDown className="h-3 w-3 text-orange-400" /> Strike down (ITM)</span>
               </div>
+
+              {/* No-credit warning banner */}
+              {(() => {
+                const candidates = rollCandidatesQuery.data?.candidates ?? [];
+                const hasCreditRoll = candidates.some((c: { action: string; netCredit?: number | null }) => c.action === 'roll' && (c.netCredit ?? 0) > 0);
+                if (hasCreditRoll) return null;
+                const isCC = rollTarget?.optionType === 'C';
+                return (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-300 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-semibold text-amber-200 mb-0.5">No credit rolls available</div>
+                      <div className="text-amber-400/80">
+                        This position is too deep ITM to roll for a credit at any available expiration.
+                        {isCC
+                          ? ' Consider closing the position now to limit further loss, or accepting assignment (the stock will be called away at your strike price).'
+                          : ' Consider closing the position now to limit further loss, or accepting assignment (you will be obligated to buy the stock at your strike price).'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Table */}
               <div className="overflow-x-auto rounded-lg border border-gray-800">
@@ -1388,6 +1457,8 @@ export default function AutoCloseStep() {
                   <tbody>
                     {rollCandidatesQuery.data!.candidates.map((c: { action: string; expiration?: string; dte?: number; strike?: number; netCredit?: number | null; delta?: number | null; annualizedReturn?: number | null; newPremium?: number | null; score: number; description: string }, i: number) => {
                       const isBest = i === bestCreditIdx;
+                      const isSafety = i === bestSafetyIdx;
+                      const isRecovery = i === bestRecoveryIdx;
                       const isSelected = i === selectedRollIdx;
                       // c.netCredit from rollDetection.ts is GRAND TOTAL dollars (per-share × 100 × qty)
                       const netCreditGrandTotal = c.netCredit ?? 0;
@@ -1424,12 +1495,18 @@ export default function AutoCloseStep() {
                               ? 'bg-purple-500/20 border-l-2 border-l-purple-400'
                               : isBest
                                 ? 'bg-amber-500/10 hover:bg-amber-500/15'
-                                : 'hover:bg-gray-800/30'
+                                : isSafety
+                                  ? 'bg-blue-500/10 hover:bg-blue-500/15'
+                                  : isRecovery
+                                    ? 'bg-emerald-500/10 hover:bg-emerald-500/15'
+                                    : 'hover:bg-gray-800/30'
                           }`}
                         >
                           <td className="px-3 py-2.5">
                             {isBest && <Star className="h-3.5 w-3.5 text-amber-400" />}
-                            {isSelected && !isBest && <CheckCircle className="h-3.5 w-3.5 text-purple-400" />}
+                            {isSafety && <Shield className="h-3.5 w-3.5 text-blue-400" />}
+                            {isRecovery && <Target className="h-3.5 w-3.5 text-emerald-400" />}
+                            {isSelected && !isBest && !isSafety && !isRecovery && <CheckCircle className="h-3.5 w-3.5 text-purple-400" />}
                           </td>
                           <td className="px-3 py-2.5 text-gray-200 font-medium">
                             {c.expiration ? new Date(c.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : rollTarget?.expiration}

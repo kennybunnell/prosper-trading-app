@@ -10050,3 +10050,11 @@ ROC Fix Mar 18 2026
 - [x] Add Roll Score column to Auto-Close / Roll monitor table (color-coded pill: green/yellow/orange/red)
 - [x] Add hover tooltip with per-factor breakdown (progress bars + detail text for all 7 factors)
 - [x] TypeScript clean (EXIT:0)
+
+## Roll Dialog Improvements (May 17, 2026)
+- [x] Fix net credit per-share math in Roll dialog (routers-rolls.ts currentValue scaling bug — was treating per-share price as total dollars)
+- [x] Add Safety Roll indicator (blue shield) — marks furthest OTM strike with net credit (reduce assignment risk)
+- [x] Add Recovery Roll indicator (green target) — marks best incremental step toward OTM for deep ITM positions
+- [x] Add no-credit warning banner for positions too deep ITM to roll for a credit (with CC/CSP-specific close/assignment guidance)
+- [x] Roll Urgency Score composite column in Auto-Close / Roll monitor (0-100 score with delta, gamma, theta, ITM depth, DTE, profit captured; color-coded pill + hover tooltip breakdown)
+- [x] Sortable column headers on all Auto-Close / Roll monitor columns (defaults to Roll Score descending)
